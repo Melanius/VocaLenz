@@ -5,6 +5,56 @@
 
 ---
 
+## 📊 개발 진행 상황
+
+### ✅ Phase 1: 프로젝트 초기화 및 기본 구조 (완료)
+**완료 일시:** 2026-02-12 09:10
+
+#### Step 1.1: Next.js 프로젝트 생성 ✅
+- Next.js 15.5.12 설치 완료
+- TypeScript, Tailwind CSS, ESLint 설정 완료
+- src/ 디렉토리 구조 생성
+- 커밋: `2aeb700 - chore: initialize Next.js project with TypeScript and Tailwind`
+
+#### Step 1.2: shadcn/ui 설치 및 설정 ✅
+- shadcn/ui 초기화 (new-york 스타일)
+- Button, Input, Card 컴포넌트 설치
+- Tailwind design tokens 설정
+- src/lib/utils.ts 생성
+- 커밋: `f1de609 - feat: setup shadcn/ui with basic components`
+
+#### Step 1.3: Supabase 클라이언트 설정 ✅
+- @supabase/supabase-js, @supabase/ssr 설치
+- src/lib/supabase/client.ts (브라우저용)
+- src/lib/supabase/server.ts (서버용)
+- src/lib/supabase/middleware.ts (미들웨어용)
+- src/middleware.ts (루트 미들웨어)
+- 커밋: `f5559db - feat: setup Supabase client and authentication`
+
+#### Step 1.4: TypeScript 타입 정의 ✅
+- src/types/database.ts (Database 타입)
+- src/types/api.ts (API 응답 타입)
+- src/types/index.ts (공통 타입)
+- 9개 테이블에 대한 완전한 타입 정의
+- 커밋: `ab52bfb - feat: add TypeScript type definitions`
+
+#### Step 1.5: 글로벌 레이아웃 및 디자인 시스템 ✅
+- src/components/layout/header.tsx (네비게이션)
+- src/components/layout/footer.tsx
+- src/components/providers/theme-provider.tsx (다크 모드)
+- src/app/layout.tsx 업데이트 (통합 레이아웃)
+- 홈페이지 리디자인 (Hero + Features 섹션)
+- 커밋: `b6cf047 - feat: setup global layout and design system`
+
+**Phase 1 총 커밋:** 4개
+**설치된 주요 패키지:**
+- next@15.5.12, react@19.2.4
+- @supabase/supabase-js@2.95.3, @supabase/ssr@0.8.0
+- tailwindcss@3.4.19
+- shadcn/ui 컴포넌트 (button, input, card)
+
+---
+
 ## 기술 스택 요약
 
 | 영역 | 기술 |

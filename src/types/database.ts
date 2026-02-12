@@ -1,4 +1,4 @@
-// Database types based on Supabase schema
+// Database types based on Supabase schema v1.7
 
 export type Json =
   | string
@@ -8,293 +8,159 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
-export interface Database {
-  public: {
-    Tables: {
-      users: {
-        Row: {
-          id: string
-          email: string
-          name: string | null
-          avatar_url: string | null
-          created_at: string
-          last_login_at: string | null
-        }
-        Insert: {
-          id: string
-          email: string
-          name?: string | null
-          avatar_url?: string | null
-          created_at?: string
-          last_login_at?: string | null
-        }
-        Update: {
-          id?: string
-          email?: string
-          name?: string | null
-          avatar_url?: string | null
-          created_at?: string
-          last_login_at?: string | null
-        }
-      }
-      words: {
-        Row: {
-          id: string
-          word: string
-          definition: string
-          example_sentence: string | null
-          pronunciation: string | null
-          part_of_speech: string | null
-          difficulty_level: number
-          search_count: number
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          word: string
-          definition: string
-          example_sentence?: string | null
-          pronunciation?: string | null
-          part_of_speech?: string | null
-          difficulty_level?: number
-          search_count?: number
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          word?: string
-          definition?: string
-          example_sentence?: string | null
-          pronunciation?: string | null
-          part_of_speech?: string | null
-          difficulty_level?: number
-          search_count?: number
-          created_at?: string
-          updated_at?: string
-        }
-      }
-      user_word_history: {
-        Row: {
-          id: string
-          user_id: string
-          word_id: string
-          interaction_type: 'search' | 'quiz' | 'study' | 'chat'
-          interaction_metadata: Json | null
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          word_id: string
-          interaction_type: 'search' | 'quiz' | 'study' | 'chat'
-          interaction_metadata?: Json | null
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          word_id?: string
-          interaction_type?: 'search' | 'quiz' | 'study' | 'chat'
-          interaction_metadata?: Json | null
-          created_at?: string
-        }
-      }
-      user_vocabulary: {
-        Row: {
-          id: string
-          user_id: string
-          word_id: string
-          memorization_level: number
-          last_reviewed_at: string | null
-          review_count: number
-          is_favorite: boolean
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          word_id: string
-          memorization_level?: number
-          last_reviewed_at?: string | null
-          review_count?: number
-          is_favorite?: boolean
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          word_id?: string
-          memorization_level?: number
-          last_reviewed_at?: string | null
-          review_count?: number
-          is_favorite?: boolean
-          created_at?: string
-          updated_at?: string
-        }
-      }
-      user_scores: {
-        Row: {
-          id: string
-          user_id: string
-          quiz_type: string
-          score: number
-          total_questions: number
-          time_taken_seconds: number | null
-          quiz_metadata: Json | null
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          quiz_type: string
-          score: number
-          total_questions: number
-          time_taken_seconds?: number | null
-          quiz_metadata?: Json | null
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          quiz_type?: string
-          score?: number
-          total_questions?: number
-          time_taken_seconds?: number | null
-          quiz_metadata?: Json | null
-          created_at?: string
-        }
-      }
-      search_logs: {
-        Row: {
-          id: string
-          user_id: string | null
-          search_query: string
-          result_found: boolean
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          user_id?: string | null
-          search_query: string
-          result_found: boolean
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          user_id?: string | null
-          search_query?: string
-          result_found?: boolean
-          created_at?: string
-        }
-      }
-      access_logs: {
-        Row: {
-          id: string
-          user_id: string | null
-          action: string
-          ip_address: string | null
-          user_agent: string | null
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          user_id?: string | null
-          action: string
-          ip_address?: string | null
-          user_agent?: string | null
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          user_id?: string | null
-          action?: string
-          ip_address?: string | null
-          user_agent?: string | null
-          created_at?: string
-        }
-      }
-      failed_searches: {
-        Row: {
-          id: string
-          user_id: string | null
-          search_query: string
-          failure_count: number
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          user_id?: string | null
-          search_query: string
-          failure_count?: number
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          user_id?: string | null
-          search_query?: string
-          failure_count?: number
-          created_at?: string
-          updated_at?: string
-        }
-      }
-      word_reports: {
-        Row: {
-          id: string
-          word_id: string
-          user_id: string
-          report_type: 'incorrect_definition' | 'incorrect_example' | 'other'
-          description: string | null
-          status: 'pending' | 'reviewed' | 'resolved'
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          word_id: string
-          user_id: string
-          report_type: 'incorrect_definition' | 'incorrect_example' | 'other'
-          description?: string | null
-          status?: 'pending' | 'reviewed' | 'resolved'
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          word_id?: string
-          user_id?: string
-          report_type?: 'incorrect_definition' | 'incorrect_example' | 'other'
-          description?: string | null
-          status?: 'pending' | 'reviewed' | 'resolved'
-          created_at?: string
-          updated_at?: string
-        }
-      }
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      [_ in never]: never
-    }
-    Enums: {
-      [_ in never]: never
-    }
-  }
+// v1.7: 단어 카드 표시 필드
+export type WordCardField =
+  | 'description'
+  | 'description_en'
+  | 'image_text'
+  | 'teps_point'
+  | 'synonyms'
+  | 'antonyms'
+  | 'paraphrasing'
+  | 'comparisons'
+  | 'example'
+
+// v1.7: 단어 카드 표시 설정
+export interface DisplayPreferences {
+  visibleFields: WordCardField[]    // 사용자가 선택한 표시 필드
+  fieldOrder: WordCardField[]       // 필드 표시 순서
+  searchMode: 1 | 2 | 3 | 4        // 동시 검색 단어 수
 }
 
-// Type helpers for easier access
-export type User = Database['public']['Tables']['users']['Row']
-export type Word = Database['public']['Tables']['words']['Row']
-export type UserWordHistory = Database['public']['Tables']['user_word_history']['Row']
-export type UserVocabulary = Database['public']['Tables']['user_vocabulary']['Row']
-export type UserScore = Database['public']['Tables']['user_scores']['Row']
-export type SearchLog = Database['public']['Tables']['search_logs']['Row']
-export type AccessLog = Database['public']['Tables']['access_logs']['Row']
-export type FailedSearch = Database['public']['Tables']['failed_searches']['Row']
-export type WordReport = Database['public']['Tables']['word_reports']['Row']
+export interface Word {
+  id: string
+  word: string
+  exam_type: string
+  part_of_speech: string | null
+  pronunciation: string | null
+  image_text: string | null
+  description: string | null
+  description_en: string | null        // v1.7: 영어 설명 (영영 사전)
+  teps_point: string | null
+  synonyms: string[]
+  antonyms: string[]
+  comparisons: string[]
+  paraphrasing: string[]
+  example_sentence: string | null
+  example_translation: string | null
+  difficulty_level: number
+  search_count: number
+  created_at: string
+  updated_at: string
+}
+
+export interface UserProfile {
+  id: string
+  email: string
+  name: string | null
+  target_exam: string
+  display_preferences: DisplayPreferences  // v1.7: 단어 카드 커스터마이징
+  created_at: string
+  updated_at: string
+}
+
+export interface UserVocabulary {
+  id: string
+  user_id: string
+  word_id: string
+  is_memorized: boolean
+  added_at: string
+  word?: Word  // joined
+}
+
+export interface UserScore {
+  id: string
+  user_id: string
+  round: string | null
+  listening: number | null
+  vocabulary: number | null
+  grammar: number | null
+  reading: number | null
+  total: number | null
+  exam_date: string | null
+  created_at: string
+}
+
+export interface SearchLog {
+  id: string
+  session_id: string
+  user_id: string | null
+  word: string
+  gatekeeper_status: GatekeeperStatus | null
+  searched_at: string
+}
+
+export type GatekeeperStatus = 'VALID' | 'TYPO' | 'KOREAN' | 'INVALID' | 'LOW_VALUE'
+
+export interface GatekeeperResponse {
+  status: GatekeeperStatus
+  correction?: string        // TYPO일 때 수정 추천 단어
+  suggestions?: string[]     // KOREAN일 때 추천 단어 목록
+  reason: string             // 판별 사유
+}
+
+export interface WordGenerationResponse {
+  word: string
+  part_of_speech: string
+  pronunciation: string
+  image_text: string
+  description: string
+  description_en: string     // v1.7: 영영 사전
+  teps_point: string
+  synonyms: string[]
+  antonyms: string[]
+  comparisons: string[]
+  paraphrasing: string[]
+  example_sentence: string
+  example_translation: string
+  difficulty_level: number
+}
+
+export interface FailedSearch {
+  id: string
+  input_text: string
+  status: string
+  correction: string | null
+  count: number
+  reported: boolean
+  first_searched_at: string
+  last_searched_at: string
+}
+
+export interface WordReport {
+  id: string
+  input_text: string
+  user_id: string | null
+  session_id: string | null
+  message: string | null
+  status: 'pending' | 'resolved' | 'rejected'
+  created_at: string
+}
+
+export interface UserWordHistory {
+  id: string
+  user_id: string
+  word_id: string
+  searched_at: string
+}
+
+// 검색 결과 통합 타입 (UI에서 사용)
+export type SearchResult =
+  | { type: 'word'; data: Word }
+  | { type: 'typo'; correction: string; original: string }
+  | { type: 'korean'; suggestions: string[]; original: string }
+  | { type: 'invalid'; original: string }
+  | { type: 'low_value'; original: string }
+  | { type: 'loading'; message: string }
+  | { type: 'error'; message: string }
+
+// Type aliases for compatibility
+export type User = UserProfile
+export type AccessLog = {
+  id: string
+  user_id: string | null
+  action: string
+  ip_address: string | null
+  user_agent: string | null
+  created_at: string
+}

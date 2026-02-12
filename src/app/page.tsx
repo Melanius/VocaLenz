@@ -1,66 +1,119 @@
+'use client'
+
+import { useState } from 'react'
+import { Search } from 'lucide-react'
+import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
-import Link from 'next/link'
 
 export default function HomePage() {
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchHistory, setSearchHistory] = useState<string[]>([])
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (searchQuery.trim()) {
+      setSearchHistory([...searchHistory, searchQuery])
+      // TODO: Phase 2에서 실제 검색 기능 구현
+      setSearchQuery('')
+    }
+  }
+
   return (
-    <div className="container mx-auto px-4 py-16">
-      {/* Hero Section */}
-      <section className="text-center space-y-6 py-12">
-        <h1 className="text-5xl font-bold tracking-tight">
-          VocaLenz
-        </h1>
-        <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-          AI 기반 영어 단어 학습 플랫폼
-          <br />
-          TEPS/TOEIC 시험 대비를 위한 스마트한 학습 솔루션
-        </p>
-        <div className="flex gap-4 justify-center mt-8">
-          <Button size="lg" asChild>
-            <Link href="/search">단어 검색하기</Link>
-          </Button>
-          <Button size="lg" variant="outline" asChild>
-            <Link href="/quiz">퀴즈 풀기</Link>
-          </Button>
+    <div className="min-h-screen flex flex-col">
+      {/* Main Content Area */}
+      <main className="flex-1 flex flex-col items-center justify-start px-4 pt-32">
+        {/* Brand Title */}
+        <div className="mb-12 text-center">
+          <h1 className="text-4xl font-semibold tracking-tight text-foreground mb-3">
+            VocaLenz
+          </h1>
+          <p className="text-muted-foreground text-sm">
+            AI 기반 영어 단어 학습
+          </p>
         </div>
-      </section>
 
-      {/* Features Section */}
-      <section className="grid md:grid-cols-3 gap-6 mt-16">
-        <Card className="p-6 space-y-3">
-          <h3 className="text-xl font-semibold">AI Gatekeeper</h3>
-          <p className="text-muted-foreground">
-            GPT-4o-mini를 활용한 자연어 질문 분석으로 정확한 단어 추천
-          </p>
-        </Card>
-        <Card className="p-6 space-y-3">
-          <h3 className="text-xl font-semibold">스마트 퀴즈</h3>
-          <p className="text-muted-foreground">
-            개인화된 난이도 조정과 AI 기반 문제 생성으로 효과적인 학습
-          </p>
-        </Card>
-        <Card className="p-6 space-y-3">
-          <h3 className="text-xl font-semibold">AI 학습 채팅</h3>
-          <p className="text-muted-foreground">
-            대화형 학습으로 맥락 속에서 단어 이해하기
-          </p>
-        </Card>
-      </section>
+        {/* Search Container */}
+        <div className="w-full max-w-3xl">
+          {/* Search History - Chat Style */}
+          {searchHistory.length > 0 && (
+            <div className="mb-8 space-y-4">
+              {searchHistory.map((query, index) => (
+                <div
+                  key={index}
+                  className="bg-card rounded-2xl shadow-sm border border-border p-4 hover:shadow-md transition-shadow"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                      <Search className="w-4 h-4 text-primary" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm text-muted-foreground mb-1">검색어</p>
+                      <p className="text-base font-medium text-foreground">{query}</p>
+                      <div className="mt-3 text-sm text-muted-foreground">
+                        검색 결과가 여기에 표시됩니다 (Phase 2에서 구현 예정)
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
 
-      {/* Stats Section */}
-      <section className="mt-16 text-center">
-        <div className="inline-flex gap-8 text-sm text-muted-foreground">
+          {/* Search Input */}
+          <form onSubmit={handleSearch} className="relative">
+            <div className="relative flex items-center">
+              <Input
+                type="text"
+                placeholder="영어 단어를 검색하세요..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full h-14 pl-5 pr-14 text-base rounded-full border-2 border-input focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/20 transition-all shadow-sm"
+              />
+              <Button
+                type="submit"
+                size="icon"
+                className="absolute right-2 h-10 w-10 rounded-full"
+                disabled={!searchQuery.trim()}
+              >
+                <Search className="h-5 w-5" />
+              </Button>
+            </div>
+          </form>
+
+          {/* Suggestions (Empty State) */}
+          {searchHistory.length === 0 && (
+            <div className="mt-8 text-center space-y-6">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 max-w-2xl mx-auto">
+                {['TEPS 단어', 'TOEIC 단어', '퀴즈 풀기', 'AI 학습', '내 단어장', '학습 통계'].map((suggestion) => (
+                  <button
+                    key={suggestion}
+                    className="px-4 py-3 rounded-xl border border-border bg-card hover:bg-accent hover:border-primary/50 transition-all text-sm font-medium text-foreground"
+                    onClick={() => setSearchQuery(suggestion)}
+                  >
+                    {suggestion}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground max-w-md mx-auto">
+                GPT-4o-mini 기반 AI Gatekeeper가 자연어 질문을 분석하여 정확한 단어를 추천합니다
+              </p>
+            </div>
+          )}
+        </div>
+      </main>
+
+      {/* Footer */}
+      <footer className="py-6 text-center">
+        <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
           <span>Next.js 15.5.12</span>
           <span>•</span>
           <span>React 19</span>
-          <span>•</span>
-          <span>TypeScript</span>
           <span>•</span>
           <span>Supabase</span>
           <span>•</span>
           <span>OpenAI</span>
         </div>
-      </section>
+      </footer>
     </div>
   )
 }

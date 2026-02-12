@@ -46,12 +46,40 @@
 - 홈페이지 리디자인 (Hero + Features 섹션)
 - 커밋: `b6cf047 - feat: setup global layout and design system`
 
-**Phase 1 총 커밋:** 4개
+**Phase 1 총 커밋:** 5개
 **설치된 주요 패키지:**
 - next@15.5.12, react@19.2.4
 - @supabase/supabase-js@2.95.3, @supabase/ssr@0.8.0
 - tailwindcss@3.4.19
 - shadcn/ui 컴포넌트 (button, input, card)
+
+### ✅ Phase 2: 인증 시스템 (완료)
+**완료 일시:** 2026-02-12 15:38
+
+#### Step 2.1: Auth 콜백 라우트 ✅
+- src/app/auth/callback/route.ts (OAuth 코드 교환)
+- src/app/auth/error/page.tsx (인증 에러 페이지)
+- 리다이렉트 처리 및 에러 핸들링
+
+#### Step 2.2: 로그인/회원가입 페이지 ✅
+- src/app/auth/login/page.tsx (이메일 + Google OAuth 로그인)
+- src/app/auth/signup/page.tsx (회원가입 + 이메일 인증)
+- GPT-style 디자인 적용
+- 폼 검증 및 로딩 상태 처리
+
+#### Step 2.3: Auth 유틸리티 훅 ✅
+- src/hooks/use-auth.ts (인증 상태 관리)
+- useUser, useSession, signOut 함수 제공
+- Auth 상태 변화 실시간 구독
+
+#### Step 2.4: 세션 Provider ✅
+- src/components/providers/auth-provider.tsx (전역 인증 컨텍스트)
+- 사용자 프로필 DB 조회 및 관리
+- src/app/layout.tsx 통합
+- Header 컴포넌트 로그인/로그아웃 연동
+- 커밋: `ad2be04 - feat: implement authentication system (Phase 2)`
+
+**Phase 2 총 커밋:** 1개 (통합 커밋)
 
 ---
 

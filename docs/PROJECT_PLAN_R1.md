@@ -227,7 +227,7 @@
 | 삭제 | `src/components/search/search-input.tsx` |
 
 ### ✅ Phase 5: 사용자 기능 (단어장, 검색 이력, 성적 관리) (완료)
-**완료 일시:** 2026-02-15 06:00 (KST)
+**완료 일시:** 2026-02-15 09:00 (KST)
 
 #### Step 5.1: 단어장 기능 ✅
 - `src/app/api/vocabulary/route.ts`: 단어장 CRUD API (GET/POST/DELETE/PATCH, 100개 제한)
@@ -257,7 +257,54 @@
 - 단어장: "상세" 버튼 + Dialog 팝업 (TEPS 학습 문장 로딩)
 - GPT 프롬프트: 이미지 연상에 이모지 추가, 한국어 설명에서 TEPS 내용 분리
 
-**Phase 5 생성 파일:** 8개, **수정 파일:** 6개
+#### Step 5.7: 복합 품사(Multi-POS) 지원 ✅
+- GPT 프롬프트: 슬래시(/) 구분 복합 품사 생성, meanings 최대 5개
+- UI: `part_of_speech.split('/')` 후 각각 Badge 렌더링
+
+#### Step 5.8: 로그인 가드 UX 개선 + 필드 순서 리셋 ✅
+- 각 페이지별 친근한 로그인 유도 메시지 + 기능 소개
+- localStorage 버전 기반 fieldOrder 자동 리셋 시스템
+
+#### Step 5.9: 기존 DB 단어 품사 재확인 ✅
+- `src/app/api/words/recheck-pos/route.ts`: 배치 GPT 재확인 API
+- 25개 단어 전체 확인 완료 (14개 업데이트, convict "명사/동사" 등)
+
+#### Step 5.7: 복합 품사(Multi-POS) 지원 ✅
+**완료 일시:** 2026-02-15 07:00 (KST)
+
+- **배경**: 하나의 단어가 명사/동사 등 여러 품사로 쓰이는 경우 처리 필요
+- **방안 선택**: Option C (프롬프트 + UI 변경, DB 스키마 변경 없음)
+- `src/lib/word-generator.ts` 수정:
+  - 규칙 1: "여러 품사로 쓰이는 단어는 part_of_speech에 슬래시(/)로 구분" 추가
+  - 규칙 8: meanings 최대 3개 → 5개 (복합 품사 수용)
+  - 규칙 9 (신규): "part_of_speech는 슬래시(/) 구분으로 복합 품사 명시"
+  - max_tokens: 1500 → 2000
+- `src/components/search/word-card.tsx` 수정:
+  - `part_of_speech.split('/')` 후 각각 Badge 렌더링 (예: `명사` `동사` 별도 뱃지)
+- `src/app/(main)/vocabulary/page.tsx` 수정: 동일한 Badge 분리 적용
+
+#### Step 5.8: 로그인 가드 UX 개선 + 필드 순서 리셋 ✅
+**완료 일시:** 2026-02-15 08:00 (KST)
+
+- **로그인 가드 메시지 개선**: 딱딱한 "로그인이 필요합니다" → 친근한 기능 소개 문구로 변경
+  - `/vocabulary`: "나만의 단어장을 만들어 보세요" + 기능 설명
+  - `/history`: "어떤 단어를 공부했는지 한눈에" + 기능 설명
+  - `/scores`: "TEPS 성적을 기록하고 추이를 확인하세요" + 기능 설명
+- **필드 순서 리셋 시스템**: `src/hooks/use-display-preferences.ts` 수정
+  - `STORAGE_VERSION_KEY` + `CURRENT_PREFS_VERSION` 도입
+  - 버전 변경 시 fieldOrder를 최신 기본순으로 자동 리셋 (visibleFields는 유지)
+  - 기본 순서: image_text → meanings → description → teps_point → example → paraphrasing → comparisons → description_en → synonyms → antonyms
+
+#### Step 5.9: 기존 DB 단어 품사 재확인 API ✅
+**완료 일시:** 2026-02-15 09:00 (KST)
+
+- `src/app/api/words/recheck-pos/route.ts` 생성: 일회용 배치 품사 재확인 API
+  - DB 전체 단어를 10개씩 배치로 GPT-4o-mini에 전달
+  - 복합 품사(슬래시 표기) + meanings 재확인
+  - 변경된 단어만 DB 업데이트
+- **실행 결과**: 25개 단어 전체 확인, 14개 업데이트, 1개(convict) "동사" → "명사/동사" 복합 품사 변환
+
+**Phase 5 생성 파일:** 9개, **수정 파일:** 9개
 **설치 패키지:** recharts@3.7.0
 **빌드 검증:** ✅ 성공 (에러 없음)
 
@@ -1072,7 +1119,7 @@ Gatekeeper 결과에 따른 UI:
 ---
 
 ## ✅ Phase 5: 사용자 기능 (단어장, 검색 이력, 성적 관리) (완료)
-**완료 일시:** 2026-02-15 04:30 (KST)
+**완료 일시:** 2026-02-15 09:00 (KST)
 
 ### Step 5.1: 단어장 기능 ✅
 

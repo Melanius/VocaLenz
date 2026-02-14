@@ -10,6 +10,7 @@ export type Json =
 
 // v1.7: 단어 카드 표시 필드
 export type WordCardField =
+  | 'meanings'
   | 'description'
   | 'description_en'
   | 'image_text'
@@ -33,6 +34,7 @@ export interface Word {
   exam_type: string
   part_of_speech: string | null
   pronunciation: string | null
+  meanings: string[]                    // v1.8: 단답형 뜻 (품사 포함, 최대 3개)
   image_text: string | null
   description: string | null
   description_en: string | null        // v1.7: 영어 설명 (영영 사전)
@@ -103,6 +105,7 @@ export interface WordGenerationResponse {
   word: string
   part_of_speech: string
   pronunciation: string
+  meanings: string[]         // v1.8: 단답형 뜻 (품사 포함, 최대 3개)
   image_text: string
   description: string
   description_en: string     // v1.7: 영영 사전
@@ -148,7 +151,7 @@ export interface UserWordHistory {
 export type SearchResult =
   | { type: 'word'; data: Word }
   | { type: 'typo'; correction: string; original: string }
-  | { type: 'korean'; suggestions: string[]; original: string }
+  | { type: 'korean'; suggestions: Word[]; original: string }
   | { type: 'invalid'; original: string }
   | { type: 'low_value'; original: string }
   | { type: 'loading'; message: string }

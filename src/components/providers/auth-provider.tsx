@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { User, Session } from '@supabase/supabase-js'
 import type { UserProfile } from '@/types/database'
@@ -20,9 +20,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
-  const supabase = createClient()
+  const [mounted, setMounted] = useState(false)
+
+  // SSR-safe: 클라이언트에서만 supabase 인스턴스 생성
+  const supabase = useMemo(() => {
+    if (typeof window === 'undefined') return null
+    return createClient()
+  }, [])
 
   const fetchProfile = async (userId: string) => {
+    if (!supabase) return
     const { data } = await supabase
       .from('users')
       .select('*')
@@ -40,7 +47,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  // 마운트 상태 확인
   useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  useEffect(() => {
+    if (!supabase || !mounted) {
+      setLoading(false)
+      return
+    }
+
     // 초기 세션 가져오기
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
@@ -70,7 +87,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })
 
     return () => subscription.unsubscribe()
-  }, [supabase.auth])
+  }, [supabase, mounted])
 
   const value = {
     user,

@@ -46,185 +46,40 @@
 - 홈페이지 리디자인 (Hero + Features 섹션)
 - 커밋: `b6cf047 - feat: setup global layout and design system`
 
-**Phase 1 총 커밋:** 4개
+**Phase 1 총 커밋:** 5개
 **설치된 주요 패키지:**
 - next@15.5.12, react@19.2.4
 - @supabase/supabase-js@2.95.3, @supabase/ssr@0.8.0
 - tailwindcss@3.4.19
 - shadcn/ui 컴포넌트 (button, input, card)
 
-> ⚠️ **v1.7 타입 업데이트 필요:** Phase 2 시작 전에 `src/types/database.ts`의 `Word` 인터페이스에 `description_en` 필드를, `UserProfile`에 `display_preferences` 필드를 추가해야 합니다. 또한 `DisplayPreferences`, `WordCardField` 타입을 추가합니다. 상세 타입 정의는 Step 1.4 섹션을 참조하세요.
-
 ### ✅ Phase 2: 인증 시스템 (완료)
-**완료 일시:** 2026-02-12
+**완료 일시:** 2026-02-12 15:38
 
 #### Step 2.1: Auth 콜백 라우트 ✅
-- src/app/auth/callback/route.ts 구현
-- 커밋: `ad2be04 - feat: implement authentication system (Phase 2)`
+- src/app/auth/callback/route.ts (OAuth 코드 교환)
+- src/app/auth/error/page.tsx (인증 에러 페이지)
+- 리다이렉트 처리 및 에러 핸들링
 
 #### Step 2.2: 로그인/회원가입 페이지 ✅
-- src/app/auth/login/page.tsx (이메일 + Google 소셜 로그인)
-- src/app/auth/signup/page.tsx (회원가입)
-- src/app/auth/error/page.tsx (인증 에러)
+- src/app/auth/login/page.tsx (이메일 + Google OAuth 로그인)
+- src/app/auth/signup/page.tsx (회원가입 + 이메일 인증)
+- GPT-style 디자인 적용
+- 폼 검증 및 로딩 상태 처리
 
 #### Step 2.3: Auth 유틸리티 훅 ✅
-- src/hooks/use-auth.ts (useUser, useSession, signOut)
+- src/hooks/use-auth.ts (인증 상태 관리)
+- useUser, useSession, signOut 함수 제공
+- Auth 상태 변화 실시간 구독
 
 #### Step 2.4: 세션 Provider ✅
-- src/components/providers/auth-provider.tsx (앱 전체 인증 상태 Context)
+- src/components/providers/auth-provider.tsx (전역 인증 컨텍스트)
+- 사용자 프로필 DB 조회 및 관리
+- src/app/layout.tsx 통합
+- Header 컴포넌트 로그인/로그아웃 연동
+- 커밋: `ad2be04 - feat: implement authentication system (Phase 2)`
 
-**Phase 2 총 커밋:** 2개 (기능 구현 + docs 업데이트)
-
-### ✅ Phase 3: AI 핵심 로직 (완료)
-**완료 일시:** 2026-02-13 09:05 (KST)
-
-#### Step 3.1: OpenAI 클라이언트 설정 ✅
-- openai 패키지 설치
-- src/lib/openai.ts 생성
-
-#### Step 3.2: AI Gatekeeper 구현 ✅
-- src/lib/gatekeeper.ts (5개 상태 판별: VALID, TYPO, KOREAN, INVALID, LOW_VALUE)
-- src/app/api/gatekeeper/route.ts (독립 API 엔드포인트)
-- JSON 모드 강제 + 3회 재시도 로직
-- 테스트 결과: VALID(amity), TYPO(techer→teacher), KOREAN(배신하다→betray/deceive/double-cross), INVALID(I want to go home), LOW_VALUE(Samsung) 모두 정상
-
-#### Step 3.3: 단어 생성 프롬프트 구현 ✅
-- src/lib/word-generator.ts (GPT-4o-mini, v1.7 description_en 포함)
-- JSON 모드 강제 + 3회 재시도 + 필수 필드 검증
-
-#### Step 3.4: 통합 검색 API ✅
-- src/app/api/words/search/route.ts
-- 전체 플로우 동작 확인: 입력 정규화 → DB 캐시 조회 → Gatekeeper → 단어 생성 → DB 저장 → 반환
-- 동시성 처리 (UPSERT + 충돌 시 재조회)
-- search_logs, failed_searches, user_word_history 기록
-- DB 캐시 반환 시 search_count 증가
-- 테스트 결과: "amity" 신규 생성 성공, 재검색 시 DB 캐시 반환 (1.5초), "take after" 숙어 생성 성공
-
-#### Step 3.5: Rate Limiting 구현 ✅
-- src/lib/rate-limit.ts (비로그인 30회/일, 로그인 100회/일)
-- search_logs 카운트 기반 (별도 Redis 불필요)
-- remaining 카운트 응답에 포함
-
-**Phase 3 검증 결과:**
-- TypeScript 타입 체크: ✅ 에러 없음
-- ESLint: ✅ 에러 없음 (warning 1건 - useEffect dependency, 기능 무관)
-- 프로덕션 빌드: ✅ 성공 (Next.js 15.5.12)
-- Gatekeeper API: ✅ 5개 케이스 모두 정상
-- 통합 검색 API: ✅ 신규 생성, 캐시 반환, 숙어 처리 모두 정상
-- Rate Limit: ✅ remaining 카운트 정상 감소
-
-### ✅ Phase 4: 메인 검색 UI (완료)
-**완료 일시:** 2026-02-13 19:30 (KST)
-
-#### Step 4.1: shadcn 컴포넌트 + @dnd-kit 설치 ✅
-- shadcn/ui 17개 컴포넌트 설치 (scroll-area, separator, skeleton, badge, alert, avatar, label, checkbox, switch, tooltip, dialog, sheet, dropdown-menu, tabs, toast, toaster, use-toast)
-- @dnd-kit/core, @dnd-kit/sortable, @dnd-kit/utilities 설치
-
-#### Step 4.2: 커스텀 훅 생성 ✅
-- src/hooks/use-pronunciation.ts (Web Speech API, en-US, rate 0.9)
-- src/hooks/use-display-preferences.ts (로그인→DB, 비로그인→localStorage)
-
-#### Step 4.3: SearchContext + 핵심 컴포넌트 ✅
-- src/contexts/search-context.tsx (채팅 히스토리 배열, addToHistory/updateHistoryItem)
-- src/components/search/search-input.tsx (단일 검색, maxLength=100, 로딩 상태)
-- src/components/search/word-card.tsx (9개 필드, preferences 기반 표시/순서)
-- src/components/search/search-results.tsx (6개 상태별 버블 UI: word/typo/korean/invalid/low_value/error)
-
-#### Step 4.4: 레이아웃 전환 ✅
-- src/app/(main)/layout.tsx (SearchProvider + 사이드바 + 메인 영역)
-- src/app/(main)/page.tsx (빈 상태 ↔ 채팅 상태 전환)
-- src/components/layout/sidebar.tsx (검색 기록, 데스크톱: 고정, 모바일: Sheet)
-- src/app/page.tsx 삭제 → (main)/page.tsx로 대체
-- src/components/layout/header.tsx: "단어 검색" 링크를 `/`로 변경
-- src/app/layout.tsx: Toaster 추가
-
-#### Step 4.5: 다중 검색 + 카드 커스터마이저 ✅
-- src/components/search/search-mode-selector.tsx ([1][2][3][4] 모드 선택)
-- src/components/search/multi-search-input.tsx (2~4개 병렬 검색)
-- src/components/search/card-customizer.tsx (Sheet 패널, 체크박스 토글 + @dnd-kit 드래그 정렬)
-
-#### Step 4.6: 오늘의 추천 단어 ✅
-- src/app/api/words/recommended/route.ts (search_logs 기반 인기 단어 3~4개)
-- src/components/search/recommended-words.tsx (추천 단어 카드 UI)
-
-**Phase 4 검증 결과:**
-- TypeScript 타입 체크: ✅ 에러 없음
-- ESLint: ✅ 에러 없음 (warning 1건 - useEffect dependency, 기능 무관)
-- 프로덕션 빌드: ✅ 성공 (Next.js 15.5.12, `/` 라우트 38.9 kB first load JS)
-
-**Phase 4 생성 파일:** 14개
-**Phase 4 수정 파일:** 3개 (layout.tsx, header.tsx, page.tsx 삭제)
-**설치된 주요 패키지:**
-- @dnd-kit/core@6.3.1, @dnd-kit/sortable@10.0.0, @dnd-kit/utilities@3.2.2
-- shadcn/ui 추가 컴포넌트 17개
-
-### ✅ Phase 4.5: 테스트 피드백 반영 개선 (완료)
-**완료 일시:** 2026-02-14 21:00 (KST)
-
-#### 4.5.1: `meanings` 필드 추가 (영한 사전 단답형 뜻) ✅
-- DB: `words` 테이블에 `meanings text[] DEFAULT '{}'` 컬럼 추가
-- `src/types/database.ts`: `Word`, `WordGenerationResponse`에 `meanings: string[]` 추가
-- `WordCardField` 타입에 `'meanings'` 추가
-- `src/lib/word-generator.ts`: GPT 프롬프트에 meanings 필드 추가 (최대 3개, 품사 포함, TEPS 빈출 순)
-- `src/app/api/words/search/route.ts`: UPSERT 및 transformWord에 meanings 매핑 추가
-- `src/components/search/word-card.tsx`: meanings 필드 렌더링 (번호 매김, 커스터마이저 대상)
-- `src/components/search/card-customizer.tsx`: meanings 필드 토글 추가
-- `src/db/migrations/001_add_meanings.sql`: DB 마이그레이션 파일 생성
-
-#### 4.5.2: 한영 사전 DB 검색 전환 ✅
-- 기존: GPT suggestions로 한국어→영어 추천 → **변경: DB `meanings` 배열에서 LIKE 검색**
-- `search_by_meaning` RPC 함수 생성 (Supabase SQL)
-- `SearchResult` korean 타입: `suggestions: string[]` → `suggestions: Word[]`로 변경
-- 검색 결과가 없으면 "아직 등록된 단어가 없습니다" 메시지 반환
-- `src/components/search/search-results.tsx`: 한영 결과를 WordCard 리스트로 표시
-
-#### 4.5.3: 설정 저장 버그 수정 + 기본값/라벨 변경 ✅
-- **설정 저장 버그**: localStorage를 단일 소스로 전환 (DB profile이 덮어쓰는 문제 해결)
-  - `use-display-preferences.ts` 전면 재작성
-  - localStorage 항상 우선, DB profile은 초기 시드로만 사용
-  - `SYNC_EVENT` 커스텀 이벤트로 컴포넌트 간 실시간 동기화
-  - `migratePreferences()` 함수로 이전 데이터 호환성 보장
-- **기본값 변경**: 7개 필드 활성화 (image_text, meanings, description, teps_point, example, paraphrasing, comparisons)
-- **라벨 변경**: '한국어 뜻' → '한국어 설명', '영어 정의' → '영어 설명'
-- **카드 커스터마이저**: 로컬 state로 관리 + "설정 저장" 버튼 추가 + toast 피드백
-
-#### 4.5.4: 검색 입력 통합 (MultiSearchInput) ✅
-- `src/components/search/search-input.tsx` 삭제
-- `src/components/search/multi-search-input.tsx`에서 모드 1~4 모두 처리
-  - 모드 1: 기존과 동일한 라운드 검색창 UI
-  - 모드 2~4: N개 입력창 + 검색 버튼 (모든 입력창 필수)
-- `src/app/(main)/page.tsx`: SearchInput/SearchModeSelector 제거, MultiSearchInput만 사용
-
-#### 4.5.5: 로딩 대기 TEPS 청해 학습 문장 ✅
-- `src/lib/loading-phrases.ts` 생성: TEPS 청해 구어체 문장 100개 (영어+한국어)
-- `src/components/search/search-results.tsx`: LoadingBubble 컴포넌트 추가
-  - "기다리시면서 아래 문장을 외워보세요!" 안내
-  - 영어 문장 + 한국어 해석 함께 표시
-  - 10초마다 랜덤 문장 교체
-
-#### 4.5.6: 난이도 체계 개편 (TEPS 목표 점수 기반 Lv.1-4) ✅
-- 기존 generic 1-5 (항상 3) → **TEPS 목표 점수 기반 1-4 체계**
-  - Lv.1 Essential (327점↓): 기초 학술어휘, 일상 빈출어
-  - Lv.2 Core (450점 목표): 중급 학술/비즈니스 어휘
-  - Lv.3 Advanced (550점+): 전문 분야, 까다로운 구동사
-  - Lv.4 Killer (만점 도전): 매우 희귀하거나 문맥적 의미가 까다로운 어휘
-- `src/lib/word-generator.ts`: GPT 프롬프트 난이도 기준 변경
-- `src/components/search/word-card.tsx`: LevelBadge 컴포넌트 (색상별 구분)
-  - Essential: 초록, Core: 파랑, Advanced: 주황, Killer: 빨강
-- `src/app/api/words/reclassify/route.ts` 생성: 기존 단어 일괄 재분류 API (일회용)
-
-**Phase 4.5 변경 파일:** 10개 수정, 3개 생성, 1개 삭제
-
-| 구분 | 파일 |
-|------|------|
-| 수정 | `src/types/database.ts`, `src/lib/word-generator.ts`, `src/lib/gatekeeper.ts` |
-| 수정 | `src/app/api/words/search/route.ts`, `src/hooks/use-display-preferences.ts` |
-| 수정 | `src/components/search/word-card.tsx`, `src/components/search/card-customizer.tsx` |
-| 수정 | `src/components/search/search-results.tsx`, `src/components/search/multi-search-input.tsx` |
-| 수정 | `src/app/(main)/page.tsx` |
-| 생성 | `src/lib/loading-phrases.ts`, `src/db/migrations/001_add_meanings.sql` |
-| 생성 | `src/app/api/words/reclassify/route.ts` |
-| 삭제 | `src/components/search/search-input.tsx` |
+**Phase 2 총 커밋:** 1개 (통합 커밋)
 
 ---
 
@@ -421,7 +276,6 @@ export interface Word {
   pronunciation: string | null
   image_text: string | null
   description: string | null
-  description_en: string | null        // v1.7: 영어 설명 (영영 사전)
   teps_point: string | null
   synonyms: string[]
   antonyms: string[]
@@ -440,18 +294,8 @@ export interface UserProfile {
   email: string
   name: string | null
   target_exam: string
-  display_preferences: DisplayPreferences  // v1.7: 단어 카드 커스터마이징
   created_at: string
   updated_at: string
-}
-
-// v1.7: 단어 카드 표시 설정
-export type WordCardField = 'description' | 'description_en' | 'image_text' | 'teps_point' | 'synonyms' | 'antonyms' | 'paraphrasing' | 'comparisons' | 'example'
-
-export interface DisplayPreferences {
-  visibleFields: WordCardField[]    // 사용자가 선택한 표시 필드
-  fieldOrder: WordCardField[]       // 필드 표시 순서
-  searchMode: 1 | 2 | 3 | 4        // 동시 검색 단어 수
 }
 
 export interface UserVocabulary {
@@ -500,7 +344,6 @@ export interface WordGenerationResponse {
   pronunciation: string
   image_text: string
   description: string
-  description_en: string
   teps_point: string
   synonyms: string[]
   antonyms: string[]
@@ -727,7 +570,6 @@ export const openai = new OpenAI({
 4. 예문은 TEPS 시험 스타일로 작성
 5. 각 텍스트 필드는 최대 500자 이내로 작성할 것
 6. paraphrasing은 해당 시험에서 실제 출제 시 바꿔 쓰기(paraphrasing)로 자주 등장하는 표현을 제시할 것 (단순 유사어가 아닌, 시험 문맥에서 치환 가능한 표현)
-7. description은 한국어로, description_en은 영어로 각각 상세 뜻을 설명할 것 (영한 사전 + 영영 사전 동시 제공)
 
 응답 형식 (JSON만):
 {
@@ -736,7 +578,6 @@ export const openai = new OpenAI({
   "pronunciation": "발음기호",
   "image_text": "이미지 연상 텍스트 (한국어, 2~3문장)",
   "description": "문장형 상세 뜻 (한국어, TEPS 관점)",
-  "description_en": "Detailed definition in English (TEPS-oriented, academic register)",
   "teps_point": "TEPS 포인트 (한국어, 출제 경향/주의점)",
   "synonyms": ["유사어1", "유사어2", "유사어3"],
   "antonyms": ["반의어1", "반의어2"],
@@ -861,12 +702,8 @@ for (let attempt = 0; attempt < 3; attempt++) {
 - **`src/app/(main)/page.tsx`** - 메인 페이지
 - **`src/app/(main)/layout.tsx`** - 사이드바 포함 레이아웃
 - **`src/components/search/search-input.tsx`** - 검색 입력 컴포넌트
-- **`src/components/search/multi-search-input.tsx`** - 다중 검색 입력 (v1.7)
-- **`src/components/search/search-mode-selector.tsx`** - 검색 모드 선택 1~4 (v1.7)
 - **`src/components/search/search-results.tsx`** - 결과 목록 컴포넌트
 - **`src/components/search/word-card.tsx`** - 단어 카드 컴포넌트
-- **`src/components/search/card-customizer.tsx`** - 카드 필드 커스터마이징 (v1.7)
-- **`src/hooks/use-display-preferences.ts`** - 표시 설정 훅 (v1.7)
 - **`src/components/layout/header.tsx`** - 상단 헤더
 - **`src/components/layout/sidebar.tsx`** - 사이드바 (세션 관리)
 
@@ -878,67 +715,17 @@ for (let attempt = 0; attempt < 3; attempt++) {
 - 검색 중 로딩 상태 표시
 - 검색창 maxLength=100 (입력 길이 제한)
 
-#### v1.7: 동시 다중 검색 (최대 4개)
-- 검색창 옆에 검색 모드 선택 버튼: [1] [2] [3] [4]
-- 기본값: 1개 (단일 검색)
-- 2~4개 선택 시 검색 입력창이 해당 개수만큼 표시
-- 모든 입력창에 단어 입력 후 한번에 검색 → 결과가 나란히 표시
-- TEPS 4지선다 보기를 한번에 비교하는 용도
-- 로그인 사용자: 선택한 검색 모드가 `display_preferences.searchMode`에 저장되어 유지
-- 비로그인 사용자: localStorage에 저장
-
-구현 파일:
-- **`src/components/search/search-mode-selector.tsx`** - 검색 모드 선택 (1~4)
-- **`src/components/search/multi-search-input.tsx`** - 다중 검색 입력 컴포넌트
-
 ### Step 4.3: 단어 카드 컴포넌트
 
-검색 결과 단어 카드 구성 (기본 전체 표시, 사용자 커스터마이징 가능):
-1. 단어 + 발음기호 + 품사 + 🔊 발음 버튼 (상단, 항상 표시)
-2. 이미지 연상 텍스트 (🎨 아이콘) — `image_text`
-3. 상세 뜻 - 한국어 (📖 아이콘) — `description`
-4. 상세 뜻 - 영어 (📖🔤 아이콘) — `description_en` (영영 사전)
-5. TEPS 포인트 (🎯 하이라이트 박스) — `teps_point`
-6. 유사어/반의어 (태그 뱃지) — `synonyms` / `antonyms`
-7. Paraphrasing (🔄 시험 빈출 바꿔쓰기 표현, 태그 뱃지) — `paraphrasing`
-8. 비교어 (태그 뱃지) — `comparisons`
-9. TEPS 예문 (💡 하이라이트) — `example`
-10. 단어장 추가 버튼 (로그인 사용자, 항상 표시)
-
-> **항상 표시되는 영역:** 1번(단어+발음+품사+🔊)과 10번(단어장 버튼)은 커스터마이징 대상이 아니며 항상 표시됩니다.
-
-#### v1.7: 단어 카드 필드 커스터마이징
-
-**`src/components/search/card-customizer.tsx`** - 단어 카드 설정 패널:
-- 검색 영역 상단에 ⚙️ 설정 아이콘 → 클릭 시 드롭다운/사이드 패널 열림
-- 각 필드별 체크박스 (ON/OFF 토글)
-- 드래그 앤 드롭으로 필드 표시 순서 변경
-- 설정은 실시간 반영 (설정 변경 → 즉시 카드 업데이트)
-- 로그인 사용자: DB `users.display_preferences`에 저장 (API 호출)
-- 비로그인 사용자: localStorage에 저장
-
-커스터마이징 가능 필드:
-```typescript
-const CUSTOMIZABLE_FIELDS: { key: WordCardField; label: string; icon: string }[] = [
-  { key: 'description', label: '뜻 (한국어)', icon: '📖' },
-  { key: 'description_en', label: '뜻 (영어)', icon: '🔤' },
-  { key: 'image_text', label: '이미지 연상', icon: '🎨' },
-  { key: 'teps_point', label: 'TEPS 포인트', icon: '🎯' },
-  { key: 'synonyms', label: '유사어/반의어', icon: '🔗' },
-  { key: 'antonyms', label: '반의어', icon: '↔️' },
-  { key: 'paraphrasing', label: 'Paraphrasing', icon: '🔄' },
-  { key: 'comparisons', label: '비교어', icon: '⚖️' },
-  { key: 'example', label: 'TEPS 예문', icon: '💡' },
-]
-```
-
-**설정 저장 API:**
-- **`src/app/api/users/preferences/route.ts`** - PUT: display_preferences 업데이트
-
-구현 파일:
-- **`src/components/search/card-customizer.tsx`** - 설정 패널 UI
-- **`src/hooks/use-display-preferences.ts`** - 표시 설정 커스텀 훅 (로그인 시 DB / 비로그인 시 localStorage)
-- **`src/components/search/word-card.tsx`** - 커스터마이징 적용된 카드 렌더링
+검색 결과 단어 카드 구성:
+1. 단어 + 발음기호 + 품사 + 🔊 발음 버튼 (상단)
+2. 이미지 연상 텍스트 (🎨 아이콘)
+3. 상세 뜻 - 문장형 (📖 아이콘)
+4. TEPS 포인트 (🎯 하이라이트 박스)
+5. 유사어/반의어 (태그 뱃지)
+6. Paraphrasing (🔄 시험 빈출 바꿔쓰기 표현, 태그 뱃지)
+7. TEPS 예문 (💡 하이라이트)
+8. 단어장 추가 버튼 (로그인 사용자)
 
 ### Step 4.4: 발음 재생 기능 (Web Speech API)
 
@@ -1017,13 +804,6 @@ Gatekeeper 결과에 따른 UI:
 - [ ] 발음 재생 중 버튼 비활성화 → 재생 완료 후 복원
 - [ ] 비로그인 상태에서 검색 → 채팅 히스토리 표시 확인
 - [ ] 비로그인 상태에서 페이지 새로고침 → 채팅 히스토리 초기화 확인
-- [ ] ⚙️ 설정에서 필드 체크박스 OFF → 해당 필드 카드에서 숨김 확인
-- [ ] 필드 순서 드래그 변경 → 카드에 즉시 반영 확인
-- [ ] 로그인 사용자: 설정 변경 → 새로고침 후에도 유지 확인
-- [ ] 비로그인 사용자: 설정이 localStorage에 저장되는지 확인
-- [ ] 검색 모드 [2] 선택 → 입력창 2개 표시 확인
-- [ ] 검색 모드 [4] 선택 → 4개 단어 동시 검색 → 결과 나란히 표시 확인
-- [ ] 영어 설명(description_en) 필드 ON 시 영영 사전 뜻 표시 확인
 
 > **비로그인 사용자 검색 이력 정책:**
 > - 채팅 UI 히스토리: React state(클라이언트 메모리)로만 유지. 페이지 새로고침 시 초기화됨

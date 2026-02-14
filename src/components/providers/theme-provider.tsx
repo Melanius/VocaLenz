@@ -26,8 +26,20 @@ export function ThemeProvider({
   ...props
 }: ThemeProviderProps) {
   const [theme, setTheme] = React.useState<Theme>(defaultTheme)
+  const [mounted, setMounted] = React.useState(false)
+
+  // 마운트 후 localStorage에서 테마 읽기
+  React.useEffect(() => {
+    setMounted(true)
+    const stored = localStorage.getItem(storageKey) as Theme | null
+    if (stored) {
+      setTheme(stored)
+    }
+  }, [storageKey])
 
   React.useEffect(() => {
+    if (!mounted) return
+
     const root = window.document.documentElement
     root.classList.remove('light', 'dark')
 
@@ -42,13 +54,13 @@ export function ThemeProvider({
     }
 
     root.classList.add(theme)
-  }, [theme])
+  }, [theme, mounted])
 
   const value = {
     theme,
-    setTheme: (theme: Theme) => {
-      localStorage.setItem(storageKey, theme)
-      setTheme(theme)
+    setTheme: (newTheme: Theme) => {
+      localStorage.setItem(storageKey, newTheme)
+      setTheme(newTheme)
     },
   }
 

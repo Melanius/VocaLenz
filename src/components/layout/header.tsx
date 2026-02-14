@@ -1,12 +1,21 @@
 'use client'
 
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { useAuthContext } from '@/components/providers/auth-provider'
+import { createClient } from '@/lib/supabase/client'
 
 export function Header() {
   const { user, profile, loading } = useAuthContext()
-  const { signOut } = require('@/hooks/use-auth')()
+  const router = useRouter()
+
+  const handleSignOut = async () => {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.push('/')
+    router.refresh()
+  }
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -17,7 +26,7 @@ export function Header() {
           </Link>
           <nav className="flex items-center gap-6 text-sm">
             <Link
-              href="/search"
+              href="/"
               className="transition-colors hover:text-foreground/80 text-foreground/60"
             >
               단어 검색
@@ -50,7 +59,7 @@ export function Header() {
               <span className="text-sm text-muted-foreground">
                 {profile?.name || user.email}
               </span>
-              <Button variant="ghost" size="sm" onClick={signOut}>
+              <Button variant="ghost" size="sm" onClick={handleSignOut}>
                 로그아웃
               </Button>
             </div>

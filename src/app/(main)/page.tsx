@@ -113,12 +113,13 @@ export default function SearchPage() {
           <ScrollArea className="flex-1" ref={scrollRef}>
             <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
               {history.map((item) => (
-                <SearchResults
-                  key={item.id}
-                  query={item.query}
-                  result={item.result}
-                  onSearchWord={handleSearchWord}
-                />
+                <div key={item.id} data-search-id={item.id}>
+                  <SearchResults
+                    query={item.query}
+                    result={item.result}
+                    onSearchWord={handleSearchWord}
+                  />
+                </div>
               ))}
             </div>
           </ScrollArea>

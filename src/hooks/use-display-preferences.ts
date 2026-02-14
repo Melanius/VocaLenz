@@ -103,10 +103,20 @@ export function useDisplayPreferences() {
       setPreferences((prev) => {
         const next = { ...prev, ...updates }
         writeToStorage(next)
+        // 로그인 상태면 DB에도 저장
+        if (profile) {
+          fetch('/api/users/preferences', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ display_preferences: next }),
+          }).catch(() => {
+            // DB 저장 실패 시 localStorage만으로 동작
+          })
+        }
         return next
       })
     },
-    []
+    [profile]
   )
 
   const toggleField = useCallback(

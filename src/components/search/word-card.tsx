@@ -1,16 +1,20 @@
 'use client'
 
-import { Volume2 } from 'lucide-react'
+import { Volume2, Star } from 'lucide-react'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { usePronunciation } from '@/hooks/use-pronunciation'
 import { useDisplayPreferences } from '@/hooks/use-display-preferences'
+import { useVocabulary } from '@/hooks/use-vocabulary'
+import { useAuthContext } from '@/components/providers/auth-provider'
+import { toast } from '@/hooks/use-toast'
 import type { Word, WordCardField } from '@/types/database'
 
 interface WordCardProps {
   word: Word
+  showVocabularyButton?: boolean
 }
 
 const FIELD_LABELS: Record<WordCardField, string> = {
@@ -26,9 +30,25 @@ const FIELD_LABELS: Record<WordCardField, string> = {
   example: '예문',
 }
 
-export function WordCard({ word }: WordCardProps) {
+export function WordCard({ word, showVocabularyButton = true }: WordCardProps) {
   const { speak } = usePronunciation()
   const { preferences } = useDisplayPreferences()
+  const { user } = useAuthContext()
+  const { isInVocabulary, addToVocabulary, removeFromVocabulary } = useVocabulary()
+
+  const inVocab = user ? isInVocabulary(word.id) : false
+
+  const handleVocabularyToggle = async () => {
+    if (!user) return
+    const result = inVocab
+      ? await removeFromVocabulary(word.id)
+      : await addToVocabulary(word.id)
+    toast({
+      title: result.success ? (inVocab ? '제거 완료' : '추가 완료') : '오류',
+      description: result.message,
+      variant: result.success ? 'default' : 'destructive',
+    })
+  }
 
   const renderField = (field: WordCardField) => {
     if (!preferences.visibleFields.includes(field)) return null
@@ -146,6 +166,23 @@ export function WordCard({ word }: WordCardProps) {
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
+            {user && showVocabularyButton && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 rounded-full -ml-1"
+                onClick={handleVocabularyToggle}
+                aria-label={inVocab ? '단어장에서 제거' : '단어장에 추가'}
+              >
+                <Star
+                  className={`h-6 w-6 ${
+                    inVocab
+                      ? 'fill-yellow-400 text-yellow-400'
+                      : 'text-muted-foreground'
+                  }`}
+                />
+              </Button>
+            )}
             <h3 className="text-2xl font-bold text-foreground">{word.word}</h3>
             <Button
               variant="ghost"
@@ -158,11 +195,12 @@ export function WordCard({ word }: WordCardProps) {
             </Button>
           </div>
           <div className="flex items-center gap-2">
-            {word.part_of_speech && (
-              <Badge variant="outline" className="text-xs">
-                {word.part_of_speech}
-              </Badge>
-            )}
+            {word.part_of_speech &&
+              word.part_of_speech.split('/').map((pos, i) => (
+                <Badge key={i} variant="outline" className="text-xs">
+                  {pos.trim()}
+                </Badge>
+              ))}
             <LevelBadge level={word.difficulty_level} />
           </div>
         </div>

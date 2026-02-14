@@ -51,6 +51,7 @@ const FIELD_LABELS: Record<WordCardField, string> = {
 export function CardCustomizer() {
   const { preferences, updatePreferences } = useDisplayPreferences()
   const { toast } = useToast()
+  const [open, setOpen] = useState(false)
 
   // 로컬 state로 관리 (저장 버튼 클릭 전까지 실제 반영 안 함)
   const [localVisible, setLocalVisible] = useState<WordCardField[]>(preferences.visibleFields)
@@ -87,10 +88,11 @@ export function CardCustomizer() {
   const handleSave = () => {
     updatePreferences({ visibleFields: localVisible, fieldOrder: localOrder })
     toast({ title: '설정이 저장되었습니다.' })
+    setOpen(false)
   }
 
   return (
-    <Sheet>
+    <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
         <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="카드 설정">
           <Settings className="h-4 w-4" />

@@ -15,6 +15,7 @@ interface SearchContextType {
   addToHistory: (query: string, result: SearchResult) => string
   updateHistoryItem: (id: string, result: SearchResult) => void
   clearHistory: () => void
+  scrollToItem: (id: string) => void
   searchCount: number
 }
 
@@ -44,6 +45,15 @@ export function SearchProvider({ children }: { children: React.ReactNode }) {
     setHistory([])
   }, [])
 
+  const scrollToItem = useCallback((id: string) => {
+    const el = document.querySelector(`[data-search-id="${id}"]`)
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      el.classList.add('ring-2', 'ring-primary', 'rounded-lg')
+      setTimeout(() => el.classList.remove('ring-2', 'ring-primary', 'rounded-lg'), 2000)
+    }
+  }, [])
+
   return (
     <SearchContext.Provider
       value={{
@@ -51,6 +61,7 @@ export function SearchProvider({ children }: { children: React.ReactNode }) {
         addToHistory,
         updateHistoryItem,
         clearHistory,
+        scrollToItem,
         searchCount: history.length,
       }}
     >

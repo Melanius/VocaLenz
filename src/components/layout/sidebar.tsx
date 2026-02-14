@@ -11,7 +11,7 @@ interface SidebarProps {
 }
 
 export function Sidebar({ open, onClose }: SidebarProps) {
-  const { history, clearHistory } = useSearchContext()
+  const { history, clearHistory, scrollToItem } = useSearchContext()
 
   // 세션별로 그룹핑 (현재는 단일 세션)
   const wordSearches = history.filter((item) => item.result.type === 'word')
@@ -68,13 +68,14 @@ export function Sidebar({ open, onClose }: SidebarProps) {
               .slice()
               .reverse()
               .map((item) => (
-                <div
+                <button
                   key={item.id}
-                  className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm hover:bg-accent transition-colors cursor-default"
+                  onClick={() => scrollToItem(item.id)}
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm hover:bg-accent transition-colors cursor-pointer w-full text-left"
                 >
                   <StatusDot type={item.result.type} />
                   <span className="truncate text-foreground">{item.query}</span>
-                </div>
+                </button>
               ))
           )}
         </div>

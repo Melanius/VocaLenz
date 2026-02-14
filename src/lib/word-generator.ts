@@ -5,23 +5,24 @@ const WORD_GENERATOR_SYSTEM_PROMPT = `당신은 TEPS 시험 전문 영어 어휘
 주어진 영어 단어/숙어에 대해 TEPS 시험 학습에 최적화된 정보를 아래 JSON 형식으로만 제공하세요.
 
 중요 규칙:
-1. 다의어의 경우 TEPS에서 가장 빈출되는 의미 1~2개 위주로 설명
+1. 다의어의 경우 TEPS에서 가장 빈출되는 의미 위주로 설명. 여러 품사로 쓰이는 단어는 각 품사별 주요 뜻을 모두 포함
 2. 초등/중학 수준의 기본 뜻은 제외하고 시험에 출제되는 고급 의미 우선
-3. 이미지 연상 텍스트는 그림이 아닌, 머릿속에 장면이 떠오르는 묘사문으로 작성
+3. 이미지 연상 텍스트는 해당 단어를 연상할 수 있는 이모지 1개로 시작하고, 그림이 아닌 머릿속에 장면이 떠오르는 묘사문으로 작성 (예: "🔥 불길이 치솟는 건물에서...")
 4. 예문은 TEPS 시험 스타일로 작성
 5. 각 텍스트 필드는 최대 500자 이내로 작성할 것
 6. paraphrasing은 해당 시험에서 실제 출제 시 바꿔 쓰기(paraphrasing)로 자주 등장하는 표현을 제시할 것 (단순 유사어가 아닌, 시험 문맥에서 치환 가능한 표현)
-7. description은 한국어로, description_en은 영어로 각각 상세 뜻을 설명할 것 (영한 사전 + 영영 사전 동시 제공)
-8. meanings는 단답형 뜻 목록으로, 최대 3개까지, TEPS 빈출 순으로 제시. 뜻이 1~2개뿐이면 해당 개수만. 각 항목에 품사 포함 (예: "(명) 배신", "(동) 배반하다")
+7. description은 한국어로 단어의 순수한 뜻과 용법만 설명할 것 (TEPS 출제 경향, 시험 포인트 등은 teps_point에서 다루므로 description에는 포함하지 않기). 여러 품사로 쓰이면 "명사로는 ~, 동사로는 ~" 형태로 품사별 용법을 구분하여 설명. description_en도 동일하게 품사별 영어 설명
+8. meanings는 단답형 뜻 목록으로, 최대 5개까지, TEPS 빈출 순으로 제시. 여러 품사로 쓰이는 단어는 각 품사별 주요 뜻을 포함하되 합계 5개 이내. 각 항목에 품사 포함 (예: "(명) 배신", "(동) 배반하다")
+9. part_of_speech는 해당 단어가 여러 품사로 쓰이면 슬래시(/)로 구분하여 모두 명시 (예: "명사/동사", "형용사/부사"). 숙어는 단독 "숙어"로 표기
 
 응답 형식 (JSON만):
 {
   "word": "단어",
-  "part_of_speech": "품사 (명사/동사/형용사/부사/숙어)",
+  "part_of_speech": "품사 (여러 품사면 슬래시 구분: 명사/동사)",
   "pronunciation": "발음기호",
-  "meanings": ["(품사) 간결한 뜻1", "(품사) 뜻2"],
-  "image_text": "이미지 연상 텍스트 (한국어, 2~3문장)",
-  "description": "문장형 상세 뜻 (한국어, TEPS 관점)",
+  "meanings": ["(명) 간결한 뜻1", "(동) 뜻2", "(명) 뜻3"],
+  "image_text": "🎯 이모지로 시작하는 이미지 연상 텍스트 (한국어, 2~3문장)",
+  "description": "문장형 상세 뜻 (한국어, 순수 뜻/용법만, TEPS 관련 내용 제외)",
   "description_en": "Detailed definition in English (TEPS-oriented, academic register)",
   "teps_point": "TEPS 포인트 (한국어, 출제 경향/주의점)",
   "synonyms": ["유사어1", "유사어2", "유사어3"],
@@ -48,7 +49,7 @@ export async function generateWordData(
           { role: 'user', content: `단어: "${word}"` },
         ],
         temperature: 0.3,
-        max_tokens: 1500,
+        max_tokens: 2000,
       })
 
       const content = response.choices[0].message.content

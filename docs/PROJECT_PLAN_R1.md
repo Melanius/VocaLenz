@@ -226,6 +226,41 @@
 | 생성 | `src/app/api/words/reclassify/route.ts` |
 | 삭제 | `src/components/search/search-input.tsx` |
 
+### ✅ Phase 5: 사용자 기능 (단어장, 검색 이력, 성적 관리) (완료)
+**완료 일시:** 2026-02-15 06:00 (KST)
+
+#### Step 5.1: 단어장 기능 ✅
+- `src/app/api/vocabulary/route.ts`: 단어장 CRUD API (GET/POST/DELETE/PATCH, 100개 제한)
+- `src/hooks/use-vocabulary.ts`: 단어장 상태 관리 훅 (word_id Set 캐싱)
+- `src/components/search/word-card.tsx` 수정: ⭐ 단어장 추가/제거 버튼 (왼쪽 배치, 큰 아이콘)
+- `src/app/(main)/vocabulary/page.tsx`: 단어장 페이지 (카드 그리드, 필터, 암기 토글, 상세 팝업, 삭제)
+
+#### Step 5.2: 검색 이력 페이지 ✅
+- `src/app/api/history/route.ts`: 검색 이력 조회 API (페이지네이션)
+- `src/app/(main)/history/page.tsx`: 날짜별 그룹, 클릭 시 WordCard 펼침
+
+#### Step 5.3: 성적 관리 페이지 ✅
+- recharts@3.7.0 설치
+- `src/app/api/scores/route.ts`: 성적 CRUD API
+- `src/app/(main)/scores/page.tsx`: 탭 UI (입력 폼 / 테이블 / LineChart)
+
+#### Step 5.4: 네비게이션 업데이트 ✅
+- `src/components/layout/header.tsx` 수정: 검색 이력 + 성적 관리 링크 추가, 모바일 드롭다운 메뉴
+
+#### Step 5.5: 설정 영속성 + Sheet 닫기 ✅
+- `src/app/api/users/preferences/route.ts` 생성: display_preferences DB 저장 API
+- 로그인 시 localStorage + DB 이중 저장, 저장 시 Sheet 자동 닫기
+
+#### Step 5.6: 테스트 피드백 UX 개선 5건 ✅
+- 별 버튼: 단어명 왼쪽 이동 + 크기 확대
+- 사이드바: 검색 기록 클릭 시 해당 결과로 스크롤 + 하이라이트
+- 단어장: "상세" 버튼 + Dialog 팝업 (TEPS 학습 문장 로딩)
+- GPT 프롬프트: 이미지 연상에 이모지 추가, 한국어 설명에서 TEPS 내용 분리
+
+**Phase 5 생성 파일:** 8개, **수정 파일:** 6개
+**설치 패키지:** recharts@3.7.0
+**빌드 검증:** ✅ 성공 (에러 없음)
+
 ---
 
 ## 기술 스택 요약
@@ -237,6 +272,7 @@
 | Database | Supabase (PostgreSQL) |
 | Auth | Supabase Auth (이메일 + Google OAuth) |
 | AI | OpenAI GPT-4o-mini (Gatekeeper + 단어 생성) |
+| 차트 | Recharts (성적 추이 차트) |
 | 발음 | Web Speech API (브라우저 내장 TTS, 비용 $0) |
 | 배포 | Vercel |
 
@@ -1035,52 +1071,149 @@ Gatekeeper 결과에 따른 UI:
 
 ---
 
-## Phase 5: 사용자 기능 (단어장, 성적, 이력)
+## ✅ Phase 5: 사용자 기능 (단어장, 검색 이력, 성적 관리) (완료)
+**완료 일시:** 2026-02-15 04:30 (KST)
 
-### Step 5.1: 단어장 기능
+### Step 5.1: 단어장 기능 ✅
 
-**`src/app/(main)/vocabulary/page.tsx`**
+#### API: `src/app/api/vocabulary/route.ts`
+- **GET**: 사용자 단어장 목록 조회 (`user_vocabulary` JOIN `words`, user_id 필수)
+- **POST**: 단어장에 단어 추가 (`{ wordId }`) — 100개 제한 체크 + 중복 체크
+- **DELETE**: 단어장에서 단어 제거 (`{ vocabularyId }`)
+- **PATCH**: 암기 완료 토글 (`{ vocabularyId, is_memorized }`)
+- 인증 패턴: `createServerSupabaseClient()` → `getUser()` → `supabaseAdmin`으로 DB 조작
 
-기능:
-- 단어장 목록 보기 (카드 그리드)
-- 단어 추가 (검색 결과에서 ⭐ 클릭)
-- 단어 삭제
-- 암기 완료 토글
-- 무료 100개 제한 표시 (n/100)
-- 100개 초과 시 유료 구독 안내 UI
+#### 단어장 상태 관리 훅: `src/hooks/use-vocabulary.ts`
+- 로그인 시 사용자의 단어장 word_id Set 캐싱
+- `isInVocabulary(wordId)`, `addToVocabulary(wordId)`, `removeFromVocabulary(wordId)`
+- `vocabularyItems` 전체 목록 (vocabulary 페이지용)
+- `toggleMemorized(vocabId)`, `count` (현재 개수)
 
-API:
-- **`src/app/api/vocabulary/route.ts`** - CRUD
+#### 단어 카드에 단어장 추가 버튼: `src/components/search/word-card.tsx` (수정)
+- 로그인 사용자에게만 ⭐ 버튼 표시 (CardHeader 우측, LevelBadge 옆)
+- 이미 단어장에 있으면 ★(노란 채워진 별), 없으면 ☆(빈 별)
+- 클릭 시 POST/DELETE → toast 피드백
+- 100개 초과 시 "단어장이 가득 찼습니다" toast
 
-### Step 5.2: 검색 이력 페이지
+#### 단어장 페이지: `src/app/(main)/vocabulary/page.tsx`
+- 로그인 필수 (비로그인 시 로그인 유도 UI)
+- 카드 그리드 레이아웃 (단어명, 발음, 뜻 요약, 난이도 뱃지)
+- 상단: 단어 수 표시 (n/100), 필터 버튼
+- 필터: 전체 / 미암기 / 암기완료
+- 각 카드에 암기 토글(체크) + 삭제(휴지통) 버튼
+- 빈 상태: "아직 단어장에 추가한 단어가 없습니다"
 
-**`src/app/(main)/history/page.tsx`**
+### Step 5.2: 검색 이력 페이지 ✅
 
-기능:
-- 검색 이력 목록 (날짜별 그룹)
-- 이력에서 클릭 시 해당 단어 상세 보기
-- 로그인 필수 (비로그인 시 로그인 유도)
+#### API: `src/app/api/history/route.ts`
+- **GET**: `user_word_history` JOIN `words` 조회 (user_id 필수, 최근순 정렬)
+- 쿼리: `?page=1&limit=20` 페이지네이션 지원
+- 응답: `{ items, total, page, limit, hasMore }`
 
-### Step 5.3: 성적 관리 페이지
+#### 검색 이력 페이지: `src/app/(main)/history/page.tsx`
+- 로그인 필수 (비로그인 시 로그인 유도 UI)
+- 날짜별 그룹 (오늘, 어제, 이번 주, 이전)
+- 각 항목: 단어 + 난이도 뱃지 + meanings 요약 + 검색 시간
+- 클릭 시 해당 단어 상세 카드 펼침/접기 (WordCard 재사용)
+- "더 보기" 버튼으로 페이지네이션
+- 빈 상태: "검색 이력이 없습니다"
 
-**`src/app/(main)/scores/page.tsx`**
+### Step 5.3: 성적 관리 페이지 ✅
 
-기능:
-- 시험 성적 입력 폼: 회차 / 청해 / 어휘 / 문법 / 독해 / 총점 / 시험일
-- 성적 목록 (테이블)
-- 성적 추이 차트 (간단한 라인 차트 - recharts)
-- 성적 수정/삭제
+#### 패키지 설치
+- `recharts@3.7.0` 추가
 
-API:
-- **`src/app/api/scores/route.ts`** - CRUD
+#### API: `src/app/api/scores/route.ts`
+- **GET**: 사용자 성적 목록 조회 (시험일 순)
+- **POST**: 성적 입력 (`{ round, listening, vocabulary, grammar, reading, total, exam_date }`)
+- **PUT**: 성적 수정 (`{ scoreId, ...fields }`)
+- **DELETE**: 성적 삭제 (`{ scoreId }`)
+
+#### 성적 페이지: `src/app/(main)/scores/page.tsx`
+- 로그인 필수
+- 탭 구조: [성적 입력] [성적 목록] [추이 차트]
+- **성적 입력 폼**: 회차, 청해, 어휘, 문법, 독해, 총점(자동 합산), 시험일
+- **성적 목록**: 테이블 형태 (회차, 영역별 점수, 총점, 시험일, 수정/삭제 버튼)
+- **추이 차트**: recharts LineChart (총점 추이 / 영역별 추이 선택 가능)
+  - 총점: 인디고 라인
+  - 영역별: 청해(노랑), 어휘(초록), 문법(파랑), 독해(빨강)
+- 빈 상태: "아직 입력된 성적이 없습니다"
+
+### Step 5.4: 네비게이션 업데이트 ✅
+
+#### Header: `src/components/layout/header.tsx` (수정)
+- 기존 "AI 채팅" 링크 → "검색 이력" (`/history`)으로 변경
+- "성적 관리" (`/scores`) 링크 추가
+- 네비게이션 순서: 단어 검색 | 내 단어장 | 검색 이력 | 성적 관리 | 퀴즈
+- 모바일 대응: `md:` 이상은 가로 네비, 모바일은 DropdownMenu 적용
+- 사용자 이름 모바일에서 숨김 (`hidden sm:inline`)
+
+### Phase 5 파일 변경 요약
+
+| 구분 | 파일 | 내용 |
+|------|------|------|
+| 생성 | `src/app/api/vocabulary/route.ts` | 단어장 CRUD API (GET/POST/DELETE/PATCH) |
+| 생성 | `src/app/api/history/route.ts` | 검색 이력 조회 API (페이지네이션) |
+| 생성 | `src/app/api/scores/route.ts` | 성적 CRUD API (GET/POST/PUT/DELETE) |
+| 생성 | `src/hooks/use-vocabulary.ts` | 단어장 상태 관리 훅 |
+| 생성 | `src/app/(main)/vocabulary/page.tsx` | 단어장 페이지 |
+| 생성 | `src/app/(main)/history/page.tsx` | 검색 이력 페이지 |
+| 생성 | `src/app/(main)/scores/page.tsx` | 성적 관리 페이지 |
+| 수정 | `src/components/search/word-card.tsx` | ⭐ 단어장 추가 버튼 |
+| 수정 | `src/components/layout/header.tsx` | 네비게이션 링크 변경 + 모바일 드롭다운 |
+
+### Step 5.5: 설정 영속성 + Sheet 닫기 개선 ✅
+**완료 일시:** 2026-02-15 05:00 (KST)
+
+- `src/app/api/users/preferences/route.ts` 생성: PUT 엔드포인트 (display_preferences DB 저장)
+- `src/hooks/use-display-preferences.ts` 수정: 로그인 시 localStorage + DB 이중 저장
+- `src/components/search/card-customizer.tsx` 수정: Sheet을 controlled 상태로 전환, 저장 시 자동 닫기
+
+### Step 5.6: 테스트 피드백 반영 (UX 개선 5건) ✅
+**완료 일시:** 2026-02-15 06:00 (KST)
+
+#### 5.6.1: 별(단어장 추가) 버튼 위치 및 크기 변경 ✅
+- `src/components/search/word-card.tsx` 수정
+- 별 버튼을 단어명 **오른쪽**에서 **왼쪽**으로 이동 (h3 앞)
+- 아이콘 크기 `h-4 w-4` → `h-6 w-6`로 확대, 버튼 `h-9 w-9`
+
+#### 5.6.2: 사이드바 검색 기록 클릭 기능 ✅
+- `src/contexts/search-context.tsx` 수정: `scrollToItem(id)` 함수 추가
+- `src/app/(main)/page.tsx` 수정: 각 결과에 `data-search-id` 속성 추가
+- `src/components/layout/sidebar.tsx` 수정: 항목 클릭 시 해당 결과로 스크롤 + 2초 하이라이트
+
+#### 5.6.3: 단어장 "상세" 버튼 + 팝업 ✅
+- `src/app/(main)/vocabulary/page.tsx` 수정
+- 각 카드에 `Eye` (상세) 아이콘 버튼 추가
+- 클릭 시 Dialog 팝업으로 전체 WordCard 표시 (사용자 카드 설정 반영)
+- 로딩 중 TEPS 학습 문장 표시 (`loading-phrases.ts` 활용)
+
+#### 5.6.4: 이미지 연상 텍스트에 이모지 추가 ✅
+- `src/lib/word-generator.ts` 수정
+- GPT 프롬프트 규칙 3번: "해당 단어를 연상할 수 있는 이모지 1개로 시작"
+- JSON 형식 힌트: `"🎯 이모지로 시작하는 이미지 연상 텍스트"`
+
+#### 5.6.5: 한국어 설명에서 TEPS 관련 내용 분리 ✅
+- `src/lib/word-generator.ts` 수정
+- 규칙 7번: "description은 순수한 뜻과 용법만, TEPS 출제 경향은 teps_point에서 다룸"
+- description과 teps_point 역할 분리 명확화
+
+**Phase 5 검증 결과:**
+- TypeScript 타입 체크: ✅ 에러 없음
+- ESLint: ✅ 에러 없음 (warning 1건 - useEffect dependency, 기능 무관)
+- 프로덕션 빌드: ✅ 성공
+  - `/vocabulary` 9.41 kB, `/history` 3.47 kB, `/scores` 112 kB (recharts 포함)
+- 설치 패키지: recharts@3.7.0
 
 **테스트 체크리스트:**
-- [ ] 단어 검색 후 단어장에 추가 → 단어장 페이지에서 확인
+- [ ] 단어 검색 후 ⭐ 클릭 → 단어장에 추가 확인
 - [ ] 단어장 100개 제한 도달 시 안내 메시지
 - [ ] 암기 완료 토글 → DB 반영 확인
-- [ ] 성적 입력 → 목록에 표시
-- [ ] 성적 수정/삭제 동작 확인
-- [ ] 검색 이력 → 날짜별 그룹 표시
+- [ ] `/vocabulary` → 단어장 목록, 필터(전체/미암기/암기완료), 삭제 동작
+- [ ] `/history` → 날짜별 검색 이력, 클릭 시 단어 카드 펼침
+- [ ] `/scores` → 성적 입력/수정/삭제, 차트 표시
+- [ ] 비로그인 → 각 페이지 접근 시 로그인 유도 UI
+- [ ] 모바일 헤더 드롭다운 메뉴 동작
 
 **커밋:** `git commit -m "feat: implement vocabulary, history, and score management"`
 

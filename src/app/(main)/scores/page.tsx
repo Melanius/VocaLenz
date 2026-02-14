@@ -171,10 +171,13 @@ export default function ScoresPage() {
       <div className="flex-1 flex items-center justify-center">
         <div className="text-center space-y-4">
           <BarChart3 className="h-12 w-12 mx-auto text-muted-foreground" />
-          <h2 className="text-xl font-semibold">로그인이 필요합니다</h2>
-          <p className="text-muted-foreground">성적을 관리하려면 로그인해 주세요.</p>
+          <h2 className="text-xl font-semibold">TEPS 성적을 기록하고 추이를 확인하세요</h2>
+          <p className="text-muted-foreground">
+            로그인하면 시험 성적을 입력하고<br />
+            영역별 점수 변화를 차트로 확인할 수 있어요.
+          </p>
           <Button asChild>
-            <Link href="/auth/login">로그인</Link>
+            <Link href="/auth/login">로그인하고 시작하기</Link>
           </Button>
         </div>
       </div>

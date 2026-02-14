@@ -5,6 +5,8 @@ import { useAuthContext } from '@/components/providers/auth-provider'
 import type { DisplayPreferences, WordCardField } from '@/types/database'
 
 const STORAGE_KEY = 'vocalenz_display_preferences'
+const STORAGE_VERSION_KEY = 'vocalenz_prefs_version'
+const CURRENT_PREFS_VERSION = 2  // bump to force fieldOrder reset
 const SYNC_EVENT = 'vocalenz_preferences_sync'
 
 const DEFAULT_PREFERENCES: DisplayPreferences = {
@@ -32,14 +34,20 @@ const DEFAULT_PREFERENCES: DisplayPreferences = {
   searchMode: 1,
 }
 
-// v1.8에서 추가된 필드 — 이전 저장 데이터에 없으면 보정
+// 이전 저장 데이터 마이그레이션
 function migratePreferences(prefs: DisplayPreferences): DisplayPreferences {
   const migrated = { ...prefs }
-  // meanings 필드가 fieldOrder에 없으면 image_text 다음에 삽입
+  // meanings 필드가 fieldOrder에 없으면 추가
   if (!migrated.fieldOrder.includes('meanings')) {
-    const idx = migrated.fieldOrder.indexOf('image_text')
-    migrated.fieldOrder.splice(idx + 1, 0, 'meanings')
     migrated.visibleFields = [...migrated.visibleFields, 'meanings']
+  }
+  // 버전 체크: fieldOrder를 최신 기본순으로 리셋 (사용자 visibleFields는 유지)
+  if (typeof window !== 'undefined') {
+    const savedVersion = parseInt(localStorage.getItem(STORAGE_VERSION_KEY) || '0')
+    if (savedVersion < CURRENT_PREFS_VERSION) {
+      migrated.fieldOrder = [...DEFAULT_PREFERENCES.fieldOrder]
+      localStorage.setItem(STORAGE_VERSION_KEY, String(CURRENT_PREFS_VERSION))
+    }
   }
   return migrated
 }

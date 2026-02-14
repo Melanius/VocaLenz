@@ -48,10 +48,13 @@ export default function VocabularyPage() {
       <div className="flex-1 flex items-center justify-center">
         <div className="text-center space-y-4">
           <BookOpen className="h-12 w-12 mx-auto text-muted-foreground" />
-          <h2 className="text-xl font-semibold">로그인이 필요합니다</h2>
-          <p className="text-muted-foreground">단어장을 사용하려면 로그인해 주세요.</p>
+          <h2 className="text-xl font-semibold">나만의 단어장을 만들어 보세요</h2>
+          <p className="text-muted-foreground">
+            로그인하면 검색한 단어를 단어장에 저장하고<br />
+            암기 여부를 체크하며 학습할 수 있어요.
+          </p>
           <Button asChild>
-            <Link href="/auth/login">로그인</Link>
+            <Link href="/auth/login">로그인하고 시작하기</Link>
           </Button>
         </div>
       </div>

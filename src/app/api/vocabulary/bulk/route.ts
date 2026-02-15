@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { generateWordData } from '@/lib/word-generator'
+import { evaluateWithGatekeeper } from '@/lib/gatekeeper'
 
 const MAX_VOCABULARY_SIZE = 100
 
@@ -83,7 +84,7 @@ export async function POST(request: NextRequest) {
 
                 added++
                 controller.enqueue(encoder.encode(
-                  JSON.stringify({ type: 'progress', current: i + 1, total, word, status: 'exists' }) + '\n'
+                  JSON.stringify({ type: 'progress', current: i + 1, total, word, status: 'added' }) + '\n'
                 ))
               }
             } else {
@@ -93,6 +94,22 @@ export async function POST(request: NextRequest) {
               ))
 
               try {
+                // Gatekeeper로 단어 유효성 검증
+                const gkResult = await evaluateWithGatekeeper(word)
+
+                if (gkResult.status !== 'VALID') {
+                  failed++
+                  controller.enqueue(encoder.encode(
+                    JSON.stringify({
+                      type: 'progress', current: i + 1, total, word, status: 'failed',
+                      error: gkResult.reason || '유효하지 않은 단어',
+                      correction: gkResult.correction,
+                      gkStatus: gkResult.status,
+                    }) + '\n'
+                  ))
+                  continue
+                }
+
                 const wordData = await generateWordData(word)
 
                 const { data: newWord, error: insertError } = await supabaseAdmin
@@ -128,7 +145,7 @@ export async function POST(request: NextRequest) {
 
                 added++
                 controller.enqueue(encoder.encode(
-                  JSON.stringify({ type: 'progress', current: i + 1, total, word, status: 'created' }) + '\n'
+                  JSON.stringify({ type: 'progress', current: i + 1, total, word, status: 'added' }) + '\n'
                 ))
               } catch {
                 failed++

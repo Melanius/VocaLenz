@@ -41,7 +41,9 @@ export default function QuizPage() {
   const [sourceUnmemorized, setSourceUnmemorized] = useState(true)
   const [sourceMemorized, setSourceMemorized] = useState(false)
   const [sourceHistory, setSourceHistory] = useState(false)
+  const [historyDateMode, setHistoryDateMode] = useState<'single' | 'range'>('single')
   const [historyDate, setHistoryDate] = useState('')
+  const [historyDateTo, setHistoryDateTo] = useState('')
 
   // 복습 표시 처리 상태
   const [reviewMarked, setReviewMarked] = useState<Set<string>>(new Set())
@@ -66,6 +68,9 @@ export default function QuizPage() {
       let url = `/api/quiz?count=${questionCount}&source=${source}`
       if (sourceHistory && historyDate) {
         url += `&historyDate=${historyDate}`
+        if (historyDateMode === 'range' && historyDateTo) {
+          url += `&historyDateTo=${historyDateTo}`
+        }
       }
       const res = await fetch(url)
       const data = await res.json()
@@ -89,7 +94,7 @@ export default function QuizPage() {
       setState('idle')
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [questionCount, sourceUnmemorized, sourceMemorized, sourceHistory, historyDate])
+  }, [questionCount, sourceUnmemorized, sourceMemorized, sourceHistory, historyDate, historyDateMode, historyDateTo])
 
   const handleAnswer = (index: number) => {
     if (showFeedback || selectedIndex !== null) return
@@ -465,14 +470,61 @@ export default function QuizPage() {
                   <span className="text-sm">검색 이력 단어</span>
                 </label>
                 {sourceHistory && (
-                  <div className="ml-6">
-                    <label className="text-xs text-muted-foreground">이 날짜 이후 검색한 단어</label>
-                    <input
-                      type="date"
-                      value={historyDate}
-                      onChange={(e) => setHistoryDate(e.target.value)}
-                      className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                    />
+                  <div className="ml-6 space-y-2">
+                    <div className="flex gap-3">
+                      <label className="flex items-center gap-1.5 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="dateMode"
+                          checked={historyDateMode === 'single'}
+                          onChange={() => setHistoryDateMode('single')}
+                          className="accent-primary"
+                        />
+                        <span className="text-xs">특정 날짜</span>
+                      </label>
+                      <label className="flex items-center gap-1.5 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="dateMode"
+                          checked={historyDateMode === 'range'}
+                          onChange={() => setHistoryDateMode('range')}
+                          className="accent-primary"
+                        />
+                        <span className="text-xs">기간 설정</span>
+                      </label>
+                    </div>
+                    {historyDateMode === 'single' ? (
+                      <div>
+                        <label className="text-xs text-muted-foreground">이 날짜에 검색한 단어</label>
+                        <input
+                          type="date"
+                          value={historyDate}
+                          onChange={(e) => setHistoryDate(e.target.value)}
+                          className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        />
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <div>
+                          <label className="text-xs text-muted-foreground">시작일</label>
+                          <input
+                            type="date"
+                            value={historyDate}
+                            onChange={(e) => setHistoryDate(e.target.value)}
+                            className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-muted-foreground">종료일</label>
+                          <input
+                            type="date"
+                            value={historyDateTo}
+                            onChange={(e) => setHistoryDateTo(e.target.value)}
+                            className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

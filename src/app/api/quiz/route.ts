@@ -35,6 +35,7 @@ export async function GET(request: NextRequest) {
     const count = Math.min(parseInt(searchParams.get('count') || '10', 10), 20)
     const sourceParam = searchParams.get('source') || 'unmemorized'
     const historyDate = searchParams.get('historyDate') || ''
+    const historyDateTo = searchParams.get('historyDateTo') || ''
     const sources = sourceParam.split(',').filter(Boolean)
 
     // 1. 소스별 단어 수집
@@ -77,11 +78,18 @@ export async function GET(request: NextRequest) {
     }
 
     if (sources.includes('history') && historyDate) {
-      const { data } = await supabaseAdmin
+      let query = supabaseAdmin
         .from('user_word_history')
         .select('word:words(id, word, part_of_speech, meanings)')
         .eq('user_id', user.id)
         .gte('searched_at', historyDate)
+
+      if (historyDateTo) {
+        // 종료일의 다음 날 자정까지 포함
+        query = query.lt('searched_at', historyDateTo + 'T23:59:59.999Z')
+      }
+
+      const { data } = await query
 
       const words = (data || [])
         .map((v: Record<string, unknown>) => v.word)

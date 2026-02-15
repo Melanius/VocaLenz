@@ -34,6 +34,8 @@ interface BulkProgress {
   word: string
   status: string
   error?: string
+  correction?: string
+  gkStatus?: string
 }
 
 interface BulkComplete {
@@ -499,19 +501,22 @@ export default function VocabularyPage() {
                   <div className="max-h-48 overflow-y-auto space-y-1">
                     {uploadProgress.map((p, i) => (
                       <div key={i} className="flex items-center gap-2 text-sm">
-                        <span>
-                          {p.status === 'exists' || p.status === 'created' ? '✅' :
+                        <span className="shrink-0">
+                          {p.status === 'added' ? '✅' :
                            p.status === 'skipped' ? '⏭️' :
                            p.status === 'generating' ? '🔄' :
                            p.status === 'failed' ? '❌' : '⏳'}
                         </span>
-                        <span className="font-mono">{p.word}</span>
-                        <span className="text-xs text-muted-foreground">
-                          {p.status === 'exists' ? 'DB에서 추가' :
-                           p.status === 'created' ? '새로 생성' :
+                        <span className="font-mono shrink-0">{p.word}</span>
+                        <span className="text-xs text-muted-foreground truncate">
+                          {p.status === 'added' ? '추가 완료' :
                            p.status === 'skipped' ? '이미 단어장에 있음' :
                            p.status === 'generating' ? '생성 중...' :
-                           p.status === 'failed' ? p.error : ''}
+                           p.status === 'failed' ? (
+                             p.correction
+                               ? `${p.error} → ${p.correction}`
+                               : p.error
+                           ) : ''}
                         </span>
                       </div>
                     ))}

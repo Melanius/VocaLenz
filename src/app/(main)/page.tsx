@@ -1,18 +1,22 @@
 'use client'
 
-import { useRef, useEffect } from 'react'
-import { BookOpen } from 'lucide-react'
+import { useRef, useEffect, useState } from 'react'
+import { BookOpen, History } from 'lucide-react'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
+import { Button } from '@/components/ui/button'
 import { MultiSearchInput } from '@/components/search/multi-search-input'
 import { SearchResults } from '@/components/search/search-results'
 import { RecommendedWords } from '@/components/search/recommended-words'
 import { CardCustomizer } from '@/components/search/card-customizer'
+import { Sidebar } from '@/components/layout/sidebar'
 import { useSearchContext } from '@/contexts/search-context'
 
 export default function SearchPage() {
-  const { history, addToHistory, updateHistoryItem } = useSearchContext()
+  const { history, addToHistory, updateHistoryItem, scrollToItem } = useSearchContext()
   const scrollRef = useRef<HTMLDivElement>(null)
   const isEmpty = history.length === 0
+  const [historyOpen, setHistoryOpen] = useState(false)
 
   // 새 결과 추가 시 자동 스크롤
   useEffect(() => {
@@ -55,6 +59,12 @@ export default function SearchPage() {
       })
     }
   }
+
+  // 최근 검색 단어 (word 타입만, 최신 5개)
+  const recentWords = history
+    .filter((item) => item.result.type === 'word')
+    .slice(-5)
+    .reverse()
 
   return (
     <div className="flex flex-col h-full">
@@ -125,7 +135,21 @@ export default function SearchPage() {
           </ScrollArea>
 
           <div className="border-t bg-background/95 backdrop-blur p-4">
-            <div className="max-w-3xl mx-auto">
+            <div className="max-w-3xl mx-auto space-y-2">
+              {/* 모바일: 최근 검색 칩 */}
+              {recentWords.length > 0 && (
+                <div className="flex gap-1.5 overflow-x-auto pb-1 md:hidden">
+                  {recentWords.map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => scrollToItem(item.id)}
+                      className="shrink-0 px-2.5 py-1 rounded-full bg-muted text-xs text-foreground hover:bg-accent transition-colors"
+                    >
+                      {item.query}
+                    </button>
+                  ))}
+                </div>
+              )}
               <div className="flex items-center gap-2">
                 <div className="flex-1">
                   <MultiSearchInput compact />
@@ -136,6 +160,23 @@ export default function SearchPage() {
           </div>
         </>
       )}
+
+      {/* 모바일: 검색 기록 바텀 시트 */}
+      <Sheet open={historyOpen} onOpenChange={setHistoryOpen}>
+        <SheetTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="fixed right-3 bottom-20 z-40 md:hidden h-10 w-10 rounded-full bg-primary/10 shadow-md"
+            aria-label="검색 기록"
+          >
+            <History className="h-5 w-5 text-primary" />
+          </Button>
+        </SheetTrigger>
+        <SheetContent side="bottom" className="h-[70vh] rounded-t-2xl p-0">
+          <Sidebar open={true} onClose={() => setHistoryOpen(false)} />
+        </SheetContent>
+      </Sheet>
     </div>
   )
 }

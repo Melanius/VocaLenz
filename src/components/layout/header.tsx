@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Menu } from 'lucide-react'
+import { Search, BookOpen, History, BarChart3, Brain, MoreVertical } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -14,11 +14,11 @@ import { useAuthContext } from '@/components/providers/auth-provider'
 import { createClient } from '@/lib/supabase/client'
 
 const NAV_LINKS = [
-  { href: '/', label: '단어 검색' },
-  { href: '/vocabulary', label: '내 단어장' },
-  { href: '/history', label: '검색 이력' },
-  { href: '/scores', label: '성적 관리' },
-  { href: '/quiz', label: '퀴즈' },
+  { href: '/', label: '단어 검색', icon: Search },
+  { href: '/vocabulary', label: '내 단어장', icon: BookOpen },
+  { href: '/history', label: '검색 이력', icon: History },
+  { href: '/scores', label: '성적 관리', icon: BarChart3 },
+  { href: '/quiz', label: '퀴즈', icon: Brain },
 ]
 
 export function Header() {
@@ -52,25 +52,6 @@ export function Header() {
               </Link>
             ))}
           </nav>
-
-          {/* Mobile nav */}
-          <div className="md:hidden flex items-center">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8">
-                  <Menu className="h-4 w-4" />
-                  <span className="sr-only">메뉴</span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start">
-                {NAV_LINKS.map((link) => (
-                  <DropdownMenuItem key={link.href} asChild>
-                    <Link href={link.href}>{link.label}</Link>
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
         </div>
         <div className="flex flex-1 items-center justify-end space-x-2">
           {loading ? (
@@ -89,6 +70,31 @@ export function Header() {
               <Link href="/auth/login">로그인</Link>
             </Button>
           )}
+
+          {/* Mobile nav - right side */}
+          <div className="md:hidden">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8">
+                  <MoreVertical className="h-4 w-4" />
+                  <span className="sr-only">메뉴</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {NAV_LINKS.map((link) => {
+                  const Icon = link.icon
+                  return (
+                    <DropdownMenuItem key={link.href} asChild>
+                      <Link href={link.href} className="flex items-center gap-2">
+                        <Icon className="h-4 w-4" />
+                        {link.label}
+                      </Link>
+                    </DropdownMenuItem>
+                  )
+                })}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
       </div>
     </header>

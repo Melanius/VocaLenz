@@ -1346,6 +1346,44 @@ Gatekeeper 결과에 따른 UI:
 **DB 변경:** `ALTER TABLE user_vocabulary ADD COLUMN needs_review boolean DEFAULT false;`
 **빌드 검증:** ✅ 성공 (에러 없음)
 
+#### Step 6.5.6: 테스트 피드백 반영 (UX 개선 4건) ✅
+**완료 일시:** 2026-02-15 (KST)
+
+##### 6.5.6-1: Toast 알림 자동 닫힘 (3초) ✅
+- `src/hooks/use-toast.ts`: `TOAST_REMOVE_DELAY`를 `1000000` → `3000`으로 변경
+- `toast()` 함수에 `setTimeout(() => dismiss(), 3000)` 자동 dismiss 추가
+- 앱 전체 모든 toast가 3초 후 자동으로 사라짐
+
+##### 6.5.6-2: 퀴즈 검색이력 날짜 선택 모드 (특정 날짜 / 기간 설정) ✅
+- `src/app/(main)/quiz/page.tsx`: 라디오 버튼으로 "특정 날짜" / "기간 설정" 모드 선택
+  - 특정 날짜: 해당 날짜에 검색한 단어 (기존)
+  - 기간 설정: 시작일~종료일 범위 내 검색 단어
+- `src/app/api/quiz/route.ts`: `historyDateTo` 파라미터 추가, `.lt()` 조건으로 종료일 필터링
+
+##### 6.5.6-3: 벌크 업로드 메시지 통일 + 실패 상세 정보 ✅
+- `src/app/api/vocabulary/bulk/route.ts`:
+  - 기존 "DB에서 추가" / "새로 생성" → 통일된 `status: 'added'` ("추가 완료")
+  - 새 단어 생성 전 `evaluateWithGatekeeper()` 검증 추가
+  - 실패 시 `correction` (교정 제안) + `gkStatus` (판별 상태) + `error` (사유) 반환
+- `src/app/(main)/vocabulary/page.tsx`: 진행률 UI 통일 + 실패 시 "사유 → 교정 단어" 표시
+
+##### 6.5.6-4: 모바일 UI 개선 ✅
+- **헤더 네비게이션 이동**: `src/components/layout/header.tsx`
+  - 모바일 메뉴를 왼쪽에서 **오른쪽**(프로필 옆)으로 이동
+  - 아이콘을 `≡`(Menu) → `⋮`(MoreVertical)로 변경
+  - 메뉴 항목에 아이콘 추가 (Search, BookOpen, History, BarChart3, Brain)
+- **모바일 사이드바 제거**: `src/app/(main)/layout.tsx`
+  - 좌측 고정 햄버거 버튼(Sheet 트리거) 완전 제거
+  - 데스크톱 사이드바만 유지
+- **검색 기록 바텀 시트**: `src/app/(main)/page.tsx`
+  - 검색 페이지 우측 하단에 History FAB 버튼 (모바일만)
+  - 클릭 시 하단에서 올라오는 바텀 시트로 검색 기록 표시 (70vh)
+  - Sidebar 컴포넌트 재사용
+- **최근 검색 칩**: 검색 입력창 상단에 최근 검색 단어 5개 칩 표시 (모바일만)
+  - 클릭 시 해당 결과로 스크롤
+
+**빌드 검증:** ✅ 성공 (에러 없음)
+
 ---
 
 ## Phase 7: 리포팅 시스템 + 데이터 수집

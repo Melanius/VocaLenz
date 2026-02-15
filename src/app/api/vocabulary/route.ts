@@ -125,15 +125,23 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
     }
 
-    const { vocabularyId, is_memorized } = await request.json()
+    const { vocabularyId, is_memorized, needs_review } = await request.json()
 
-    if (!vocabularyId || typeof is_memorized !== 'boolean') {
+    if (!vocabularyId) {
+      return NextResponse.json({ error: '잘못된 요청입니다.' }, { status: 400 })
+    }
+
+    const updateData: Record<string, boolean> = {}
+    if (typeof is_memorized === 'boolean') updateData.is_memorized = is_memorized
+    if (typeof needs_review === 'boolean') updateData.needs_review = needs_review
+
+    if (Object.keys(updateData).length === 0) {
       return NextResponse.json({ error: '잘못된 요청입니다.' }, { status: 400 })
     }
 
     const { error } = await supabaseAdmin
       .from('user_vocabulary')
-      .update({ is_memorized })
+      .update(updateData)
       .eq('id', vocabularyId)
       .eq('user_id', user.id)
 

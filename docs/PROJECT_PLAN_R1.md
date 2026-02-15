@@ -1266,51 +1266,85 @@ Gatekeeper 결과에 따른 UI:
 
 ---
 
-## Phase 6: 퀴즈 시스템
+### ✅ Phase 6: 퀴즈 시스템 (완료)
+**완료 일시:** 2026-02-15 12:00 (KST)
 
-### Step 6.1: 퀴즈 로직
+#### Step 6.1: 퀴즈 API + 로직 ✅
+- `src/app/api/quiz/route.ts`: 퀴즈 생성 API
+  - 사용자 단어장에서 랜덤 정답 단어 선택
+  - words 테이블에서 같은 품사 오답 우선 → 부족 시 다른 품사 fallback
+  - 4지선다 셔플 + correctIndex 반환
+  - 단어장 4개 미만 시 퀴즈 불가 안내
 
-**`src/lib/quiz.ts`**
+#### Step 6.2: 퀴즈 UI ✅
+- `src/app/(main)/quiz/page.tsx`
+  - 설정 화면: 퀴즈 유형(영→한/한→영), 문제 수(5/10/전체)
+  - 진행 화면: 진행률 바, 4지선다, 정답/오답 피드백
+  - 결과 화면: 점수, 틀린 단어 목록, 다시 풀기/단어장 이동
 
-퀴즈 생성 로직:
-1. 사용자 단어장에서 랜덤 단어 선택 (정답)
-2. 정답의 품사(part_of_speech) 확인
-3. words 테이블에서 같은 품사의 다른 단어 3개를 랜덤 선택 (오답 보기)
-4. 정답 포함 4개를 셔플하여 4지선다 생성
+---
 
-**오답 보기 Fallback 로직 (DB 단어 부족 시):**
-```
-1순위: 같은 품사 단어 3개 (이상적)
-2순위: 같은 품사가 부족하면 → 다른 품사 단어로 나머지 채움
-3순위: DB 전체 단어가 4개 미만이면 → 퀴즈 불가 안내
-```
-> ⚠️ PoC 초기에는 DB에 단어가 적어 같은 품사 보기를 채울 수 없는 경우가 빈번합니다. 반드시 fallback을 구현해야 퀴즈가 정상 작동합니다.
+### ✅ Phase 6.5: 퀴즈 시스템 개선 + 단어 업로드 (완료)
+**완료 일시:** 2026-02-15 (KST)
 
-퀴즈 유형 (Phase 1):
-- **영어 → 한국어**: 단어 보여주고 뜻 고르기
-- **한국어 → 영어**: 뜻 보여주고 단어 고르기
+사용자 피드백 기반 5가지 개선사항 반영.
 
-### Step 6.2: 퀴즈 UI
+#### Step 6.5.1: 퀴즈 보기 품사 접두어 제거 ✅
+- `src/app/api/quiz/route.ts`: `stripPOS()` 함수 추가
+- `meanings[0]`의 `"(명) 우호"` → `"우호"` 형태로 품사 접두어 제거
+- 보기(options) 생성 시 적용
 
-**`src/app/(main)/quiz/page.tsx`**
+#### Step 6.5.2: 결과 화면 "다른 문제 풀기" 버튼 ✅
+- `src/app/(main)/quiz/page.tsx` 결과 화면에 3개 액션 버튼:
+  - "다시 풀기" (같은 설정 재시작)
+  - "다른 문제 풀기" (idle 설정 화면으로 이동)
+  - "단어장으로" (vocabulary 이동)
 
-기능:
-- 퀴즈 시작 (단어장에서 10문제 세트)
-- 4지선다 UI (같은 품사 보기)
-- 정답/오답 피드백 (정답 시 초록, 오답 시 빨강 + 정답 표시)
-- 결과 요약 (정답률, 틀린 단어 목록)
-- 유료 구독 필요 표시
+#### Step 6.5.3: 퀴즈 설정 화면 개선 ✅
+- **퀴즈 유형**: `ko2en` 제거, `en2ko` 고정 (유형 선택 UI 삭제)
+- **문제 수**: 5/10/전체 버튼 → 1~20 슬라이더 (`<input type="range">`)
+- **퀴즈 범위**: 체크박스 3개로 소스 선택
+  - 단어장 미암기 단어 (기본 체크)
+  - 단어장 암기완료 단어
+  - 검색 이력 단어 (체크 시 날짜 입력 필드 표시)
+- API: `source=unmemorized,memorized,history&historyDate=2026-02-14` 파라미터 확장
+- 소스별 단어 수집 → word.id 기준 중복 제거 → 4개 미만 에러
 
-**테스트 체크리스트:**
-- [ ] 퀴즈 시작 → 4지선다 보기가 같은 품사인지 확인
-- [ ] 같은 품사 부족 시 → 다른 품사로 보기 채워지는지 확인
-- [ ] 정답 선택 → 초록색 피드백
-- [ ] 오답 선택 → 빨간색 + 정답 표시
-- [ ] 10문제 완료 → 결과 요약 표시
-- [ ] 단어장에 단어가 4개 미만 → 퀴즈 불가 안내
-- [ ] DB 전체 단어 4개 미만 → 퀴즈 불가 안내
+#### Step 6.5.4: 오답 복습 마킹 시스템 ✅
+- **DB 변경**: `user_vocabulary`에 `needs_review boolean DEFAULT false` 컬럼 추가
+- **타입 변경**: `src/types/database.ts` `UserVocabulary`에 `needs_review: boolean` 추가
+- **API 변경**: `src/app/api/vocabulary/route.ts` PATCH에 `needs_review` 필드 지원
+- **복습 API**: `src/app/api/vocabulary/review/route.ts` 생성 (word_id 기반 복습 표시)
+- **퀴즈 결과**: 틀린 단어별 "복습 표시" 버튼 + "모두 복습 표시" 일괄 버튼
+- **단어장 UI**: 주황색 "복습" 배지 (클릭 해제), 필터에 "복습필요" 옵션 추가
 
-**커밋:** `git commit -m "feat: implement quiz system with same POS answer choices"`
+#### Step 6.5.5: Excel/CSV 단어 일괄 업로드 ✅
+- **패키지**: `xlsx` 라이브러리 추가 (클라이언트 파일 파싱)
+- **단어장 UI**: "단어 일괄 추가" 버튼 + Dialog
+  - 파일 선택 (.xlsx, .xls, .csv)
+  - A열에서 영단어만 필터링 (`/^[a-zA-Z\s-]+$/`), 한글 제외
+  - 최대 50개, 단어장 잔여 용량 체크
+- **Bulk API**: `src/app/api/vocabulary/bulk/route.ts` 생성
+  - DB 기존 단어 → 즉시 단어장 추가
+  - 새 단어 → GPT `generateWordData()` 생성 → words INSERT → user_vocabulary INSERT
+  - NDJSON 스트리밍 응답으로 진행률 실시간 전송
+- **진행률 UI**: 진행률 바 + 단어별 상태 (✅ 완료 / 🔄 생성 중 / ❌ 실패) + 완료 결과 요약
+
+**Phase 6.5 파일 변경 요약:**
+
+| 구분 | 파일 | 내용 |
+|------|------|------|
+| 수정 | `src/app/api/quiz/route.ts` | 품사 제거 + 범위 쿼리 + en2ko 고정 |
+| 수정 | `src/app/(main)/quiz/page.tsx` | 버튼 추가 + 설정 개선 + 복습 표시 |
+| 수정 | `src/types/database.ts` | UserVocabulary에 needs_review 추가 |
+| 수정 | `src/app/api/vocabulary/route.ts` | PATCH에 needs_review 지원 |
+| 수정 | `src/app/(main)/vocabulary/page.tsx` | 복습 배지/필터 + 업로드 Dialog |
+| 생성 | `src/app/api/vocabulary/review/route.ts` | word_id 기반 복습 표시 API |
+| 생성 | `src/app/api/vocabulary/bulk/route.ts` | 벌크 업로드 API (NDJSON 스트리밍) |
+
+**설치 패키지:** xlsx (클라이언트 Excel/CSV 파싱)
+**DB 변경:** `ALTER TABLE user_vocabulary ADD COLUMN needs_review boolean DEFAULT false;`
+**빌드 검증:** ✅ 성공 (에러 없음)
 
 ---
 

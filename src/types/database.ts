@@ -66,6 +66,7 @@ export interface UserVocabulary {
   user_id: string
   word_id: string
   is_memorized: boolean
+  needs_review: boolean
   added_at: string
   word?: Word  // joined
 }

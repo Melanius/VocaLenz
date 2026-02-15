@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { useDisplayPreferences } from '@/hooks/use-display-preferences'
 import { useSearchContext } from '@/contexts/search-context'
+import { getSessionId } from '@/lib/session'
 
 interface MultiSearchInputProps {
   onSearchStart?: () => void
@@ -172,12 +173,3 @@ export function MultiSearchInput({ onSearchStart, autoFocus = false, compact = f
   )
 }
 
-function getSessionId(): string {
-  if (typeof window === 'undefined') return ''
-  let id = localStorage.getItem('vocalenz_session_id')
-  if (!id) {
-    id = crypto.randomUUID()
-    localStorage.setItem('vocalenz_session_id', id)
-  }
-  return id
-}

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
+import { logEvent } from '@/lib/event-logger'
 
 const MAX_VOCABULARY_SIZE = 100
 
@@ -38,7 +39,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
     }
 
-    const { wordId } = await request.json()
+    const { wordId, sessionId } = await request.json()
 
     if (!wordId) {
       return NextResponse.json({ error: '단어 ID가 필요합니다.' }, { status: 400 })
@@ -79,6 +80,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '추가에 실패했습니다.' }, { status: 500 })
     }
 
+    if (sessionId) {
+      // word 정보를 가져와서 로깅
+      const wordData = data?.word as { word?: string } | undefined
+      logEvent({
+        sessionId,
+        userId: user.id,
+        page: '/vocabulary',
+        action: 'vocab_add',
+        metadata: { word_id: wordId, word: wordData?.word },
+      })
+    }
+
     return NextResponse.json(data)
   } catch {
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 })
@@ -94,11 +107,19 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
     }
 
-    const { vocabularyId } = await request.json()
+    const { vocabularyId, sessionId } = await request.json()
 
     if (!vocabularyId) {
       return NextResponse.json({ error: 'ID가 필요합니다.' }, { status: 400 })
     }
+
+    // 삭제 전 word_id 조회 (로깅용)
+    const { data: vocabData } = await supabaseAdmin
+      .from('user_vocabulary')
+      .select('word_id')
+      .eq('id', vocabularyId)
+      .eq('user_id', user.id)
+      .single()
 
     const { error } = await supabaseAdmin
       .from('user_vocabulary')
@@ -108,6 +129,16 @@ export async function DELETE(request: NextRequest) {
 
     if (error) {
       return NextResponse.json({ error: '삭제에 실패했습니다.' }, { status: 500 })
+    }
+
+    if (sessionId) {
+      logEvent({
+        sessionId,
+        userId: user.id,
+        page: '/vocabulary',
+        action: 'vocab_remove',
+        metadata: { word_id: vocabData?.word_id },
+      })
     }
 
     return NextResponse.json({ success: true })
@@ -125,7 +156,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
     }
 
-    const { vocabularyId, is_memorized, needs_review } = await request.json()
+    const { vocabularyId, is_memorized, needs_review, sessionId } = await request.json()
 
     if (!vocabularyId) {
       return NextResponse.json({ error: '잘못된 요청입니다.' }, { status: 400 })
@@ -147,6 +178,27 @@ export async function PATCH(request: NextRequest) {
 
     if (error) {
       return NextResponse.json({ error: '수정에 실패했습니다.' }, { status: 500 })
+    }
+
+    if (sessionId) {
+      if (typeof is_memorized === 'boolean') {
+        logEvent({
+          sessionId,
+          userId: user.id,
+          page: '/vocabulary',
+          action: 'vocab_memorize',
+          metadata: { word_id: vocabularyId, is_memorized },
+        })
+      }
+      if (typeof needs_review === 'boolean') {
+        logEvent({
+          sessionId,
+          userId: user.id,
+          page: '/vocabulary',
+          action: 'vocab_review',
+          metadata: { word_id: vocabularyId, needs_review },
+        })
+      }
     }
 
     return NextResponse.json({ success: true })

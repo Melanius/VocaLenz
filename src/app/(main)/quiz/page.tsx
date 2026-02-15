@@ -7,6 +7,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { useAuthContext } from '@/components/providers/auth-provider'
 import { toast } from '@/hooks/use-toast'
+import { getSessionId } from '@/lib/session'
 
 type QuizState = 'idle' | 'loading' | 'playing' | 'result'
 
@@ -23,6 +24,7 @@ interface AnswerRecord {
   question: QuizQuestionData
   selectedIndex: number
   isCorrect: boolean
+  timeMs: number
 }
 
 export default function QuizPage() {
@@ -36,6 +38,7 @@ export default function QuizPage() {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null)
   const [showFeedback, setShowFeedback] = useState(false)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const questionStartTime = useRef<number>(Date.now())
 
   // 퀴즈 범위 체크박스
   const [sourceUnmemorized, setSourceUnmemorized] = useState(true)
@@ -65,7 +68,8 @@ export default function QuizPage() {
 
     setState('loading')
     try {
-      let url = `/api/quiz?count=${questionCount}&source=${source}`
+      const sid = getSessionId()
+      let url = `/api/quiz?count=${questionCount}&source=${source}&sessionId=${sid}`
       if (sourceHistory && historyDate) {
         url += `&historyDate=${historyDate}`
         if (historyDateMode === 'range' && historyDateTo) {
@@ -88,6 +92,7 @@ export default function QuizPage() {
       setSelectedIndex(null)
       setShowFeedback(false)
       setReviewMarked(new Set())
+      questionStartTime.current = Date.now()
       setState('playing')
     } catch {
       toast({ title: '오류', description: '퀴즈를 불러올 수 없습니다.', variant: 'destructive' })
@@ -101,10 +106,11 @@ export default function QuizPage() {
 
     const current = questions[currentIndex]
     const isCorrect = index === current.correctIndex
+    const timeMs = Date.now() - questionStartTime.current
     setSelectedIndex(index)
     setShowFeedback(true)
 
-    const record: AnswerRecord = { question: current, selectedIndex: index, isCorrect }
+    const record: AnswerRecord = { question: current, selectedIndex: index, isCorrect, timeMs }
     const newAnswers = [...answers, record]
     setAnswers(newAnswers)
 
@@ -114,10 +120,38 @@ export default function QuizPage() {
         setCurrentIndex((prev) => prev + 1)
         setSelectedIndex(null)
         setShowFeedback(false)
+        questionStartTime.current = Date.now()
       } else {
+        // 퀴즈 완료 → 결과 전송
+        sendQuizComplete(newAnswers)
         setState('result')
       }
     }, delay)
+  }
+
+  const sendQuizComplete = async (finalAnswers: AnswerRecord[]) => {
+    try {
+      const correctCount = finalAnswers.filter((a) => a.isCorrect).length
+      const totalTime = finalAnswers.reduce((sum, a) => sum + a.timeMs, 0)
+      await fetch('/api/quiz/complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId: getSessionId(),
+          answers: finalAnswers.map((a) => ({
+            word: a.question.question,
+            correct: a.isCorrect,
+            timeMs: a.timeMs,
+          })),
+          total: finalAnswers.length,
+          correct: correctCount,
+          score: Math.round((correctCount / finalAnswers.length) * 100),
+          avgTimeMs: Math.round(totalTime / finalAnswers.length),
+        }),
+      })
+    } catch {
+      // fire-and-forget
+    }
   }
 
   const resetQuiz = () => {

@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useRef } from 'react'
+import { analytics } from '@/lib/analytics'
 
 export function usePronunciation() {
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null)
@@ -17,6 +18,7 @@ export function usePronunciation() {
     utteranceRef.current = utterance
 
     window.speechSynthesis.speak(utterance)
+    analytics.track('pronunciation_play', { word })
   }, [])
 
   const stop = useCallback(() => {

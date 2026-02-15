@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useEffect, useState } from 'react'
+import { useRef, useEffect, useState, useCallback } from 'react'
 import { BookOpen, History } from 'lucide-react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
@@ -11,12 +11,23 @@ import { RecommendedWords } from '@/components/search/recommended-words'
 import { CardCustomizer } from '@/components/search/card-customizer'
 import { Sidebar } from '@/components/layout/sidebar'
 import { useSearchContext } from '@/contexts/search-context'
+import { getSessionId } from '@/lib/session'
+import { analytics } from '@/lib/analytics'
 
 export default function SearchPage() {
   const { history, addToHistory, updateHistoryItem, scrollToItem } = useSearchContext()
   const scrollRef = useRef<HTMLDivElement>(null)
   const isEmpty = history.length === 0
   const [historyOpen, setHistoryOpen] = useState(false)
+
+  // session_start 이벤트 (최초 1회)
+  useEffect(() => {
+    analytics.track('session_start', {
+      referrer: document.referrer || null,
+      screen: `${window.screen.width}x${window.screen.height}`,
+      lang: navigator.language,
+    })
+  }, [])
 
   // 새 결과 추가 시 자동 스크롤
   useEffect(() => {
@@ -181,12 +192,3 @@ export default function SearchPage() {
   )
 }
 
-function getSessionId(): string {
-  if (typeof window === 'undefined') return ''
-  let id = localStorage.getItem('vocalenz_session_id')
-  if (!id) {
-    id = crypto.randomUUID()
-    localStorage.setItem('vocalenz_session_id', id)
-  }
-  return id
-}

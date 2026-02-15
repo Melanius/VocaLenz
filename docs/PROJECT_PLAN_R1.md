@@ -310,6 +310,21 @@
 
 ---
 
+### ✅ Phase 7: 데이터 수집 시스템 (완료)
+**완료 일시:** 2026-02-16 03:30 (KST)
+
+- 서버 이벤트 10종 + 클라이언트 이벤트 4종 = **총 14종** 수집 시스템 구현
+- `access_logs` 테이블을 범용 이벤트 저장소로 활용 (DB 변경 없음)
+- 서버: fire-and-forget `logEvent()` 함수로 응답 블로킹 없이 기록
+- 클라이언트: 배치 전송 (5초/5개) + `sendBeacon`으로 손실 방지
+- 검색 로그에 IP/User-Agent 추가, 퀴즈 응답 시간 측정
+- INVALID/LOW_VALUE 결과에 신고 버튼 추가
+- `docs/event-tracking.md`: 전체 이벤트 레퍼런스 + SQL 쿼리 예시 10개
+- **생성 파일:** 6개, **수정 파일:** 13개
+- **빌드 검증:** ✅ 성공 (에러 없음)
+
+---
+
 ## 기술 스택 요약
 
 | 영역 | 기술 |
@@ -1386,15 +1401,116 @@ Gatekeeper 결과에 따른 UI:
 
 ---
 
-## Phase 7: 리포팅 시스템 + 데이터 수집
+### ✅ Phase 7: 데이터 수집 시스템 (완료)
+**완료 일시:** 2026-02-16 03:30 (KST)
 
-### Step 7.1: 리포팅 API
+사용자 데이터 수집 시스템 구현. 접속 로그, 검색 패턴, 학습 행동 등 모든 가치 있는 데이터를 `access_logs` 테이블(action + metadata JSONB)에 기록. DB 변경 없이 구현.
 
-**`src/app/api/reports/route.ts`**
+#### Step 7.1: 기반 인프라 정리 ✅
+- `getSessionId()` 중복 제거: `page.tsx`, `multi-search-input.tsx` 하단 함수 삭제 → `import { getSessionId } from '@/lib/session'`으로 통합
+- `src/types/database.ts`: AccessLog 타입에 `session_id`, `page`, `metadata` 필드 추가
+- `src/lib/event-logger.ts` 생성: 서버사이드 fire-and-forget 이벤트 로거
+  - `logEvent({ sessionId, userId?, page, action, metadata? })` 함수
+  - `Promise.resolve()` 래핑으로 Supabase PromiseLike 타입 호환
 
-기능:
-- INVALID 판별 시 리포팅 버튼 → word_reports 테이블에 저장
-- failed_searches 테이블 reported 플래그 업데이트
+#### Step 7.2: 검색 API 이벤트 보강 ✅
+- `src/app/api/words/search/route.ts`:
+  - request headers에서 `x-forwarded-for` / `x-real-ip` → ip, `user-agent` → ua 추출
+  - `search_logs` INSERT에 `ip_address`, `user_agent` 추가
+  - 기존 단어 검색 + Gatekeeper 검색 모두 `word_search` 이벤트 기록
+
+#### Step 7.3: 단어장 이벤트 추적 ✅
+- `src/hooks/use-vocabulary.ts`: API 호출 시 body에 `sessionId: getSessionId()` 포함
+- `src/app/api/vocabulary/route.ts`:
+  - POST → `vocab_add` 이벤트 (word_id, word)
+  - DELETE → `vocab_remove` 이벤트 (word_id)
+  - PATCH → `vocab_memorize` 이벤트 (word_id, is_memorized) + `vocab_review` 이벤트 (word_id, needs_review)
+- `src/app/api/vocabulary/bulk/route.ts`: 완료 시점에 `vocab_bulk` 이벤트 (total, added, skipped, failed)
+
+#### Step 7.4: 퀴즈 이벤트 추적 ✅
+- `src/app/api/quiz/route.ts`: `sessionId` 쿼리 파라미터 수신 → `quiz_start` 이벤트 (count, source, historyDate)
+- `src/app/(main)/quiz/page.tsx`:
+  - `questionStartTime` ref 추가: 문제 표시 시 `Date.now()` 기록
+  - `handleAnswer`에서 `timeMs = Date.now() - questionStartTime` 계산
+  - `AnswerRecord`에 `timeMs` 필드 추가
+  - 마지막 문제 완료 시 `sendQuizComplete()` 호출
+- `src/app/api/quiz/complete/route.ts` 생성:
+  - POST body: `{ sessionId, answers: [{word, correct, timeMs}], total, correct, score, avgTimeMs }`
+  - 각 답변을 `quiz_answer` 이벤트로, 전체를 `quiz_complete` 이벤트로 기록
+
+#### Step 7.5: 클라이언트 분석 시스템 ✅
+- `src/lib/analytics.ts` 생성: 배치 이벤트 라이브러리
+  - 메모리 큐잉 → 5초 또는 5개 이벤트마다 배치 전송
+  - 페이지 이탈 시 `navigator.sendBeacon()` 전송
+  - 싱글턴 패턴, 실패 시 큐 재추가 (최대 50개)
+- `src/app/api/analytics/route.ts` 생성: 배치 수신 API
+  - POST `{ events: [...] }` → access_logs bulk insert (최대 50개)
+- 클라이언트 이벤트 통합:
+  - `src/app/(main)/page.tsx`: `session_start` (referrer, screen, lang)
+  - `src/components/search/recommended-words.tsx`: `recommended_click` (word)
+  - `src/hooks/use-pronunciation.ts`: `pronunciation_play` (word)
+  - `src/components/search/card-customizer.tsx`: `card_customize` (settings)
+
+#### Step 7.6: 단어 신고 시스템 ✅
+- `src/app/api/reports/route.ts` 생성: POST `{ sessionId, word, reason, gkStatus }` → `word_report` 이벤트
+- `src/components/search/search-results.tsx`:
+  - INVALID / LOW_VALUE 결과에 "이 결과 신고" 버튼 추가
+  - 클릭 시 API 호출 + toast "신고 접수 완료"
+  - 중복 신고 방지 (reported 상태 관리)
+
+**Phase 7 수집 이벤트 전체 목록 (14종):**
+
+| 구분 | action | metadata | 소스 |
+|------|--------|----------|------|
+| 서버 | `word_search` | word, status, ip, ua | search API |
+| 서버 | `vocab_add` | word_id, word | vocabulary POST |
+| 서버 | `vocab_remove` | word_id | vocabulary DELETE |
+| 서버 | `vocab_memorize` | word_id, is_memorized | vocabulary PATCH |
+| 서버 | `vocab_review` | word_id, needs_review | vocabulary PATCH |
+| 서버 | `vocab_bulk` | total, added, skipped, failed | bulk API |
+| 서버 | `quiz_start` | count, source, historyDate? | quiz API |
+| 서버 | `quiz_answer` | word, correct, timeMs | quiz complete API |
+| 서버 | `quiz_complete` | total, correct, score, avgTimeMs | quiz complete API |
+| 서버 | `word_report` | word, reason, gk_status | reports API |
+| 클라 | `session_start` | referrer, screen, lang | page.tsx |
+| 클라 | `recommended_click` | word | recommended-words |
+| 클라 | `pronunciation_play` | word | use-pronunciation |
+| 클라 | `card_customize` | settings | card-customizer |
+
+**Phase 7 파일 변경 요약:**
+
+| 구분 | 파일 | 내용 |
+|------|------|------|
+| 생성 | `src/lib/event-logger.ts` | 서버사이드 fire-and-forget 이벤트 로거 |
+| 생성 | `src/app/api/quiz/complete/route.ts` | 퀴즈 완료 API |
+| 생성 | `src/lib/analytics.ts` | 클라이언트 배치 이벤트 라이브러리 |
+| 생성 | `src/app/api/analytics/route.ts` | 클라이언트 이벤트 배치 수신 API |
+| 생성 | `src/app/api/reports/route.ts` | 단어 신고 API |
+| 생성 | `docs/event-tracking.md` | 이벤트 추적 시스템 문서 |
+| 수정 | `src/types/database.ts` | AccessLog에 session_id, page, metadata 추가 |
+| 수정 | `src/app/(main)/page.tsx` | getSessionId 통합, session_start 이벤트 |
+| 수정 | `src/components/search/multi-search-input.tsx` | getSessionId 통합 |
+| 수정 | `src/app/api/words/search/route.ts` | ip/ua 추출, word_search 이벤트 |
+| 수정 | `src/hooks/use-vocabulary.ts` | sessionId 전달 |
+| 수정 | `src/app/api/vocabulary/route.ts` | vocab_add/remove/memorize/review 이벤트 |
+| 수정 | `src/app/api/vocabulary/bulk/route.ts` | vocab_bulk 이벤트 |
+| 수정 | `src/app/api/quiz/route.ts` | quiz_start 이벤트 |
+| 수정 | `src/app/(main)/quiz/page.tsx` | 답변 시간 측정 + 완료 데이터 전송 |
+| 수정 | `src/components/search/recommended-words.tsx` | recommended_click 이벤트 |
+| 수정 | `src/hooks/use-pronunciation.ts` | pronunciation_play 이벤트 |
+| 수정 | `src/components/search/card-customizer.tsx` | card_customize 이벤트 |
+| 수정 | `src/components/search/search-results.tsx` | 신고 버튼 추가 |
+
+**설계 원칙:**
+1. Fire-and-forget: 이벤트 로깅이 절대 사용자 응답을 블로킹하지 않음
+2. access_logs 범용 저장소: DB 변경 없이 action + metadata JSONB로 모든 이벤트 구분
+3. 클라이언트 배치 전송: 5초/5개 단위 + sendBeacon으로 이벤트 손실 방지
+
+**빌드 검증:** ✅ 성공 (에러 없음)
+
+---
+
+## Phase 7 이전 구조 (참고용 원본)
 
 ### Step 7.2: 세션 관리 및 로깅
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
+import { logEvent } from '@/lib/event-logger'
 
 function shuffleArray<T>(array: T[]): T[] {
   const arr = [...array]
@@ -36,6 +37,7 @@ export async function GET(request: NextRequest) {
     const sourceParam = searchParams.get('source') || 'unmemorized'
     const historyDate = searchParams.get('historyDate') || ''
     const historyDateTo = searchParams.get('historyDateTo') || ''
+    const sessionId = searchParams.get('sessionId') || ''
     const sources = sourceParam.split(',').filter(Boolean)
 
     // 1. 소스별 단어 수집
@@ -157,6 +159,20 @@ export async function GET(request: NextRequest) {
         correctIndex,
       }
     })
+
+    if (sessionId) {
+      logEvent({
+        sessionId,
+        userId: user.id,
+        page: '/quiz',
+        action: 'quiz_start',
+        metadata: {
+          count: questions.length,
+          source: sourceParam,
+          ...(historyDate && { historyDate }),
+        },
+      })
+    }
 
     return NextResponse.json({
       questions,

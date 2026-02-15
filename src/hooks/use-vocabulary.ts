@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useAuthContext } from '@/components/providers/auth-provider'
+import { getSessionId } from '@/lib/session'
 import type { UserVocabulary } from '@/types/database'
 
 const MAX_VOCABULARY_SIZE = 100
@@ -54,7 +55,7 @@ export function useVocabulary() {
         const res = await fetch('/api/vocabulary', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ wordId }),
+          body: JSON.stringify({ wordId, sessionId: getSessionId() }),
         })
 
         if (res.ok) {
@@ -82,7 +83,7 @@ export function useVocabulary() {
         const res = await fetch('/api/vocabulary', {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ vocabularyId: vocabItem.id }),
+          body: JSON.stringify({ vocabularyId: vocabItem.id, sessionId: getSessionId() }),
         })
 
         if (res.ok) {
@@ -104,7 +105,7 @@ export function useVocabulary() {
         const res = await fetch('/api/vocabulary', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ vocabularyId: vocabId, is_memorized: isMemorized }),
+          body: JSON.stringify({ vocabularyId: vocabId, is_memorized: isMemorized, sessionId: getSessionId() }),
         })
 
         if (res.ok) {

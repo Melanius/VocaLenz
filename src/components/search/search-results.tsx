@@ -1,11 +1,13 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Search, AlertTriangle, Globe, Ban, MinusCircle, Loader2, AlertCircle } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { Search, AlertTriangle, Globe, Ban, MinusCircle, Loader2, AlertCircle, Flag } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { WordCard } from './word-card'
 import { getRandomPhrase, type LoadingPhrase } from '@/lib/loading-phrases'
+import { getSessionId } from '@/lib/session'
+import { useToast } from '@/hooks/use-toast'
 import type { SearchResult } from '@/types/database'
 
 interface SearchResultsProps {
@@ -105,13 +107,14 @@ function ResultBubble({
         <div className="bg-red-50 dark:bg-red-950/30 rounded-2xl rounded-tl-md border border-red-200 dark:border-red-800 p-4">
           <div className="flex items-start gap-3">
             <Ban className="h-5 w-5 text-red-600 dark:text-red-500 flex-shrink-0 mt-0.5" />
-            <div>
+            <div className="flex-1">
               <p className="text-sm text-foreground">
                 <span className="font-medium">&ldquo;{result.original}&rdquo;</span>은(는) 유효한 영어 단어가 아닙니다.
               </p>
               <p className="text-xs text-muted-foreground mt-1">
                 영어 단어 하나를 입력해 주세요. (문장, 숫자, 특수문자는 지원하지 않습니다)
               </p>
+              <ReportButton word={result.original} gkStatus="INVALID" />
             </div>
           </div>
         </div>
@@ -122,13 +125,14 @@ function ResultBubble({
         <div className="bg-gray-50 dark:bg-gray-950/30 rounded-2xl rounded-tl-md border border-gray-200 dark:border-gray-800 p-4">
           <div className="flex items-start gap-3">
             <MinusCircle className="h-5 w-5 text-gray-500 flex-shrink-0 mt-0.5" />
-            <div>
+            <div className="flex-1">
               <p className="text-sm text-foreground">
                 <span className="font-medium">&ldquo;{result.original}&rdquo;</span>은(는) TEPS 학습에 적합하지 않은 단어입니다.
               </p>
               <p className="text-xs text-muted-foreground mt-1">
                 관사, 전치사, 대명사 등 기본 단어는 별도의 학습 카드를 제공하지 않습니다.
               </p>
+              <ReportButton word={result.original} gkStatus="LOW_VALUE" />
             </div>
           </div>
         </div>
@@ -147,6 +151,49 @@ function ResultBubble({
     default:
       return null
   }
+}
+
+function ReportButton({ word, gkStatus }: { word: string; gkStatus: string }) {
+  const [reported, setReported] = useState(false)
+  const { toast } = useToast()
+
+  const handleReport = useCallback(async () => {
+    if (reported) return
+    try {
+      await fetch('/api/reports', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId: getSessionId(),
+          word,
+          reason: '사용자 신고: 결과가 잘못되었습니다',
+          gkStatus,
+        }),
+      })
+      setReported(true)
+      toast({ title: '신고 접수 완료', description: '검토 후 반영하겠습니다.' })
+    } catch {
+      toast({ title: '신고 실패', description: '잠시 후 다시 시도해 주세요.', variant: 'destructive' })
+    }
+  }, [word, gkStatus, reported, toast])
+
+  if (reported) {
+    return (
+      <p className="text-xs text-muted-foreground mt-2">신고가 접수되었습니다.</p>
+    )
+  }
+
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      className="mt-2 h-7 text-xs text-muted-foreground hover:text-foreground"
+      onClick={handleReport}
+    >
+      <Flag className="h-3 w-3 mr-1" />
+      이 결과 신고
+    </Button>
+  )
 }
 
 function LoadingBubble() {

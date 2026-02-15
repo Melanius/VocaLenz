@@ -3,6 +3,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { generateWordData } from '@/lib/word-generator'
 import { evaluateWithGatekeeper } from '@/lib/gatekeeper'
+import { logEvent } from '@/lib/event-logger'
 
 const MAX_VOCABULARY_SIZE = 100
 
@@ -18,7 +19,7 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    const { words } = await request.json() as { words: string[] }
+    const { words, sessionId } = await request.json() as { words: string[], sessionId?: string }
 
     if (!words || !Array.isArray(words) || words.length === 0) {
       return new Response(JSON.stringify({ error: '단어 목록이 필요합니다.' }), {
@@ -165,6 +166,17 @@ export async function POST(request: NextRequest) {
         controller.enqueue(encoder.encode(
           JSON.stringify({ type: 'complete', added, skipped, failed }) + '\n'
         ))
+
+        if (sessionId) {
+          logEvent({
+            sessionId,
+            userId: user.id,
+            page: '/vocabulary',
+            action: 'vocab_bulk',
+            metadata: { total, added, skipped, failed },
+          })
+        }
+
         controller.close()
       },
     })

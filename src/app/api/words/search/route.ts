@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin'
 import { evaluateWithGatekeeper } from '@/lib/gatekeeper'
 import { generateWordData } from '@/lib/word-generator'
 import { checkRateLimit } from '@/lib/rate-limit'
+import { logEvent } from '@/lib/event-logger'
 import type { Word, SearchResult } from '@/types/database'
 
 // 입력 정규화
@@ -65,6 +66,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // IP/UA 추출
+    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || request.headers.get('x-real-ip') || null
+    const ua = request.headers.get('user-agent') || null
+
     // 1. DB에서 기존 단어 조회
     const { data: existingWord } = await supabaseAdmin
       .from('words')
@@ -80,7 +85,16 @@ export async function POST(request: NextRequest) {
       })
 
       // 검색 로그 기록
-      await logSearch(sessionId, userId, normalized, 'VALID')
+      await logSearch(sessionId, userId, normalized, 'VALID', ip, ua)
+
+      // 이벤트 로그 기록
+      logEvent({
+        sessionId,
+        userId,
+        page: '/search',
+        action: 'word_search',
+        metadata: { word: normalized, status: 'VALID', ip, ua },
+      })
 
       // 로그인 사용자의 검색 이력 저장
       if (userId) {
@@ -102,7 +116,16 @@ export async function POST(request: NextRequest) {
     const gatekeeperResult = await evaluateWithGatekeeper(normalized)
 
     // 검색 로그 기록
-    await logSearch(sessionId, userId, normalized, gatekeeperResult.status)
+    await logSearch(sessionId, userId, normalized, gatekeeperResult.status, ip, ua)
+
+    // 이벤트 로그 기록
+    logEvent({
+      sessionId,
+      userId,
+      page: '/search',
+      action: 'word_search',
+      metadata: { word: normalized, status: gatekeeperResult.status, ip, ua },
+    })
 
     // 3. Gatekeeper 결과에 따른 처리
     switch (gatekeeperResult.status) {
@@ -250,7 +273,9 @@ async function logSearch(
   sessionId: string,
   userId: string | null,
   word: string,
-  status: string
+  status: string,
+  ipAddress: string | null,
+  userAgent: string | null
 ) {
   try {
     await supabaseAdmin.from('search_logs').insert({
@@ -258,6 +283,8 @@ async function logSearch(
       user_id: userId,
       word,
       gatekeeper_status: status,
+      ip_address: ipAddress,
+      user_agent: userAgent,
     })
   } catch (error) {
     console.error('Failed to log search:', error)

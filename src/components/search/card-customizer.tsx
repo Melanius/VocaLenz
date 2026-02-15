@@ -32,6 +32,7 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { useDisplayPreferences } from '@/hooks/use-display-preferences'
 import { useToast } from '@/hooks/use-toast'
+import { analytics } from '@/lib/analytics'
 import { SearchModeSelector } from './search-mode-selector'
 import type { WordCardField } from '@/types/database'
 
@@ -87,6 +88,9 @@ export function CardCustomizer() {
 
   const handleSave = () => {
     updatePreferences({ visibleFields: localVisible, fieldOrder: localOrder })
+    analytics.track('card_customize', {
+      settings: { visibleFields: localVisible, fieldOrder: localOrder },
+    })
     toast({ title: '설정이 저장되었습니다.' })
     setOpen(false)
   }

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { TrendingUp } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
+import { analytics } from '@/lib/analytics'
 
 interface RecommendedWordsProps {
   onSearchWord: (word: string) => void
@@ -54,7 +55,10 @@ export function RecommendedWords({ onSearchWord }: RecommendedWordsProps) {
         {words.map((word) => (
           <button
             key={word}
-            onClick={() => onSearchWord(word)}
+            onClick={() => {
+              analytics.track('recommended_click', { word })
+              onSearchWord(word)
+            }}
             className="px-3 py-2 rounded-lg border border-primary/20 bg-primary/5 hover:bg-primary/10 hover:border-primary/40 transition-all text-sm font-medium text-primary"
           >
             {word}

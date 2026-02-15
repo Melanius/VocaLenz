@@ -162,8 +162,11 @@ export type SearchResult =
 export type User = UserProfile
 export type AccessLog = {
   id: string
+  session_id: string
   user_id: string | null
+  page: string
   action: string
+  metadata: Record<string, unknown> | null
   ip_address: string | null
   user_agent: string | null
   created_at: string

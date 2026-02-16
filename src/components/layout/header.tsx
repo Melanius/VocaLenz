@@ -33,17 +33,15 @@ export function Header() {
     router.refresh()
   }
 
-  const handleLogoClick = (e: React.MouseEvent) => {
-    e.preventDefault()
+  const handleLogoClick = () => {
     window.dispatchEvent(new Event('vocalenz:reset-search'))
-    router.push('/')
   }
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-14 max-w-screen-2xl items-center">
         <div className="mr-4 flex">
-          <a
+          <Link
             href="/"
             onClick={handleLogoClick}
             className="mr-6 flex items-center space-x-2"
@@ -56,7 +54,7 @@ export function Header() {
               className="h-8 w-auto max-w-[120px] object-contain"
               priority
             />
-          </a>
+          </Link>
 
           {/* Desktop nav */}
           <nav className="hidden md:flex items-center gap-6 text-sm">

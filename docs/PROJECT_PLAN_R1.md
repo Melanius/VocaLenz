@@ -1541,44 +1541,233 @@ access_logs에 자동 기록:
 
 ---
 
-## Phase 8: 마무리 및 배포
+## Phase 8: 마무리 및 배포 (개정판)
 
-### Step 8.1: SEO 최적화
+> 초기 계획 대비 변경사항:
+> - **삭제**: 동적 단어별 메타데이터 (개별 단어 페이지 없음), next/image (이미지 미사용), API 에러 표준화 (이미 완료), 네트워크 재시도 UI (이미 완료)
+> - **추가**: favicon/manifest/PWA 기반, 보안 헤더, loading.tsx, Phase 4.5~7 QA 항목
 
-- 동적 메타데이터 (각 단어 페이지별)
-- `robots.txt`, `sitemap.xml`
-- Open Graph 이미지
+---
 
-### Step 8.2: 에러 핸들링
+### Step 8.1: SEO + 정적 자산
 
-- 전역 에러 바운더리 (`error.tsx`)
-- API 에러 응답 표준화
-- OpenAI 장애 시 fallback 메시지
-- 네트워크 오류 시 재시도 UI
+#### 8.1.1: favicon 및 앱 아이콘
+- `public/` 디렉토리 생성 (현재 없음)
+- `public/favicon.ico` (32x32)
+- `src/app/icon.tsx` 또는 `public/icon-192.png`, `public/icon-512.png` (PWA용)
+- `public/apple-touch-icon.png` (180x180)
+- `src/app/manifest.ts` 또는 `public/manifest.json`
+  ```json
+  {
+    "name": "VocaLenz",
+    "short_name": "VocaLenz",
+    "description": "AI 기반 영어 단어 학습",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#ffffff",
+    "theme_color": "#000000",
+    "icons": [...]
+  }
+  ```
 
-### Step 8.3: 성능 최적화
+#### 8.1.2: metadata 보강
+- `src/app/layout.tsx`의 `metadata` 확장:
+  ```ts
+  export const metadata: Metadata = {
+    title: { default: 'VocaLenz - AI 영어 단어장', template: '%s | VocaLenz' },
+    description: 'TEPS/TOEIC 시험 대비를 위한 AI 기반 영어 단어 학습 플랫폼',
+    keywords: ['영어 단어', 'TEPS', 'TOEIC', 'AI 단어장', '영어 학습'],
+    authors: [{ name: 'VocaLenz' }],
+    openGraph: {
+      title: 'VocaLenz - AI 영어 단어장',
+      description: 'AI가 만들어주는 나만의 영어 단어 학습 카드',
+      url: 'https://vocalenz.vercel.app',
+      siteName: 'VocaLenz',
+      locale: 'ko_KR',
+      type: 'website',
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: 'VocaLenz - AI 영어 단어장',
+      description: 'AI가 만들어주는 나만의 영어 단어 학습 카드',
+    },
+    metadataBase: new URL('https://vocalenz.vercel.app'),
+  }
+  ```
+- 각 페이지에 `metadata` export 추가 (title template 활용):
+  - `/quiz` → `title: '단어 퀴즈'`
+  - `/vocabulary` → `title: '내 단어장'`
+  - `/history` → `title: '검색 이력'`
+  - `/scores` → `title: '성적 관리'`
 
-- 이미지 최적화 (next/image)
-- API 라우트 응답 캐싱 (자주 검색되는 단어)
-- 번들 사이즈 분석 (`@next/bundle-analyzer`)
-- Lighthouse 점수 확인 (목표: 90+)
+#### 8.1.3: robots.ts
+- `src/app/robots.ts` 생성
+  ```ts
+  export default function robots() {
+    return {
+      rules: { userAgent: '*', allow: '/', disallow: ['/api/', '/auth/'] },
+      sitemap: 'https://vocalenz.vercel.app/sitemap.xml',
+    }
+  }
+  ```
 
-### Step 8.4: 최종 QA
+#### 8.1.4: sitemap.ts
+- `src/app/sitemap.ts` 생성
+- 정적 페이지 목록: `/`, `/auth/login`, `/auth/signup`
+- 인증 필요 페이지는 제외 (검색엔진이 접근 불가)
 
-**전체 플로우 테스트:**
-- [ ] 첫 방문 → 메인 화면 → 검색 → 결과 확인
+#### 8.1.5: OG 이미지
+- `src/app/opengraph-image.tsx` 생성 (Next.js ImageResponse API)
+- 또는 정적 `public/og-image.png` (1200x630) 생성
+- SNS 공유 시 미리보기에 표시
+
+**파일:**
+- 생성: `public/` 디렉토리 + favicon + 아이콘들, `src/app/manifest.ts`, `src/app/robots.ts`, `src/app/sitemap.ts`, OG 이미지
+- 수정: `src/app/layout.tsx` (metadata 보강)
+
+---
+
+### Step 8.2: 에러 핸들링 + 로딩 UI
+
+#### 8.2.1: 전역 에러 바운더리
+- `src/app/error.tsx` 생성 ('use client')
+  - 에러 메시지 표시 + "다시 시도" 버튼 (`reset()`)
+  - 한국어 UI, 기존 디자인 시스템 활용
+
+#### 8.2.2: 루트 에러 바운더리
+- `src/app/global-error.tsx` 생성
+  - root layout 자체가 깨졌을 때 대응
+  - 최소한의 HTML (layout 없이 동작)
+
+#### 8.2.3: 로딩 UI
+- `src/app/(main)/loading.tsx` 생성
+  - 페이지 전환 시 표시되는 스켈레톤/스피너
+  - 메인 레이아웃(사이드바) 유지, 콘텐츠 영역만 로딩 표시
+
+**파일:**
+- 생성: `src/app/error.tsx`, `src/app/global-error.tsx`, `src/app/(main)/loading.tsx`
+
+---
+
+### Step 8.3: 보안 헤더
+
+- `src/middleware.ts` 수정: 응답에 보안 헤더 추가
+  ```
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-DNS-Prefetch-Control: on
+  ```
+- Supabase 세션 업데이트 응답 객체에 헤더 병합
+- CSP는 인라인 스크립트(next/script, theme-provider)와 충돌 가능성이 있으므로 제외
+
+**파일:**
+- 수정: `src/middleware.ts` (또는 `src/lib/supabase/middleware.ts`)
+
+---
+
+### Step 8.4: 성능 최적화
+
+#### 8.4.1: next.config.ts 설정
+- `next.config.ts` 업데이트:
+  ```ts
+  const nextConfig: NextConfig = {
+    poweredBy: false,  // X-Powered-By 헤더 제거
+  }
+  ```
+
+#### 8.4.2: 번들 분석
+- `@next/bundle-analyzer` 설치 (devDependencies)
+- `pnpm build` 후 번들 크기 확인
+- 현재 빌드 기준 주요 청크:
+  - `/` (메인): 230KB (First Load JS)
+  - `/scores`: 288KB (recharts 포함)
+- 목표: First Load JS shared 100KB 이하 유지
+
+#### 8.4.3: Lighthouse 점수 확인
+- 개발 서버 또는 Vercel preview에서 Lighthouse 실행
+- 목표: Performance 90+, Accessibility 90+, Best Practices 90+, SEO 90+
+- 점수 기록 (프로젝트 플랜에 첨부)
+
+**파일:**
+- 수정: `next.config.ts`, `package.json` (devDependencies)
+
+---
+
+### Step 8.5: 최종 QA
+
+**전체 기능 테스트 체크리스트 (Phase 1~7 전체 반영):**
+
+**인증:**
 - [ ] 회원가입 → 이메일 인증 → 로그인
 - [ ] Google 소셜 로그인
-- [ ] 단어 검색 (VALID, TYPO, KOREAN, INVALID, LOW_VALUE 각각)
-- [ ] 단어장 추가/삭제/암기 토글
-- [ ] 퀴즈 진행 (정답/오답)
-- [ ] 성적 입력/수정/삭제
-- [ ] 검색 이력 확인
 - [ ] 로그아웃 → 재로그인 → 데이터 유지
-- [ ] 모바일 반응형 확인 (375px, 768px, 1440px)
-- [ ] Supabase Dashboard에서 모든 테이블 데이터 확인
 
-### Step 8.5: Vercel 프로덕션 배포
+**검색 (Phase 3~4):**
+- [ ] 첫 방문 → 빈 상태 UI → 검색 → 채팅형 결과
+- [ ] VALID 검색 → 단어 카드 표시 (뜻, 설명, 예문 등)
+- [ ] TYPO 검색 → "혹시 ~ 찾으셨나요?" + 교정 버튼
+- [ ] KOREAN 검색 → 관련 단어 목록 표시
+- [ ] INVALID 검색 → 에러 메시지 + 신고 버튼
+- [ ] LOW_VALUE 검색 → 부적합 안내 + 신고 버튼
+- [ ] 제안 칩 / 추천 단어 클릭 → 정상 검색
+- [ ] Rate limit 초과 시 안내 메시지
+
+**카드 커스터마이징 (Phase 4.5):**
+- [ ] 필드 토글 (표시/숨김) → 카드에 반영
+- [ ] 필드 드래그 정렬 → 순서 반영
+- [ ] 동시 검색 모드 변경 (1~4개) → 입력창 개수 변경
+- [ ] 설정 저장 → 새로고침 후 유지
+
+**단어장 (Phase 5):**
+- [ ] 단어 추가/삭제 → 즉시 반영
+- [ ] 암기완료 토글 → 상태 변경
+- [ ] 복습 표시 → 주황 배지 표시 / 해제
+- [ ] 필터 (전체/미암기/암기완료/복습필요)
+- [ ] Excel/CSV 일괄 업로드 → 진행률 표시 → 결과 요약
+- [ ] 단어장 100개 제한 동작
+
+**퀴즈 (Phase 6~6.5):**
+- [ ] 범위 선택 (미암기/암기/검색이력) → 정상 생성
+- [ ] 검색이력: 특정 날짜 / 기간 설정
+- [ ] 문제 수 슬라이더 (1~20) → 반영
+- [ ] 4지선다 풀기 → 정답/오답 피드백
+- [ ] 결과 화면: 점수, 틀린 단어, 복습 표시
+- [ ] "다시 풀기" / "다른 문제 풀기" 동작
+
+**기타 기능:**
+- [ ] 검색 이력 페이지 → 날짜별 목록
+- [ ] 성적 관리 → 입력/수정/삭제/그래프
+- [ ] 발음 재생 (Web Speech API)
+- [ ] 다크 모드 토글
+
+**데이터 수집 (Phase 7):**
+- [ ] Supabase `access_logs` 테이블에 이벤트 기록 확인
+- [ ] `search_logs`에 ip_address, user_agent 기록 확인
+
+**모바일 반응형:**
+- [ ] 375px (iPhone SE) — 전체 UI 확인
+- [ ] 768px (iPad) — 사이드바 표시/숨김
+- [ ] 1440px (데스크톱) — 정상 레이아웃
+- [ ] 모바일 헤더 메뉴 (⋮) 동작
+- [ ] 검색 기록 바텀 시트 (모바일)
+- [ ] 최근 검색 칩 (모바일)
+
+**SEO/메타 (Phase 8):**
+- [ ] 페이지별 title 표시 확인
+- [ ] OG 태그 확인 (SNS 공유 미리보기)
+- [ ] robots.txt 접근 확인
+- [ ] sitemap.xml 접근 확인
+- [ ] favicon 표시 확인
+
+**에러 처리 (Phase 8):**
+- [ ] 존재하지 않는 URL → 404 페이지
+- [ ] 에러 발생 시 → error.tsx 동작
+- [ ] 로딩 중 → loading.tsx 표시
+
+---
+
+### Step 8.6: Vercel 프로덕션 배포
 
 ```bash
 git push origin main
@@ -1586,13 +1775,54 @@ git push origin main
 
 Vercel이 자동으로 빌드 및 배포합니다.
 
-배포 후 확인:
-1. Vercel Dashboard → 배포 로그 확인 (빌드 에러 없는지)
-2. 프로덕션 URL 접속 → 전체 기능 확인
-3. Supabase Auth → URL Configuration에 프로덕션 URL 추가
-4. Google OAuth → Authorized redirect URIs에 프로덕션 URL 추가
+**배포 전 확인:**
+1. 환경변수 설정 확인 (Vercel Dashboard):
+   - `NEXT_PUBLIC_SUPABASE_URL`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - `SUPABASE_SERVICE_ROLE_KEY`
+   - `OPENAI_API_KEY`
+2. 빌드 에러 없는지 확인
 
-**커밋:** `git commit -m "chore: production-ready with SEO, error handling, and optimization"`
+**배포 후 확인:**
+1. 프로덕션 URL 접속 → 전체 기능 동작
+2. Supabase Auth → URL Configuration에 프로덕션 URL 추가
+3. Google OAuth → Authorized redirect URIs에 프로덕션 URL 추가
+4. Lighthouse 점수 확인 및 기록
+5. OG 태그 검증 (https://www.opengraph.xyz/ 등)
+
+---
+
+## 파일 변경 요약 (Phase 8)
+
+| 구분 | 파일 | Step |
+|------|------|------|
+| 생성 | `public/favicon.ico` | 8.1.1 |
+| 생성 | `public/icon-192.png`, `public/icon-512.png` | 8.1.1 |
+| 생성 | `public/apple-touch-icon.png` | 8.1.1 |
+| 생성 | `src/app/manifest.ts` | 8.1.1 |
+| 생성 | `src/app/robots.ts` | 8.1.3 |
+| 생성 | `src/app/sitemap.ts` | 8.1.4 |
+| 생성 | `public/og-image.png` 또는 `src/app/opengraph-image.tsx` | 8.1.5 |
+| 생성 | `src/app/error.tsx` | 8.2.1 |
+| 생성 | `src/app/global-error.tsx` | 8.2.2 |
+| 생성 | `src/app/(main)/loading.tsx` | 8.2.3 |
+| 수정 | `src/app/layout.tsx` | 8.1.2 |
+| 수정 | 각 페이지 page.tsx (metadata export) | 8.1.2 |
+| 수정 | `src/middleware.ts` 또는 `src/lib/supabase/middleware.ts` | 8.3 |
+| 수정 | `next.config.ts` | 8.4.1 |
+| 수정 | `package.json` (devDependencies) | 8.4.2 |
+
+## 구현 순서
+Step 8.1 → 8.2 → 8.3 → 8.4 → `pnpm build` 검증 → Step 8.5 (수동 QA) → Step 8.6 (배포)
+
+## 검증
+1. 빌드 성공
+2. favicon 브라우저 탭에 표시
+3. `/robots.txt`, `/sitemap.xml` 접근 가능
+4. OG 태그 SNS 미리보기 동작
+5. 에러 페이지 정상 표시
+6. 보안 헤더 응답에 포함
+7. Lighthouse 90+ 달성
 
 ---
 

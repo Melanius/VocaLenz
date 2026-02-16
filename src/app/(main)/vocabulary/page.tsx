@@ -2,9 +2,8 @@
 
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
-import { BookOpen, Check, Trash2, Star, Eye, Loader2, Upload, X } from 'lucide-react'
-import { Card, CardContent } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
+import { useRouter } from 'next/navigation'
+import { BookOpen, Star, Loader2, Upload, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -16,17 +15,11 @@ import { useAuthContext } from '@/components/providers/auth-provider'
 import { useVocabulary } from '@/hooks/use-vocabulary'
 import { toast } from '@/hooks/use-toast'
 import { WordCard } from '@/components/search/word-card'
+import { VocabularyFlipCard } from '@/components/vocabulary/vocabulary-flip-card'
 import { getRandomPhrase, type LoadingPhrase } from '@/lib/loading-phrases'
 import type { UserVocabulary, Word } from '@/types/database'
 
 type FilterType = 'all' | 'not-memorized' | 'memorized' | 'needs-review'
-
-const LEVEL_CONFIG: Record<number, { label: string; color: string }> = {
-  1: { label: 'Essential', color: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300' },
-  2: { label: 'Core', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300' },
-  3: { label: 'Advanced', color: 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300' },
-  4: { label: 'Killer', color: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300' },
-}
 
 interface BulkProgress {
   current: number
@@ -45,11 +38,13 @@ interface BulkComplete {
 }
 
 export default function VocabularyPage() {
+  const router = useRouter()
   const { user, loading: authLoading } = useAuthContext()
   const { vocabularyItems, count, loading, toggleMemorized, refresh } = useVocabulary()
   const [filter, setFilter] = useState<FilterType>('all')
   const [detailWord, setDetailWord] = useState<Word | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
+  const [flippedCards, setFlippedCards] = useState<Set<string>>(new Set())
 
   // 업로드 상태
   const [uploadOpen, setUploadOpen] = useState(false)
@@ -59,6 +54,18 @@ export default function VocabularyPage() {
   const [uploadProgress, setUploadProgress] = useState<BulkProgress[]>([])
   const [uploadResult, setUploadResult] = useState<BulkComplete | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const toggleFlip = (id: string) => {
+    setFlippedCards((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
+      return next
+    })
+  }
 
   if (authLoading) {
     return (
@@ -109,11 +116,12 @@ export default function VocabularyPage() {
     }
   }
 
-  const handleDetail = (word: Word) => {
+  const handleDetail = (item: UserVocabulary) => {
+    if (!item.word) return
     setDetailLoading(true)
     setDetailWord(null)
     setTimeout(() => {
-      setDetailWord(word)
+      setDetailWord(item.word!)
       setDetailLoading(false)
     }, 800)
   }
@@ -286,43 +294,46 @@ export default function VocabularyPage() {
   }
 
   return (
-    <div className="flex-1 overflow-y-auto p-4 md:p-6">
+    <div className="flex-1 overflow-y-auto p-4 md:p-6 pb-24">
       <div className="max-w-4xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between flex-wrap gap-2">
+        {/* Header: 좌측 제목+카운트, 우측 Upload 아이콘 버튼 */}
+        <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold">내 단어장</h1>
             <p className="text-muted-foreground text-sm mt-1">
               {count}/100 단어
             </p>
           </div>
-          <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-10 w-10 rounded-full"
+            onClick={() => { resetUpload(); setUploadOpen(true) }}
+            aria-label="단어 일괄 추가"
+          >
+            <Upload className="h-4 w-4" />
+          </Button>
+        </div>
+
+        {/* 필터 버튼 별도 행 */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {(['all', 'not-memorized', 'memorized', 'needs-review'] as FilterType[]).map((f) => (
             <Button
-              variant="outline"
+              key={f}
+              variant={filter === f ? 'default' : 'outline'}
               size="sm"
-              onClick={() => { resetUpload(); setUploadOpen(true) }}
+              onClick={() => setFilter(f)}
             >
-              <Upload className="h-4 w-4 mr-1" />
-              단어 일괄 추가
+              {f === 'all' ? '전체' : f === 'not-memorized' ? '미암기' : f === 'memorized' ? '암기완료' : '복습필요'}
             </Button>
-            {(['all', 'not-memorized', 'memorized', 'needs-review'] as FilterType[]).map((f) => (
-              <Button
-                key={f}
-                variant={filter === f ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setFilter(f)}
-              >
-                {f === 'all' ? '전체' : f === 'not-memorized' ? '미암기' : f === 'memorized' ? '암기완료' : '복습필요'}
-              </Button>
-            ))}
-          </div>
+          ))}
         </div>
 
         {/* Content */}
         {loading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="h-32 bg-muted animate-pulse rounded-lg" />
+              <div key={i} className="h-[180px] bg-muted animate-pulse rounded-xl" />
             ))}
           </div>
         ) : filtered.length === 0 ? (
@@ -340,101 +351,31 @@ export default function VocabularyPage() {
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {filtered.map((item) => {
-              const word = item.word
-              if (!word) return null
-              const levelConfig = LEVEL_CONFIG[word.difficulty_level] || LEVEL_CONFIG[2]
-
-              return (
-                <Card
-                  key={item.id}
-                  className={`transition-colors ${
-                    item.is_memorized ? 'opacity-60' : ''
-                  }`}
-                >
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1 flex-wrap">
-                          <h3 className="text-lg font-bold truncate">{word.word}</h3>
-                          <span
-                            className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-xs font-medium ${levelConfig.color}`}
-                          >
-                            Lv.{word.difficulty_level}
-                          </span>
-                          {word.part_of_speech &&
-                            word.part_of_speech.split('/').map((pos, i) => (
-                              <Badge key={i} variant="outline" className="text-xs">
-                                {pos.trim()}
-                              </Badge>
-                            ))}
-                          {item.needs_review && (
-                            <button
-                              onClick={() => handleToggleReview(item)}
-                              className="inline-flex items-center rounded-md px-1.5 py-0.5 text-xs font-medium bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300 hover:bg-orange-200 dark:hover:bg-orange-900/60 cursor-pointer transition-colors"
-                              title="클릭하여 복습 해제"
-                            >
-                              복습
-                            </button>
-                          )}
-                        </div>
-                        {word.pronunciation && (
-                          <p className="text-xs text-muted-foreground mb-1.5">
-                            [{word.pronunciation}]
-                          </p>
-                        )}
-                        <div className="space-y-0.5">
-                          {word.meanings.slice(0, 2).map((m, i) => (
-                            <p key={i} className="text-sm text-foreground truncate">
-                              {i + 1}. {m}
-                            </p>
-                          ))}
-                        </div>
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => handleDetail(word)}
-                          aria-label="상세 보기"
-                        >
-                          <Eye className="h-4 w-4 text-muted-foreground" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => handleToggle(item)}
-                          aria-label={item.is_memorized ? '미암기로 변경' : '암기 완료'}
-                        >
-                          <Check
-                            className={`h-4 w-4 ${
-                              item.is_memorized
-                                ? 'text-green-500'
-                                : 'text-muted-foreground'
-                            }`}
-                          />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-destructive hover:text-destructive"
-                          onClick={() => handleDelete(item)}
-                          aria-label="단어장에서 삭제"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              )
-            })}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {filtered.map((item) => (
+              <VocabularyFlipCard
+                key={item.id}
+                item={item}
+                isFlipped={flippedCards.has(item.id)}
+                onFlip={() => toggleFlip(item.id)}
+                onDetail={handleDetail}
+                onToggleMemorized={handleToggle}
+                onToggleReview={handleToggleReview}
+                onDelete={handleDelete}
+              />
+            ))}
           </div>
         )}
       </div>
+
+      {/* 하단 검색 FAB */}
+      <button
+        onClick={() => router.push('/')}
+        className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center justify-center h-14 w-14 rounded-full bg-primary text-primary-foreground shadow-lg hover:shadow-xl hover:scale-105 transition-all active:scale-95"
+        aria-label="단어 검색"
+      >
+        <Search className="h-6 w-6" />
+      </button>
 
       {/* 상세 보기 다이얼로그 */}
       <Dialog

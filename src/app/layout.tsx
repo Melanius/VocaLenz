@@ -7,8 +7,26 @@ import { AuthProvider } from '@/components/providers/auth-provider'
 import { Toaster } from '@/components/ui/toaster'
 
 export const metadata: Metadata = {
-  title: 'VocaLenz - AI 영어 단어장',
+  metadataBase: new URL('https://vocalenz.vercel.app'),
+  title: {
+    default: 'VocaLenz - AI 영어 단어장',
+    template: '%s | VocaLenz',
+  },
   description: 'TEPS/TOEIC 시험 대비를 위한 AI 기반 영어 단어 학습 플랫폼',
+  keywords: ['영어 단어', 'TEPS', 'TOEIC', 'AI 단어장', '영어 학습', '영어 단어장'],
+  authors: [{ name: 'VocaLenz' }],
+  openGraph: {
+    title: 'VocaLenz - AI 영어 단어장',
+    description: 'AI가 만들어주는 나만의 영어 단어 학습 카드',
+    siteName: 'VocaLenz',
+    locale: 'ko_KR',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'VocaLenz - AI 영어 단어장',
+    description: 'AI가 만들어주는 나만의 영어 단어 학습 카드',
+  },
 }
 
 export default function RootLayout({

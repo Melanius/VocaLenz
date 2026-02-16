@@ -1541,15 +1541,22 @@ access_logs에 자동 기록:
 
 ---
 
-## Phase 8: 마무리 및 배포 (개정판)
+## ✅ Phase 8: 마무리 및 배포 (개정판)
+**완료 일시:** 2026-02-16 (Step 8.1~8.4 코드 구현)
 
 > 초기 계획 대비 변경사항:
 > - **삭제**: 동적 단어별 메타데이터 (개별 단어 페이지 없음), next/image (이미지 미사용), API 에러 표준화 (이미 완료), 네트워크 재시도 UI (이미 완료)
 > - **추가**: favicon/manifest/PWA 기반, 보안 헤더, loading.tsx, Phase 4.5~7 QA 항목
 
+**구현 결과:**
+- Step 8.1: `icon.svg`, `apple-icon.tsx` (ImageResponse), `manifest.ts`, `robots.ts`, `sitemap.ts`, `opengraph-image.tsx` 생성. `layout.tsx` metadata 보강 (metadataBase, OG, Twitter). 페이지별 layout.tsx 메타데이터 (quiz, vocabulary, history, scores)
+- Step 8.2: `error.tsx` (에러 바운더리 + 다시 시도 버튼), `global-error.tsx` (루트 에러 대응, 최소 HTML), `(main)/loading.tsx` (스피너)
+- Step 8.3: `src/lib/supabase/middleware.ts`에 보안 헤더 5개 추가 (X-Frame-Options, X-Content-Type-Options, Referrer-Policy, X-DNS-Prefetch-Control, X-Powered-By 제거)
+- Step 8.4: `poweredBy`는 Next.js 15에서 미지원 옵션으로 확인 → 미들웨어 `X-Powered-By` 헤더 삭제로 대체. 번들 분석기는 배포 필수가 아니므로 생략
+
 ---
 
-### Step 8.1: SEO + 정적 자산
+### Step 8.1: SEO + 정적 자산 ✅
 
 #### 8.1.1: favicon 및 앱 아이콘
 - `public/` 디렉토리 생성 (현재 없음)

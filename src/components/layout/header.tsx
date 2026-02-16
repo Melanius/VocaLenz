@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { Search, BookOpen, History, BarChart3, Brain, MoreVertical } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -32,13 +33,30 @@ export function Header() {
     router.refresh()
   }
 
+  const handleLogoClick = (e: React.MouseEvent) => {
+    e.preventDefault()
+    window.dispatchEvent(new Event('vocalenz:reset-search'))
+    router.push('/')
+  }
+
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-14 max-w-screen-2xl items-center">
         <div className="mr-4 flex">
-          <Link href="/" className="mr-6 flex items-center space-x-2">
-            <span className="font-bold text-xl">VocaLenz</span>
-          </Link>
+          <a
+            href="/"
+            onClick={handleLogoClick}
+            className="mr-6 flex items-center space-x-2"
+          >
+            <Image
+              src="/logo/VocaLenz_logo.png"
+              alt="VocaLenz"
+              width={120}
+              height={32}
+              className="h-8 w-auto max-w-[120px] object-contain"
+              priority
+            />
+          </a>
 
           {/* Desktop nav */}
           <nav className="hidden md:flex items-center gap-6 text-sm">

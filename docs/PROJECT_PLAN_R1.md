@@ -1833,6 +1833,65 @@ Step 8.1 → 8.2 → 8.3 → 8.4 → `pnpm build` 검증 → Step 8.5 (수동 QA
 
 ---
 
+## ✅ Phase 9: UI/UX 개선 (완료)
+**완료 일시:** 2026-02-16
+
+### Step 9.1: 단어장 플래시카드 리디자인 ✅
+- 플래시카드 뒤집기 애니메이션 (CSS 3D `rotateY`, GPU 가속)
+- 카드 앞면: 단어 + 레벨/POS 배지 + 추가 날짜 (상대 시간)
+- 카드 뒷면: 전체 뜻 + 발음 + 설명 + 예문 + 액션 버튼 바
+- 복습 배지 강화 (`animate-pulse` + `ring-2 ring-orange-400/50` 테두리)
+- 일괄 추가 버튼 → 헤더 우측 원형 아이콘 버튼으로 재배치
+- 하단 검색 FAB (Floating Action Button) 추가
+- 커밋: `53017a4 - feat: 단어장 플래시카드 UI 리디자인`
+
+**생성 파일:**
+- `src/components/vocabulary/vocabulary-flip-card.tsx` (플립카드 컴포넌트)
+- `src/lib/date-utils.ts` (상대 시간 포맷 유틸리티)
+
+**수정 파일:**
+- `src/app/globals.css` (플립 애니메이션 CSS)
+- `src/app/(main)/vocabulary/page.tsx` (카드 교체, FAB, 헤더 재구성)
+
+### Step 9.2: 검색 페이지 DB 검색 이력 표시 ✅
+- 빈 상태(초기 화면)에서 로그인 사용자에게 최근 검색 이력 20개 표시
+- "더 보기" 버튼으로 20개씩 추가 로드 (기존 `/api/history` API 재활용)
+- 시간순 정렬 (최신 우선), 상대 시간 표시 (방금, N분 전, N시간 전, N일 전)
+- 이력 항목 클릭 시 해당 단어 재검색 실행
+
+**수정 파일:**
+- `src/app/(main)/page.tsx` (DB 이력 섹션 추가)
+
+### Step 9.3: 헤더 로고 이미지 교체 + 네비게이션 수정 ✅
+- 텍스트 로고 → `public/logo/VocaLenz_logo.png` 이미지 (Next.js `<Image>` 자동 최적화)
+- 로고 클릭 시 검색 세션 히스토리 초기화 → 초기 검색 화면 복귀
+- `SearchContext`에 커스텀 이벤트 리스너(`vocalenz:reset-search`) 추가
+- **로고 교체 방법:** `public/logo/VocaLenz_logo.png` 파일을 같은 이름으로 덮어씌우면 자동 반영
+
+**생성 파일:**
+- `public/logo/VocaLenz_logo.png` (로고 이미지)
+
+**수정 파일:**
+- `src/components/layout/header.tsx` (Image 컴포넌트, handleLogoClick)
+- `src/contexts/search-context.tsx` (리셋 이벤트 리스너)
+
+### Step 9.4: 검색 페이지 심볼 영상 교체 ✅
+- BookOpen 아이콘 → `public/video/VocaLenz_sample.mp4` 무한 반복 자동 재생
+- `<video autoPlay loop muted playsInline>` (브라우저 자동재생 정책 준수)
+- `h-20 w-20 rounded-2xl overflow-hidden` 스타일
+
+**생성 파일:**
+- `public/video/VocaLenz_sample.mp4` (심볼 영상)
+
+**수정 파일:**
+- `src/app/(main)/page.tsx` (video 태그 교체)
+
+**Phase 9 커밋:** 2개
+- `53017a4 - feat: 단어장 플래시카드 UI 리디자인`
+- `75aa44b - feat: 검색 이력 표시, 로고 이미지, 심볼 영상 적용`
+
+---
+
 ## 개발 완료 후 운영 체크리스트
 
 | 항목 | 내용 | 상태 |

@@ -1,24 +1,50 @@
 'use client'
 
 import { useRef, useEffect, useState, useCallback } from 'react'
-import { BookOpen, History } from 'lucide-react'
+import { History, ChevronDown, Loader2 } from 'lucide-react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { MultiSearchInput } from '@/components/search/multi-search-input'
 import { SearchResults } from '@/components/search/search-results'
 import { RecommendedWords } from '@/components/search/recommended-words'
 import { CardCustomizer } from '@/components/search/card-customizer'
 import { Sidebar } from '@/components/layout/sidebar'
 import { useSearchContext } from '@/contexts/search-context'
+import { useAuthContext } from '@/components/providers/auth-provider'
 import { getSessionId } from '@/lib/session'
 import { analytics } from '@/lib/analytics'
+import type { Word } from '@/types/database'
+
+const LEVEL_CONFIG: Record<number, { label: string; color: string }> = {
+  1: { label: 'Essential', color: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300' },
+  2: { label: 'Core', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300' },
+  3: { label: 'Advanced', color: 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300' },
+  4: { label: 'Killer', color: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300' },
+}
+
+interface HistoryItem {
+  id: string
+  user_id: string
+  word_id: string
+  searched_at: string
+  word: Word | null
+}
 
 export default function SearchPage() {
   const { history, addToHistory, updateHistoryItem, scrollToItem } = useSearchContext()
+  const { user } = useAuthContext()
   const scrollRef = useRef<HTMLDivElement>(null)
   const isEmpty = history.length === 0
   const [historyOpen, setHistoryOpen] = useState(false)
+
+  // DB 검색 이력 상태
+  const [dbHistory, setDbHistory] = useState<HistoryItem[]>([])
+  const [dbHistoryLoading, setDbHistoryLoading] = useState(false)
+  const [dbHistoryPage, setDbHistoryPage] = useState(1)
+  const [dbHistoryHasMore, setDbHistoryHasMore] = useState(false)
+  const [dbHistoryLoaded, setDbHistoryLoaded] = useState(false)
 
   // session_start 이벤트 (최초 1회)
   useEffect(() => {
@@ -29,11 +55,40 @@ export default function SearchPage() {
     })
   }, [])
 
+  // 로그인 사용자: 빈 상태일 때 DB 검색 이력 로드
+  const fetchDbHistory = useCallback(async (pageNum: number, append = false) => {
+    setDbHistoryLoading(true)
+    try {
+      const res = await fetch(`/api/history?page=${pageNum}&limit=20`)
+      if (res.ok) {
+        const data = await res.json()
+        setDbHistory((prev) => append ? [...prev, ...data.items] : data.items)
+        setDbHistoryHasMore(data.hasMore)
+        setDbHistoryLoaded(true)
+      }
+    } catch {
+      // silent
+    } finally {
+      setDbHistoryLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (user && isEmpty && !dbHistoryLoaded) {
+      fetchDbHistory(1)
+    }
+  }, [user, isEmpty, dbHistoryLoaded, fetchDbHistory])
+
+  const loadMoreDbHistory = () => {
+    const nextPage = dbHistoryPage + 1
+    setDbHistoryPage(nextPage)
+    fetchDbHistory(nextPage, true)
+  }
+
   // 새 결과 추가 시 자동 스크롤
   useEffect(() => {
     if (scrollRef.current) {
       const el = scrollRef.current
-      // ScrollArea 내부의 viewport를 찾아 스크롤
       const viewport = el.querySelector('[data-radix-scroll-area-viewport]')
       if (viewport) {
         viewport.scrollTop = viewport.scrollHeight
@@ -77,40 +132,141 @@ export default function SearchPage() {
     .slice(-5)
     .reverse()
 
+  // 이력 항목에서 상대 시간 표시
+  const formatTime = (dateStr: string) => {
+    const now = Date.now()
+    const diff = now - new Date(dateStr).getTime()
+    const mins = Math.floor(diff / 60000)
+    if (mins < 1) return '방금'
+    if (mins < 60) return `${mins}분 전`
+    const hours = Math.floor(mins / 60)
+    if (hours < 24) return `${hours}시간 전`
+    const days = Math.floor(hours / 24)
+    if (days < 7) return `${days}일 전`
+    return new Date(dateStr).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })
+  }
+
   return (
     <div className="flex flex-col h-full">
       {isEmpty ? (
         /* 빈 상태: 중앙 정렬 */
-        <div className="flex-1 flex flex-col items-center justify-center px-4">
-          <div className="mb-10 text-center">
-            <div className="mb-4 flex justify-center">
-              <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center">
-                <BookOpen className="h-6 w-6 text-primary" />
+        <div className="flex-1 overflow-y-auto">
+          <div className="flex flex-col items-center px-4 pt-12 pb-8">
+            <div className="mb-10 text-center">
+              <div className="mb-4 flex justify-center">
+                <div className="h-20 w-20 rounded-2xl overflow-hidden">
+                  <video
+                    src="/video/VocaLenz_sample.mp4"
+                    autoPlay
+                    loop
+                    muted
+                    playsInline
+                    className="h-full w-full object-cover"
+                  />
+                </div>
               </div>
-            </div>
-            <h1 className="text-3xl font-semibold tracking-tight text-foreground mb-2">
-              VocaLenz
-            </h1>
-            <p className="text-muted-foreground text-sm">
-              나만의 TEPS AI 튜터
-            </p>
-          </div>
-
-          <div className="w-full max-w-2xl space-y-6">
-            {/* 카드 설정 */}
-            <div className="flex items-center justify-end">
-              <CardCustomizer />
+              <h1 className="text-3xl font-semibold tracking-tight text-foreground mb-2">
+                VocaLenz
+              </h1>
+              <p className="text-muted-foreground text-sm">
+                나만의 TEPS AI 튜터
+              </p>
             </div>
 
-            {/* 검색 입력 */}
-            <MultiSearchInput autoFocus />
+            <div className="w-full max-w-2xl space-y-6">
+              {/* 카드 설정 */}
+              <div className="flex items-center justify-end">
+                <CardCustomizer />
+              </div>
 
-            {/* 추천 단어 */}
-            <RecommendedWords onSearchWord={handleSearchWord} />
+              {/* 검색 입력 */}
+              <MultiSearchInput autoFocus />
 
-            <p className="text-xs text-muted-foreground text-center max-w-md mx-auto">
-              AI가 입력을 분석하여 정확한 단어 학습 카드를 생성합니다
-            </p>
+              {/* 추천 단어 */}
+              <RecommendedWords onSearchWord={handleSearchWord} />
+
+              <p className="text-xs text-muted-foreground text-center max-w-md mx-auto">
+                AI가 입력을 분석하여 정확한 단어 학습 카드를 생성합니다
+              </p>
+            </div>
+
+            {/* 최근 검색 이력 (로그인 사용자만) */}
+            {user && dbHistoryLoaded && dbHistory.length > 0 && (
+              <div className="w-full max-w-2xl mt-10">
+                <div className="flex items-center gap-2 mb-4">
+                  <History className="h-4 w-4 text-muted-foreground" />
+                  <h2 className="text-sm font-medium text-muted-foreground">최근 검색</h2>
+                </div>
+                <div className="space-y-1.5">
+                  {dbHistory.map((item) => {
+                    const word = item.word
+                    if (!word) return null
+                    const levelConfig = LEVEL_CONFIG[word.difficulty_level] || LEVEL_CONFIG[2]
+
+                    return (
+                      <button
+                        key={item.id}
+                        onClick={() => handleSearchWord(word.word)}
+                        className="w-full text-left rounded-lg border bg-card px-4 py-3 hover:bg-accent/50 transition-colors"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <span className="font-semibold text-foreground">
+                              {word.word}
+                            </span>
+                            <span
+                              className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-xs font-medium ${levelConfig.color}`}
+                            >
+                              Lv.{word.difficulty_level}
+                            </span>
+                            <span className="text-sm text-muted-foreground truncate hidden sm:inline">
+                              {word.meanings[0]}
+                            </span>
+                          </div>
+                          <span className="text-xs text-muted-foreground flex-shrink-0 ml-2">
+                            {formatTime(item.searched_at)}
+                          </span>
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+
+                {dbHistoryHasMore && (
+                  <div className="text-center mt-4">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={loadMoreDbHistory}
+                      disabled={dbHistoryLoading}
+                    >
+                      {dbHistoryLoading ? (
+                        <>
+                          <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                          로딩 중...
+                        </>
+                      ) : (
+                        <>
+                          <ChevronDown className="h-3.5 w-3.5 mr-1.5" />
+                          더 보기
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* 이력 로딩 중 */}
+            {user && !dbHistoryLoaded && dbHistoryLoading && (
+              <div className="w-full max-w-2xl mt-10">
+                <div className="space-y-2">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="h-12 bg-muted animate-pulse rounded-lg" />
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       ) : (
@@ -176,4 +332,3 @@ export default function SearchPage() {
     </div>
   )
 }
-

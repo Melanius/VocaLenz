@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useState, useCallback } from 'react'
+import { createContext, useContext, useState, useCallback, useEffect } from 'react'
 import type { SearchResult } from '@/types/database'
 
 export interface SearchHistoryItem {
@@ -43,6 +43,13 @@ export function SearchProvider({ children }: { children: React.ReactNode }) {
 
   const clearHistory = useCallback(() => {
     setHistory([])
+  }, [])
+
+  // 헤더 로고 클릭 등 외부에서 리셋 요청 시 히스토리 초기화
+  useEffect(() => {
+    const handleReset = () => setHistory([])
+    window.addEventListener('vocalenz:reset-search', handleReset)
+    return () => window.removeEventListener('vocalenz:reset-search', handleReset)
   }, [])
 
   const scrollToItem = useCallback((id: string) => {

@@ -51,7 +51,7 @@ export default function OGImage() {
             margin: '16px 0 0',
           }}
         >
-          AI 기반 영어 단어 학습 · TEPS/TOEIC 대비
+          나만의 TEPS AI 튜터
         </p>
       </div>
     ),

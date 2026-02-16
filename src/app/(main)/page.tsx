@@ -92,7 +92,7 @@ export default function SearchPage() {
               VocaLenz
             </h1>
             <p className="text-muted-foreground text-sm">
-              AI 기반 영어 단어 학습 · TEPS/TOEIC 대비
+              나만의 TEPS AI 튜터
             </p>
           </div>
 
@@ -108,23 +108,8 @@ export default function SearchPage() {
             {/* 추천 단어 */}
             <RecommendedWords onSearchWord={handleSearchWord} />
 
-            {/* 제안 칩 */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {['amity', 'ubiquitous', 'ephemeral', 'pragmatic', 'resilient', 'verbose'].map(
-                (word) => (
-                  <button
-                    key={word}
-                    onClick={() => handleSearchWord(word)}
-                    className="px-3 py-2 rounded-xl border border-border bg-card hover:bg-accent hover:border-primary/50 transition-all text-sm text-foreground"
-                  >
-                    {word}
-                  </button>
-                )
-              )}
-            </div>
-
             <p className="text-xs text-muted-foreground text-center max-w-md mx-auto">
-              GPT-4o-mini 기반 AI Gatekeeper가 입력을 분석하여 정확한 단어 학습 카드를 생성합니다
+              AI가 입력을 분석하여 정확한 단어 학습 카드를 생성합니다
             </p>
           </div>
         </div>

@@ -12,8 +12,8 @@ export const metadata: Metadata = {
     default: 'VocaLenz - AI 영어 단어장',
     template: '%s | VocaLenz',
   },
-  description: 'TEPS/TOEIC 시험 대비를 위한 AI 기반 영어 단어 학습 플랫폼',
-  keywords: ['영어 단어', 'TEPS', 'TOEIC', 'AI 단어장', '영어 학습', '영어 단어장'],
+  description: 'TEPS 시험 대비를 위한 AI 기반 영어 단어 학습 플랫폼',
+  keywords: ['영어 단어', 'TEPS', 'AI 단어장', '영어 학습', '영어 단어장'],
   authors: [{ name: 'VocaLenz' }],
   openGraph: {
     title: 'VocaLenz - AI 영어 단어장',

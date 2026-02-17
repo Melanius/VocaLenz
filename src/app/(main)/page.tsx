@@ -1,21 +1,26 @@
 'use client'
 
-import { useRef, useEffect, useState, useCallback } from 'react'
-import { History, ChevronDown, Loader2 } from 'lucide-react'
+import { useRef, useEffect, useState, useCallback, useMemo } from 'react'
+import { History, ChevronDown, Loader2, X } from 'lucide-react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { MultiSearchInput } from '@/components/search/multi-search-input'
 import { SearchResults } from '@/components/search/search-results'
 import { RecommendedWords } from '@/components/search/recommended-words'
 import { CardCustomizer } from '@/components/search/card-customizer'
-import { Sidebar } from '@/components/layout/sidebar'
 import { useSearchContext } from '@/contexts/search-context'
 import { useAuthContext } from '@/components/providers/auth-provider'
 import { getSessionId } from '@/lib/session'
 import { analytics } from '@/lib/analytics'
 import type { Word } from '@/types/database'
+
+const SEASON_VIDEOS = [
+  '/video/spring.mp4',
+  '/video/summer.mp4',
+  '/video/fall.mp4',
+  '/video/winter.mp4',
+]
 
 const LEVEL_CONFIG: Record<number, { label: string; color: string }> = {
   1: { label: 'Essential', color: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300' },
@@ -24,12 +29,48 @@ const LEVEL_CONFIG: Record<number, { label: string; color: string }> = {
   4: { label: 'Killer', color: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300' },
 }
 
-interface HistoryItem {
+interface DbHistoryItem {
   id: string
   user_id: string
   word_id: string
   searched_at: string
   word: Word | null
+}
+
+interface GroupedHistory {
+  label: string
+  items: DbHistoryItem[]
+}
+
+function groupByDate(items: DbHistoryItem[]): GroupedHistory[] {
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const yesterday = new Date(today.getTime() - 86400000)
+  const weekAgo = new Date(today.getTime() - 7 * 86400000)
+
+  const groups: Record<string, DbHistoryItem[]> = {
+    '오늘': [],
+    '어제': [],
+    '이번 주': [],
+    '이전': [],
+  }
+
+  for (const item of items) {
+    const date = new Date(item.searched_at)
+    if (date >= today) {
+      groups['오늘'].push(item)
+    } else if (date >= yesterday) {
+      groups['어제'].push(item)
+    } else if (date >= weekAgo) {
+      groups['이번 주'].push(item)
+    } else {
+      groups['이전'].push(item)
+    }
+  }
+
+  return Object.entries(groups)
+    .filter(([, items]) => items.length > 0)
+    .map(([label, items]) => ({ label, items }))
 }
 
 export default function SearchPage() {
@@ -39,8 +80,14 @@ export default function SearchPage() {
   const isEmpty = history.length === 0
   const [historyOpen, setHistoryOpen] = useState(false)
 
-  // DB 검색 이력 상태
-  const [dbHistory, setDbHistory] = useState<HistoryItem[]>([])
+  // 랜덤 영상 선택 (새로고침 시 변경)
+  const randomVideo = useMemo(
+    () => SEASON_VIDEOS[Math.floor(Math.random() * SEASON_VIDEOS.length)],
+    []
+  )
+
+  // DB 검색 이력 상태 (바텀 시트용)
+  const [dbHistory, setDbHistory] = useState<DbHistoryItem[]>([])
   const [dbHistoryLoading, setDbHistoryLoading] = useState(false)
   const [dbHistoryPage, setDbHistoryPage] = useState(1)
   const [dbHistoryHasMore, setDbHistoryHasMore] = useState(false)
@@ -55,7 +102,6 @@ export default function SearchPage() {
     })
   }, [])
 
-  // 로그인 사용자: 빈 상태일 때 DB 검색 이력 로드
   const fetchDbHistory = useCallback(async (pageNum: number, append = false) => {
     setDbHistoryLoading(true)
     try {
@@ -73,11 +119,12 @@ export default function SearchPage() {
     }
   }, [])
 
+  // 바텀 시트 열릴 때 DB 이력 로드
   useEffect(() => {
-    if (user && isEmpty && !dbHistoryLoaded) {
+    if (historyOpen && user && !dbHistoryLoaded) {
       fetchDbHistory(1)
     }
-  }, [user, isEmpty, dbHistoryLoaded, fetchDbHistory])
+  }, [historyOpen, user, dbHistoryLoaded, fetchDbHistory])
 
   const loadMoreDbHistory = () => {
     const nextPage = dbHistoryPage + 1
@@ -97,6 +144,7 @@ export default function SearchPage() {
   }, [history])
 
   const handleSearchWord = async (word: string) => {
+    setHistoryOpen(false)
     const itemId = addToHistory(word, { type: 'loading', message: '검색 중...' })
 
     try {
@@ -132,19 +180,7 @@ export default function SearchPage() {
     .slice(-5)
     .reverse()
 
-  // 이력 항목에서 상대 시간 표시
-  const formatTime = (dateStr: string) => {
-    const now = Date.now()
-    const diff = now - new Date(dateStr).getTime()
-    const mins = Math.floor(diff / 60000)
-    if (mins < 1) return '방금'
-    if (mins < 60) return `${mins}분 전`
-    const hours = Math.floor(mins / 60)
-    if (hours < 24) return `${hours}시간 전`
-    const days = Math.floor(hours / 24)
-    if (days < 7) return `${days}일 전`
-    return new Date(dateStr).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })
-  }
+  const grouped = groupByDate(dbHistory)
 
   return (
     <div className="flex flex-col h-full">
@@ -152,18 +188,17 @@ export default function SearchPage() {
         /* 빈 상태: 중앙 정렬 */
         <div className="flex-1 overflow-y-auto">
           <div className="flex flex-col items-center px-4 pt-12 pb-8">
-            <div className="mb-10 text-center">
-              <div className="mb-4 flex justify-center">
-                <div className="h-20 w-20 rounded-2xl overflow-hidden">
-                  <video
-                    src="/video/VocaLenz_sample.mp4"
-                    autoPlay
-                    loop
-                    muted
-                    playsInline
-                    className="h-full w-full object-cover"
-                  />
-                </div>
+            <div className="mb-10 text-center w-full max-w-md mx-auto">
+              <div className="mb-4">
+                <video
+                  key={randomVideo}
+                  src={randomVideo}
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
+                  className="w-full h-auto rounded-lg"
+                />
               </div>
               <h1 className="text-3xl font-semibold tracking-tight text-foreground mb-2">
                 VocaLenz
@@ -189,84 +224,6 @@ export default function SearchPage() {
                 AI가 입력을 분석하여 정확한 단어 학습 카드를 생성합니다
               </p>
             </div>
-
-            {/* 최근 검색 이력 (로그인 사용자만) */}
-            {user && dbHistoryLoaded && dbHistory.length > 0 && (
-              <div className="w-full max-w-2xl mt-10">
-                <div className="flex items-center gap-2 mb-4">
-                  <History className="h-4 w-4 text-muted-foreground" />
-                  <h2 className="text-sm font-medium text-muted-foreground">최근 검색</h2>
-                </div>
-                <div className="space-y-1.5">
-                  {dbHistory.map((item) => {
-                    const word = item.word
-                    if (!word) return null
-                    const levelConfig = LEVEL_CONFIG[word.difficulty_level] || LEVEL_CONFIG[2]
-
-                    return (
-                      <button
-                        key={item.id}
-                        onClick={() => handleSearchWord(word.word)}
-                        className="w-full text-left rounded-lg border bg-card px-4 py-3 hover:bg-accent/50 transition-colors"
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3 min-w-0">
-                            <span className="font-semibold text-foreground">
-                              {word.word}
-                            </span>
-                            <span
-                              className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-xs font-medium ${levelConfig.color}`}
-                            >
-                              Lv.{word.difficulty_level}
-                            </span>
-                            <span className="text-sm text-muted-foreground truncate hidden sm:inline">
-                              {word.meanings[0]}
-                            </span>
-                          </div>
-                          <span className="text-xs text-muted-foreground flex-shrink-0 ml-2">
-                            {formatTime(item.searched_at)}
-                          </span>
-                        </div>
-                      </button>
-                    )
-                  })}
-                </div>
-
-                {dbHistoryHasMore && (
-                  <div className="text-center mt-4">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={loadMoreDbHistory}
-                      disabled={dbHistoryLoading}
-                    >
-                      {dbHistoryLoading ? (
-                        <>
-                          <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-                          로딩 중...
-                        </>
-                      ) : (
-                        <>
-                          <ChevronDown className="h-3.5 w-3.5 mr-1.5" />
-                          더 보기
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* 이력 로딩 중 */}
-            {user && !dbHistoryLoaded && dbHistoryLoading && (
-              <div className="w-full max-w-2xl mt-10">
-                <div className="space-y-2">
-                  {[1, 2, 3].map((i) => (
-                    <div key={i} className="h-12 bg-muted animate-pulse rounded-lg" />
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
         </div>
       ) : (
@@ -319,14 +276,124 @@ export default function SearchPage() {
           <Button
             variant="ghost"
             size="icon"
-            className="fixed right-3 bottom-20 z-40 md:hidden h-10 w-10 rounded-full bg-primary/10 shadow-md"
+            className="fixed right-3 bottom-20 z-40 md:hidden h-14 w-14 rounded-full bg-primary/10 shadow-lg"
             aria-label="검색 기록"
           >
-            <History className="h-5 w-5 text-primary" />
+            <History className="h-6 w-6 text-primary" />
           </Button>
         </SheetTrigger>
         <SheetContent side="bottom" className="h-[70vh] rounded-t-2xl p-0">
-          <Sidebar open={true} onClose={() => setHistoryOpen(false)} />
+          <div className="flex flex-col h-full">
+            {/* 헤더 */}
+            <div className="flex items-center justify-between px-4 py-3 border-b">
+              <div className="flex items-center gap-2">
+                <History className="h-4 w-4 text-muted-foreground" />
+                <h2 className="text-sm font-medium">검색 이력</h2>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={() => setHistoryOpen(false)}
+                aria-label="닫기"
+              >
+                <X className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+
+            {/* 이력 목록 */}
+            <ScrollArea className="flex-1">
+              <div className="px-4 py-3">
+                {!user ? (
+                  <p className="text-sm text-muted-foreground text-center py-8">
+                    로그인하면 검색 이력을 볼 수 있어요.
+                  </p>
+                ) : dbHistoryLoading && !dbHistoryLoaded ? (
+                  <div className="space-y-2 py-4">
+                    {[1, 2, 3, 4, 5].map((i) => (
+                      <div key={i} className="h-12 bg-muted animate-pulse rounded-lg" />
+                    ))}
+                  </div>
+                ) : grouped.length === 0 ? (
+                  <div className="text-center py-8">
+                    <History className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                    <p className="text-sm text-muted-foreground">검색 이력이 없습니다.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-5">
+                    {grouped.map((group) => (
+                      <div key={group.label}>
+                        <h3 className="text-xs font-medium text-muted-foreground mb-2">
+                          {group.label}
+                        </h3>
+                        <div className="space-y-1">
+                          {group.items.map((item) => {
+                            const word = item.word
+                            if (!word) return null
+                            const levelConfig = LEVEL_CONFIG[word.difficulty_level] || LEVEL_CONFIG[2]
+                            const time = new Date(item.searched_at).toLocaleTimeString('ko-KR', {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })
+
+                            return (
+                              <button
+                                key={item.id}
+                                onClick={() => handleSearchWord(word.word)}
+                                className="w-full text-left rounded-lg px-3 py-2.5 hover:bg-accent/50 transition-colors"
+                              >
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2.5 min-w-0">
+                                    <span className="font-semibold text-sm text-foreground">
+                                      {word.word}
+                                    </span>
+                                    <span
+                                      className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-xs font-medium ${levelConfig.color}`}
+                                    >
+                                      Lv.{word.difficulty_level}
+                                    </span>
+                                    <span className="text-xs text-muted-foreground truncate">
+                                      {word.meanings[0]}
+                                    </span>
+                                  </div>
+                                  <span className="text-xs text-muted-foreground flex-shrink-0 ml-2">
+                                    {time}
+                                  </span>
+                                </div>
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    ))}
+
+                    {dbHistoryHasMore && (
+                      <div className="text-center pb-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={loadMoreDbHistory}
+                          disabled={dbHistoryLoading}
+                        >
+                          {dbHistoryLoading ? (
+                            <>
+                              <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                              로딩 중...
+                            </>
+                          ) : (
+                            <>
+                              <ChevronDown className="h-3.5 w-3.5 mr-1.5" />
+                              더 보기
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </ScrollArea>
+          </div>
         </SheetContent>
       </Sheet>
     </div>

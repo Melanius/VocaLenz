@@ -1833,7 +1833,7 @@ Step 8.1 → 8.2 → 8.3 → 8.4 → `pnpm build` 검증 → Step 8.5 (수동 QA
 
 ---
 
-## ✅ Phase 9: UI/UX 개선 (완료)
+## ✅ Phase 9: UI/UX 개선 1차 (완료)
 **완료 일시:** 2026-02-16
 
 ### Step 9.1: 단어장 플래시카드 리디자인 ✅
@@ -1843,7 +1843,6 @@ Step 8.1 → 8.2 → 8.3 → 8.4 → `pnpm build` 검증 → Step 8.5 (수동 QA
 - 복습 배지 강화 (`animate-pulse` + `ring-2 ring-orange-400/50` 테두리)
 - 일괄 추가 버튼 → 헤더 우측 원형 아이콘 버튼으로 재배치
 - 하단 검색 FAB (Floating Action Button) 추가
-- 커밋: `53017a4 - feat: 단어장 플래시카드 UI 리디자인`
 
 **생성 파일:**
 - `src/components/vocabulary/vocabulary-flip-card.tsx` (플립카드 컴포넌트)
@@ -1853,42 +1852,100 @@ Step 8.1 → 8.2 → 8.3 → 8.4 → `pnpm build` 검증 → Step 8.5 (수동 QA
 - `src/app/globals.css` (플립 애니메이션 CSS)
 - `src/app/(main)/vocabulary/page.tsx` (카드 교체, FAB, 헤더 재구성)
 
-### Step 9.2: 검색 페이지 DB 검색 이력 표시 ✅
-- 빈 상태(초기 화면)에서 로그인 사용자에게 최근 검색 이력 20개 표시
+### Step 9.2: 검색 페이지 DB 검색 이력 + 모바일 바텀 시트 ✅
+- 모바일: 우측 하단 플로팅 버튼(`h-14 w-14`) → 바텀 시트(70vh)로 DB 검색 이력 표시
+- 날짜 그룹핑 (오늘/어제/이번 주/이전) + 검색 시간 표시 + 레벨 배지
 - "더 보기" 버튼으로 20개씩 추가 로드 (기존 `/api/history` API 재활용)
-- 시간순 정렬 (최신 우선), 상대 시간 표시 (방금, N분 전, N시간 전, N일 전)
 - 이력 항목 클릭 시 해당 단어 재검색 실행
 
 **수정 파일:**
-- `src/app/(main)/page.tsx` (DB 이력 섹션 추가)
+- `src/app/(main)/page.tsx` (바텀 시트 DB 이력, 플로팅 버튼)
 
 ### Step 9.3: 헤더 로고 이미지 교체 + 네비게이션 수정 ✅
-- 텍스트 로고 → `public/logo/VocaLenz_logo.png` 이미지 (Next.js `<Image>` 자동 최적화)
+- 텍스트 로고 → Next.js `<Image>` 자동 최적화 로고 이미지
 - 로고 클릭 시 검색 세션 히스토리 초기화 → 초기 검색 화면 복귀
 - `SearchContext`에 커스텀 이벤트 리스너(`vocalenz:reset-search`) 추가
-- **로고 교체 방법:** `public/logo/VocaLenz_logo.png` 파일을 같은 이름으로 덮어씌우면 자동 반영
-
-**생성 파일:**
-- `public/logo/VocaLenz_logo.png` (로고 이미지)
 
 **수정 파일:**
 - `src/components/layout/header.tsx` (Image 컴포넌트, handleLogoClick)
 - `src/contexts/search-context.tsx` (리셋 이벤트 리스너)
 
 ### Step 9.4: 검색 페이지 심볼 영상 교체 ✅
-- BookOpen 아이콘 → `public/video/VocaLenz_sample.mp4` 무한 반복 자동 재생
-- `<video autoPlay loop muted playsInline>` (브라우저 자동재생 정책 준수)
-- `h-20 w-20 rounded-2xl overflow-hidden` 스타일
-
-**생성 파일:**
-- `public/video/VocaLenz_sample.mp4` (심볼 영상)
+- BookOpen 아이콘 → 영상/이미지 무한 반복 자동 재생
+- Google 스타일 와이드 디스플레이 (`w-full h-auto rounded-lg`)
 
 **수정 파일:**
-- `src/app/(main)/page.tsx` (video 태그 교체)
+- `src/app/(main)/page.tsx` (video/img 태그 교체)
 
-**Phase 9 커밋:** 2개
-- `53017a4 - feat: 단어장 플래시카드 UI 리디자인`
-- `75aa44b - feat: 검색 이력 표시, 로고 이미지, 심볼 영상 적용`
+---
+
+## ✅ Phase 10: UI/UX 개선 2차 (완료)
+**완료 일시:** 2026-02-17
+
+### Step 10.1: 랜덤 계절 이미지 ✅
+- 검색 페이지 상단에 4계절 APNG 이미지 (spring, summer, fall, winter) 중 랜덤 표시
+- `useMemo(() => Math.random())`으로 페이지 로드 시 랜덤 선택
+- 새로고침 시 다른 이미지로 자동 변경
+
+**생성 파일:**
+- `public/video/spring.png`, `summer.png`, `fall.png`, `winter.png` (4계절 APNG)
+
+**수정 파일:**
+- `src/app/(main)/page.tsx` (SEASON_IMAGES 배열, 랜덤 선택, img 태그)
+
+### Step 10.2: 다크모드 로고 분리 ✅
+- 라이트모드: `VocaLenz_logo_light.png`, 다크모드: `VocaLenz_logo_dark.png`
+- CSS `dark:hidden` / `hidden dark:block` 방식으로 깜빡임 없이 전환
+- 기존 단일 로고 파일(`VocaLenz_logo.png`) 제거
+
+**생성 파일:**
+- `public/logo/VocaLenz_logo_light.png`, `VocaLenz_logo_dark.png`
+
+**수정 파일:**
+- `src/components/layout/header.tsx` (두 개의 Image 컴포넌트, dark: 클래스)
+
+### Step 10.3: 헤더 크기 확대 ✅
+- 헤더 높이 `h-14`(56px) → `h-16`(64px)
+- 로고 크기 `h-8`(32px) → `h-11`(44px), `max-w-[120px]` → `max-w-[160px]`
+
+**수정 파일:**
+- `src/components/layout/header.tsx`
+
+### Step 10.4: 설정 톱니바퀴 배치 개선 ✅
+- 빈 상태(초기 화면): 검색창 위 별도 행 → 검색창 같은 줄 우측으로 이동
+- 다중 검색 모드(2~4개)에서도 검색 영역 옆에 배치
+- 채팅 상태(하단 입력): 기존과 동일 (이미 검색창 우측)
+
+**수정 파일:**
+- `src/app/(main)/page.tsx` (flex 레이아웃 변경)
+
+### Step 10.5: 웹 사이드바 DB 검색 이력 ✅
+- 기존 세션 메모리 기록 → DB 검색 이력으로 전면 교체
+- 날짜 그룹핑 (오늘/어제/이번 주/이전) + 레벨 배지 + 검색 시간 + 뜻 미리보기
+- 20개 페이지네이션 + "더 보기" 버튼
+- 비로그인 시 안내 메시지, 스켈레톤 로딩
+
+**수정 파일:**
+- `src/components/layout/sidebar.tsx` (전면 교체)
+
+### Step 10.6: 단어장 날짜 필터 ✅
+- Popover UI로 날짜 범위 선택 (시작일 ~ 종료일)
+- 단일 날짜 또는 범위(from~to) 지정 가능
+- 빠른 선택 버튼: 오늘, 최근 7일, 최근 30일
+- 기존 상태 필터(전체/미암기/암기완료/복습필요)와 조합 가능
+- 날짜 필터 활성화 시 버튼 하이라이트 + 선택 범위 표시
+- `added_at` 필드 기반 클라이언트 사이드 필터링
+
+**생성 파일:**
+- `src/components/ui/popover.tsx` (Radix UI Popover 컴포넌트)
+
+**수정 파일:**
+- `src/app/(main)/vocabulary/page.tsx` (날짜 필터 상태, UI, 필터 로직)
+
+**Phase 10 커밋:**
+- `9fcdfed - feat: 랜덤 계절 영상 및 로고 업데이트`
+- `5cc0320 - feat: APNG 이미지로 전환 및 로고/헤더 크기 조정`
+- `b6d5db4 - feat: 설정 배치 개선, 사이드바 DB 이력, 다크모드 로고 분리`
 
 ---
 

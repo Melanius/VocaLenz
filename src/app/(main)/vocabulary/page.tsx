@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { BookOpen, Star, Loader2, Upload, Search } from 'lucide-react'
+import { BookOpen, Star, Loader2, Upload, Search, Calendar, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -11,6 +11,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
 import { useAuthContext } from '@/components/providers/auth-provider'
 import { useVocabulary } from '@/hooks/use-vocabulary'
 import { toast } from '@/hooks/use-toast'
@@ -42,6 +47,9 @@ export default function VocabularyPage() {
   const { user, loading: authLoading } = useAuthContext()
   const { vocabularyItems, count, loading, toggleMemorized, refresh } = useVocabulary()
   const [filter, setFilter] = useState<FilterType>('all')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+  const [datePopoverOpen, setDatePopoverOpen] = useState(false)
   const [detailWord, setDetailWord] = useState<Word | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [flippedCards, setFlippedCards] = useState<Set<string>>(new Set())
@@ -93,12 +101,30 @@ export default function VocabularyPage() {
     )
   }
 
-  const filtered = vocabularyItems.filter((item) => {
-    if (filter === 'memorized') return item.is_memorized
-    if (filter === 'not-memorized') return !item.is_memorized
-    if (filter === 'needs-review') return item.needs_review
-    return true
-  })
+  const hasDateFilter = dateFrom !== '' || dateTo !== ''
+
+  const filtered = useMemo(() => {
+    return vocabularyItems.filter((item) => {
+      // 상태 필터
+      if (filter === 'memorized' && !item.is_memorized) return false
+      if (filter === 'not-memorized' && item.is_memorized) return false
+      if (filter === 'needs-review' && !item.needs_review) return false
+
+      // 날짜 필터
+      if (hasDateFilter && item.added_at) {
+        const addedDate = item.added_at.slice(0, 10) // YYYY-MM-DD
+        if (dateFrom && addedDate < dateFrom) return false
+        if (dateTo && addedDate > dateTo) return false
+      }
+
+      return true
+    })
+  }, [vocabularyItems, filter, dateFrom, dateTo, hasDateFilter])
+
+  const clearDateFilter = () => {
+    setDateFrom('')
+    setDateTo('')
+  }
 
   const handleDelete = async (item: UserVocabulary) => {
     try {
@@ -327,6 +353,103 @@ export default function VocabularyPage() {
               {f === 'all' ? '전체' : f === 'not-memorized' ? '미암기' : f === 'memorized' ? '암기완료' : '복습필요'}
             </Button>
           ))}
+
+          {/* 날짜 필터 */}
+          <Popover open={datePopoverOpen} onOpenChange={setDatePopoverOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant={hasDateFilter ? 'default' : 'outline'}
+                size="sm"
+                className="gap-1.5"
+              >
+                <Calendar className="h-3.5 w-3.5" />
+                {hasDateFilter
+                  ? dateFrom && dateTo
+                    ? `${dateFrom} ~ ${dateTo}`
+                    : dateFrom
+                      ? `${dateFrom}~`
+                      : `~${dateTo}`
+                  : '날짜'}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-4" align="start">
+              <div className="space-y-3">
+                <p className="text-sm font-medium">날짜 필터</p>
+                <div className="flex items-center gap-2">
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">시작일</label>
+                    <input
+                      type="date"
+                      value={dateFrom}
+                      onChange={(e) => setDateFrom(e.target.value)}
+                      className="block w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm"
+                    />
+                  </div>
+                  <span className="text-muted-foreground pt-5">~</span>
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">종료일</label>
+                    <input
+                      type="date"
+                      value={dateTo}
+                      onChange={(e) => setDateTo(e.target.value)}
+                      className="block w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm"
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs"
+                    onClick={() => {
+                      const today = new Date().toISOString().slice(0, 10)
+                      setDateFrom(today)
+                      setDateTo(today)
+                    }}
+                  >
+                    오늘
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs"
+                    onClick={() => {
+                      const today = new Date()
+                      const weekAgo = new Date(today.getTime() - 7 * 86400000)
+                      setDateFrom(weekAgo.toISOString().slice(0, 10))
+                      setDateTo(today.toISOString().slice(0, 10))
+                    }}
+                  >
+                    최근 7일
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs"
+                    onClick={() => {
+                      const today = new Date()
+                      const monthAgo = new Date(today.getTime() - 30 * 86400000)
+                      setDateFrom(monthAgo.toISOString().slice(0, 10))
+                      setDateTo(today.toISOString().slice(0, 10))
+                    }}
+                  >
+                    최근 30일
+                  </Button>
+                </div>
+                {hasDateFilter && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full text-xs"
+                    onClick={() => { clearDateFilter(); setDatePopoverOpen(false) }}
+                  >
+                    <X className="h-3 w-3 mr-1" />
+                    날짜 필터 해제
+                  </Button>
+                )}
+              </div>
+            </PopoverContent>
+          </Popover>
         </div>
 
         {/* Content */}

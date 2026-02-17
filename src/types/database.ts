@@ -26,6 +26,7 @@ export interface DisplayPreferences {
   visibleFields: WordCardField[]    // 사용자가 선택한 표시 필드
   fieldOrder: WordCardField[]       // 필드 표시 순서
   searchMode: 1 | 2 | 3 | 4        // 동시 검색 단어 수
+  autoSaveToVocabulary?: boolean    // 검색한 단어 자동 단어장 저장
 }
 
 export interface Word {

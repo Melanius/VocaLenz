@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Settings, Save } from 'lucide-react'
+import { Settings, Save, BookmarkPlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
@@ -112,6 +112,26 @@ export function CardCustomizer() {
           <div className="space-y-2">
             <Label className="text-sm font-medium">동시 검색 수</Label>
             <SearchModeSelector />
+          </div>
+
+          <Separator />
+
+          {/* 자동 단어장 저장 */}
+          <div className="flex items-center gap-3 px-1">
+            <Checkbox
+              id="auto-save-vocab"
+              checked={preferences.autoSaveToVocabulary ?? false}
+              onCheckedChange={(checked) =>
+                updatePreferences({ autoSaveToVocabulary: !!checked })
+              }
+            />
+            <Label
+              htmlFor="auto-save-vocab"
+              className="text-sm cursor-pointer flex-1 flex items-center gap-2"
+            >
+              <BookmarkPlus className="h-4 w-4 text-muted-foreground" />
+              검색한 단어 자동 단어장 저장
+            </Label>
           </div>
 
           <Separator />

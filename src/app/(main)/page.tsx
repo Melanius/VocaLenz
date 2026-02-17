@@ -11,6 +11,8 @@ import { RecommendedWords } from '@/components/search/recommended-words'
 import { CardCustomizer } from '@/components/search/card-customizer'
 import { useSearchContext } from '@/contexts/search-context'
 import { useAuthContext } from '@/components/providers/auth-provider'
+import { useDisplayPreferences } from '@/hooks/use-display-preferences'
+import { useVocabulary } from '@/hooks/use-vocabulary'
 import { getSessionId } from '@/lib/session'
 import { analytics } from '@/lib/analytics'
 import type { Word } from '@/types/database'
@@ -76,6 +78,8 @@ function groupByDate(items: DbHistoryItem[]): GroupedHistory[] {
 export default function SearchPage() {
   const { history, addToHistory, updateHistoryItem, scrollToItem } = useSearchContext()
   const { user } = useAuthContext()
+  const { preferences } = useDisplayPreferences()
+  const { isInVocabulary, addToVocabulary } = useVocabulary()
   const scrollRef = useRef<HTMLDivElement>(null)
   const isEmpty = history.length === 0
   const [historyOpen, setHistoryOpen] = useState(false)
@@ -166,6 +170,16 @@ export default function SearchPage() {
       }
 
       updateHistoryItem(itemId, data.result)
+
+      // 자동 단어장 저장
+      if (
+        data.result.type === 'word' &&
+        preferences.autoSaveToVocabulary &&
+        user &&
+        !isInVocabulary(data.result.data.id)
+      ) {
+        addToVocabulary(data.result.data.id)
+      }
     } catch {
       updateHistoryItem(itemId, {
         type: 'error',

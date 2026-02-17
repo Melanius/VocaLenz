@@ -1,10 +1,9 @@
 'use client'
 
-import { Volume2, Star } from 'lucide-react'
+import { Volume2, Star, Lightbulb, BookOpen, Target, Quote, RefreshCw, GitCompare, FileText, ArrowLeftRight, ArrowRightLeft } from 'lucide-react'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Separator } from '@/components/ui/separator'
 import { usePronunciation } from '@/hooks/use-pronunciation'
 import { useDisplayPreferences } from '@/hooks/use-display-preferences'
 import { useVocabulary } from '@/hooks/use-vocabulary'
@@ -17,17 +16,17 @@ interface WordCardProps {
   showVocabularyButton?: boolean
 }
 
-const FIELD_LABELS: Record<WordCardField, string> = {
-  meanings: '한글 뜻',
-  description: '한국어 설명',
-  description_en: '영어 설명',
-  image_text: '연상 이미지',
-  teps_point: 'TEPS 포인트',
-  synonyms: '유의어',
-  antonyms: '반의어',
-  paraphrasing: '패러프레이징',
-  comparisons: '비교 표현',
-  example: '예문',
+const FIELD_CONFIG: Record<WordCardField, { label: string; color: string; icon: React.ElementType }> = {
+  meanings: { label: '한글 뜻', color: 'border-l-emerald-500', icon: BookOpen },
+  description: { label: '한국어 설명', color: 'border-l-blue-500', icon: FileText },
+  description_en: { label: '영어 설명', color: 'border-l-slate-400', icon: FileText },
+  image_text: { label: '연상 이미지', color: 'border-l-amber-500', icon: Lightbulb },
+  teps_point: { label: 'TEPS 포인트', color: 'border-l-violet-500', icon: Target },
+  synonyms: { label: '유의어', color: 'border-l-teal-500', icon: ArrowRightLeft },
+  antonyms: { label: '반의어', color: 'border-l-rose-500', icon: ArrowLeftRight },
+  paraphrasing: { label: '패러프레이징', color: 'border-l-cyan-500', icon: RefreshCw },
+  comparisons: { label: '비교 표현', color: 'border-l-orange-500', icon: GitCompare },
+  example: { label: '예문', color: 'border-l-indigo-500', icon: Quote },
 }
 
 export function WordCard({ word, showVocabularyButton = true }: WordCardProps) {
@@ -52,16 +51,19 @@ export function WordCard({ word, showVocabularyButton = true }: WordCardProps) {
 
   const renderField = (field: WordCardField) => {
     if (!preferences.visibleFields.includes(field)) return null
+    const config = FIELD_CONFIG[field]
 
     switch (field) {
       case 'meanings':
         return word.meanings && word.meanings.length > 0 ? (
-          <Section key={field} label={FIELD_LABELS[field]}>
-            <ol className="space-y-0.5">
+          <Section key={field} config={config}>
+            <ol className="space-y-1.5">
               {word.meanings.map((m, i) => (
-                <li key={i} className="text-sm text-foreground">
-                  <span className="text-muted-foreground mr-1">{i + 1}.</span>
-                  {m}
+                <li key={i} className="flex items-baseline gap-2 text-base leading-relaxed">
+                  <span className="flex-shrink-0 flex items-center justify-center h-5 w-5 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 text-xs font-bold">
+                    {i + 1}
+                  </span>
+                  <span className="text-foreground font-medium">{m}</span>
                 </li>
               ))}
             </ol>
@@ -70,42 +72,51 @@ export function WordCard({ word, showVocabularyButton = true }: WordCardProps) {
 
       case 'description':
         return word.description ? (
-          <Section key={field} label={FIELD_LABELS[field]}>
-            <p className="text-foreground">{word.description}</p>
+          <Section key={field} config={config}>
+            <p className="text-[15px] leading-relaxed text-foreground">{word.description}</p>
           </Section>
         ) : null
 
       case 'description_en':
         return word.description_en ? (
-          <Section key={field} label={FIELD_LABELS[field]}>
-            <p className="text-foreground italic">{word.description_en}</p>
+          <Section key={field} config={config}>
+            <p className="text-sm leading-relaxed text-muted-foreground italic">{word.description_en}</p>
           </Section>
         ) : null
 
       case 'image_text':
         return word.image_text ? (
-          <Section key={field} label={FIELD_LABELS[field]}>
-            <p className="text-foreground bg-accent/50 rounded-lg p-3 text-sm">
-              {word.image_text}
-            </p>
+          <Section key={field} config={config}>
+            <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-3.5">
+              <p className="text-[15px] leading-relaxed text-amber-900 dark:text-amber-200">
+                {word.image_text}
+              </p>
+            </div>
           </Section>
         ) : null
 
       case 'teps_point':
         return word.teps_point ? (
-          <Section key={field} label={FIELD_LABELS[field]}>
-            <p className="text-foreground text-sm">{word.teps_point}</p>
+          <Section key={field} config={config}>
+            <div className="bg-violet-50 dark:bg-violet-950/30 border border-violet-200 dark:border-violet-800 rounded-lg p-3.5">
+              <p className="text-[15px] leading-relaxed text-violet-900 dark:text-violet-200">
+                {word.teps_point}
+              </p>
+            </div>
           </Section>
         ) : null
 
       case 'synonyms':
         return word.synonyms.length > 0 ? (
-          <Section key={field} label={FIELD_LABELS[field]}>
-            <div className="flex flex-wrap gap-1.5">
+          <Section key={field} config={config}>
+            <div className="flex flex-wrap gap-2">
               {word.synonyms.map((s, i) => (
-                <Badge key={i} variant="secondary" className="text-xs">
+                <span
+                  key={i}
+                  className="inline-flex items-center rounded-full px-3 py-1 text-sm font-medium bg-teal-100 text-teal-800 dark:bg-teal-900/40 dark:text-teal-300"
+                >
                   {s}
-                </Badge>
+                </span>
               ))}
             </div>
           </Section>
@@ -113,12 +124,15 @@ export function WordCard({ word, showVocabularyButton = true }: WordCardProps) {
 
       case 'antonyms':
         return word.antonyms.length > 0 ? (
-          <Section key={field} label={FIELD_LABELS[field]}>
-            <div className="flex flex-wrap gap-1.5">
+          <Section key={field} config={config}>
+            <div className="flex flex-wrap gap-2">
               {word.antonyms.map((a, i) => (
-                <Badge key={i} variant="outline" className="text-xs">
+                <span
+                  key={i}
+                  className="inline-flex items-center rounded-full px-3 py-1 text-sm font-medium bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300"
+                >
                   {a}
-                </Badge>
+                </span>
               ))}
             </div>
           </Section>
@@ -126,33 +140,45 @@ export function WordCard({ word, showVocabularyButton = true }: WordCardProps) {
 
       case 'paraphrasing':
         return word.paraphrasing.length > 0 ? (
-          <Section key={field} label={FIELD_LABELS[field]}>
-            <ul className="space-y-1 text-sm text-foreground">
+          <Section key={field} config={config}>
+            <div className="space-y-1.5">
               {word.paraphrasing.map((p, i) => (
-                <li key={i}>• {p}</li>
+                <div key={i} className="flex items-baseline gap-2">
+                  <span className="flex-shrink-0 text-cyan-500 dark:text-cyan-400 text-xs mt-0.5">▸</span>
+                  <p className="text-sm leading-relaxed text-foreground">{p}</p>
+                </div>
               ))}
-            </ul>
+            </div>
           </Section>
         ) : null
 
       case 'comparisons':
         return word.comparisons.length > 0 ? (
-          <Section key={field} label={FIELD_LABELS[field]}>
-            <ul className="space-y-1 text-sm text-foreground">
+          <Section key={field} config={config}>
+            <div className="space-y-1.5">
               {word.comparisons.map((c, i) => (
-                <li key={i}>• {c}</li>
+                <div key={i} className="flex items-baseline gap-2">
+                  <span className="flex-shrink-0 text-orange-500 dark:text-orange-400 text-xs mt-0.5">▸</span>
+                  <p className="text-sm leading-relaxed text-foreground">{c}</p>
+                </div>
               ))}
-            </ul>
+            </div>
           </Section>
         ) : null
 
       case 'example':
         return word.example_sentence ? (
-          <Section key={field} label={FIELD_LABELS[field]}>
-            <p className="text-foreground text-sm italic">{word.example_sentence}</p>
-            {word.example_translation && (
-              <p className="text-muted-foreground text-sm mt-1">{word.example_translation}</p>
-            )}
+          <Section key={field} config={config}>
+            <div className="border-l-2 border-indigo-300 dark:border-indigo-700 pl-4 space-y-1">
+              <p className="text-[15px] leading-relaxed text-foreground font-medium">
+                {word.example_sentence}
+              </p>
+              {word.example_translation && (
+                <p className="text-sm leading-relaxed text-muted-foreground">
+                  {word.example_translation}
+                </p>
+              )}
+            </div>
           </Section>
         ) : null
 
@@ -163,7 +189,7 @@ export function WordCard({ word, showVocabularyButton = true }: WordCardProps) {
 
   return (
     <Card className="w-full">
-      <CardHeader className="pb-3">
+      <CardHeader className="pb-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             {user && showVocabularyButton && (
@@ -183,7 +209,7 @@ export function WordCard({ word, showVocabularyButton = true }: WordCardProps) {
                 />
               </Button>
             )}
-            <h3 className="text-2xl font-bold text-foreground">{word.word}</h3>
+            <h3 className="text-3xl font-extrabold text-foreground tracking-tight">{word.word}</h3>
             <Button
               variant="ghost"
               size="icon"
@@ -197,7 +223,7 @@ export function WordCard({ word, showVocabularyButton = true }: WordCardProps) {
           <div className="flex items-center gap-2">
             {word.part_of_speech &&
               word.part_of_speech.split('/').map((pos, i) => (
-                <Badge key={i} variant="outline" className="text-xs">
+                <Badge key={i} variant="outline" className="text-xs font-semibold">
                   {pos.trim()}
                 </Badge>
               ))}
@@ -205,28 +231,32 @@ export function WordCard({ word, showVocabularyButton = true }: WordCardProps) {
           </div>
         </div>
         {word.pronunciation && (
-          <p className="text-sm text-muted-foreground">[{word.pronunciation}]</p>
+          <p className="text-base text-muted-foreground mt-1">{word.pronunciation}</p>
         )}
       </CardHeader>
-      <CardContent className="space-y-0">
+      <CardContent className="space-y-5 pb-6">
         {preferences.fieldOrder
           .map((field) => renderField(field))
-          .filter(Boolean)
-          .map((element, index, arr) => (
-            <div key={index}>
-              {element}
-              {index < arr.length - 1 && <Separator className="my-3" />}
-            </div>
-          ))}
+          .filter(Boolean)}
       </CardContent>
     </Card>
   )
 }
 
-function Section({ label, children }: { label: string; children: React.ReactNode }) {
+interface SectionConfig {
+  label: string
+  color: string
+  icon: React.ElementType
+}
+
+function Section({ config, children }: { config: SectionConfig; children: React.ReactNode }) {
+  const Icon = config.icon
   return (
-    <div>
-      <p className="text-xs font-medium text-muted-foreground mb-1.5">{label}</p>
+    <div className={`border-l-[3px] ${config.color} pl-4`}>
+      <div className="flex items-center gap-1.5 mb-2">
+        <Icon className="h-3.5 w-3.5 text-muted-foreground" />
+        <p className="text-sm font-semibold text-foreground/70">{config.label}</p>
+      </div>
       {children}
     </div>
   )
@@ -242,7 +272,7 @@ const LEVEL_CONFIG: Record<number, { label: string; color: string }> = {
 function LevelBadge({ level }: { level: number }) {
   const config = LEVEL_CONFIG[level] || LEVEL_CONFIG[2]
   return (
-    <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ${config.color}`}>
+    <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold ${config.color}`}>
       Lv.{level} {config.label}
     </span>
   )

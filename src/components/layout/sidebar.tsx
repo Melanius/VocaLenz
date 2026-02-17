@@ -1,9 +1,63 @@
 'use client'
 
-import { MessageSquare, Trash2, X } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { History, ChevronDown, Loader2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { useAuthContext } from '@/components/providers/auth-provider'
 import { useSearchContext } from '@/contexts/search-context'
+import type { Word } from '@/types/database'
+
+const LEVEL_CONFIG: Record<number, { label: string; color: string }> = {
+  1: { label: 'Essential', color: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300' },
+  2: { label: 'Core', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300' },
+  3: { label: 'Advanced', color: 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300' },
+  4: { label: 'Killer', color: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300' },
+}
+
+interface DbHistoryItem {
+  id: string
+  user_id: string
+  word_id: string
+  searched_at: string
+  word: Word | null
+}
+
+interface GroupedHistory {
+  label: string
+  items: DbHistoryItem[]
+}
+
+function groupByDate(items: DbHistoryItem[]): GroupedHistory[] {
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const yesterday = new Date(today.getTime() - 86400000)
+  const weekAgo = new Date(today.getTime() - 7 * 86400000)
+
+  const groups: Record<string, DbHistoryItem[]> = {
+    '오늘': [],
+    '어제': [],
+    '이번 주': [],
+    '이전': [],
+  }
+
+  for (const item of items) {
+    const date = new Date(item.searched_at)
+    if (date >= today) {
+      groups['오늘'].push(item)
+    } else if (date >= yesterday) {
+      groups['어제'].push(item)
+    } else if (date >= weekAgo) {
+      groups['이번 주'].push(item)
+    } else {
+      groups['이전'].push(item)
+    }
+  }
+
+  return Object.entries(groups)
+    .filter(([, items]) => items.length > 0)
+    .map(([label, items]) => ({ label, items }))
+}
 
 interface SidebarProps {
   open?: boolean
@@ -11,10 +65,70 @@ interface SidebarProps {
 }
 
 export function Sidebar({ open, onClose }: SidebarProps) {
-  const { history, clearHistory, scrollToItem } = useSearchContext()
+  const { user } = useAuthContext()
+  const { addToHistory, updateHistoryItem } = useSearchContext()
 
-  // 세션별로 그룹핑 (현재는 단일 세션)
-  const wordSearches = history.filter((item) => item.result.type === 'word')
+  const [dbHistory, setDbHistory] = useState<DbHistoryItem[]>([])
+  const [loading, setLoading] = useState(false)
+  const [page, setPage] = useState(1)
+  const [hasMore, setHasMore] = useState(false)
+  const [loaded, setLoaded] = useState(false)
+
+  const fetchHistory = useCallback(async (pageNum: number, append = false) => {
+    setLoading(true)
+    try {
+      const res = await fetch(`/api/history?page=${pageNum}&limit=20`)
+      if (res.ok) {
+        const data = await res.json()
+        setDbHistory((prev) => append ? [...prev, ...data.items] : data.items)
+        setHasMore(data.hasMore)
+        setLoaded(true)
+      }
+    } catch {
+      // silent
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (user && !loaded) {
+      fetchHistory(1)
+    }
+  }, [user, loaded, fetchHistory])
+
+  const loadMore = () => {
+    const nextPage = page + 1
+    setPage(nextPage)
+    fetchHistory(nextPage, true)
+  }
+
+  const handleSearchWord = async (word: string) => {
+    const itemId = addToHistory(word, { type: 'loading', message: '검색 중...' })
+    try {
+      const response = await fetch('/api/words/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ input: word }),
+      })
+      const data = await response.json()
+      if (!response.ok) {
+        updateHistoryItem(itemId, {
+          type: 'error',
+          message: data.error || '검색 중 오류가 발생했습니다.',
+        })
+        return
+      }
+      updateHistoryItem(itemId, data.result)
+    } catch {
+      updateHistoryItem(itemId, {
+        type: 'error',
+        message: '네트워크 오류가 발생했습니다.',
+      })
+    }
+  }
+
+  const grouped = groupByDate(dbHistory)
 
   return (
     <div
@@ -24,89 +138,118 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         transition-transform duration-200
       `}
     >
-      {/* 사이드바 헤더 */}
+      {/* 헤더 */}
       <div className="flex items-center justify-between p-4 border-b">
         <div className="flex items-center gap-2">
-          <MessageSquare className="h-4 w-4 text-muted-foreground" />
-          <h2 className="text-sm font-medium">검색 기록</h2>
+          <History className="h-4 w-4 text-muted-foreground" />
+          <h2 className="text-sm font-medium">검색 이력</h2>
         </div>
-        <div className="flex items-center gap-1">
-          {history.length > 0 && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              onClick={clearHistory}
-              aria-label="기록 삭제"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </Button>
-          )}
-          {onClose && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 md:hidden"
-              onClick={onClose}
-              aria-label="사이드바 닫기"
-            >
-              <X className="h-3.5 w-3.5" />
-            </Button>
-          )}
-        </div>
+        {onClose && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 md:hidden"
+            onClick={onClose}
+            aria-label="사이드바 닫기"
+          >
+            <X className="h-3.5 w-3.5" />
+          </Button>
+        )}
       </div>
 
-      {/* 검색 기록 목록 */}
+      {/* 이력 목록 */}
       <ScrollArea className="flex-1">
-        <div className="p-2 space-y-1">
-          {history.length === 0 ? (
+        <div className="p-3">
+          {!user ? (
             <p className="text-xs text-muted-foreground text-center py-8">
-              검색 기록이 없습니다
+              로그인하면 검색 이력을 볼 수 있어요.
             </p>
+          ) : loading && !loaded ? (
+            <div className="space-y-2 py-4">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className="h-10 bg-muted animate-pulse rounded-lg" />
+              ))}
+            </div>
+          ) : grouped.length === 0 ? (
+            <div className="text-center py-8">
+              <History className="h-6 w-6 mx-auto text-muted-foreground mb-2" />
+              <p className="text-xs text-muted-foreground">검색 이력이 없습니다.</p>
+            </div>
           ) : (
-            history
-              .slice()
-              .reverse()
-              .map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => scrollToItem(item.id)}
-                  className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm hover:bg-accent transition-colors cursor-pointer w-full text-left"
-                >
-                  <StatusDot type={item.result.type} />
-                  <span className="truncate text-foreground">{item.query}</span>
-                </button>
-              ))
+            <div className="space-y-4">
+              {grouped.map((group) => (
+                <div key={group.label}>
+                  <h3 className="text-xs font-medium text-muted-foreground mb-1.5 px-1">
+                    {group.label}
+                  </h3>
+                  <div className="space-y-0.5">
+                    {group.items.map((item) => {
+                      const word = item.word
+                      if (!word) return null
+                      const levelConfig = LEVEL_CONFIG[word.difficulty_level] || LEVEL_CONFIG[2]
+                      const time = new Date(item.searched_at).toLocaleTimeString('ko-KR', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })
+
+                      return (
+                        <button
+                          key={item.id}
+                          onClick={() => handleSearchWord(word.word)}
+                          className="w-full text-left rounded-lg px-2 py-2 hover:bg-accent/50 transition-colors"
+                        >
+                          <div className="flex items-center justify-between gap-1">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <span className="font-semibold text-xs text-foreground truncate">
+                                {word.word}
+                              </span>
+                              <span
+                                className={`inline-flex items-center rounded px-1 py-0.5 text-[10px] font-medium leading-none ${levelConfig.color}`}
+                              >
+                                Lv.{word.difficulty_level}
+                              </span>
+                            </div>
+                            <span className="text-[10px] text-muted-foreground flex-shrink-0">
+                              {time}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-muted-foreground truncate mt-0.5">
+                            {word.meanings[0]}
+                          </p>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
+
+              {hasMore && (
+                <div className="text-center pb-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full text-xs h-8"
+                    onClick={loadMore}
+                    disabled={loading}
+                  >
+                    {loading ? (
+                      <>
+                        <Loader2 className="h-3 w-3 mr-1.5 animate-spin" />
+                        로딩 중...
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown className="h-3 w-3 mr-1.5" />
+                        더 보기
+                      </>
+                    )}
+                  </Button>
+                </div>
+              )}
+            </div>
           )}
         </div>
       </ScrollArea>
-
-      {/* 통계 */}
-      {wordSearches.length > 0 && (
-        <div className="p-3 border-t">
-          <p className="text-xs text-muted-foreground text-center">
-            학습한 단어: {wordSearches.length}개
-          </p>
-        </div>
-      )}
     </div>
-  )
-}
-
-function StatusDot({ type }: { type: string }) {
-  const colors: Record<string, string> = {
-    word: 'bg-green-500',
-    typo: 'bg-yellow-500',
-    korean: 'bg-purple-500',
-    invalid: 'bg-red-500',
-    low_value: 'bg-gray-400',
-    loading: 'bg-blue-400 animate-pulse',
-    error: 'bg-red-400',
-  }
-
-  return (
-    <span
-      className={`flex-shrink-0 h-2 w-2 rounded-full ${colors[type] || 'bg-gray-400'}`}
-    />
   )
 }

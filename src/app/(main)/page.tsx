@@ -207,13 +207,15 @@ export default function SearchPage() {
             </div>
 
             <div className="w-full max-w-2xl space-y-6">
-              {/* 카드 설정 */}
-              <div className="flex items-center justify-end">
-                <CardCustomizer />
+              {/* 검색 입력 + 카드 설정 */}
+              <div className="flex items-start gap-2">
+                <div className="flex-1">
+                  <MultiSearchInput autoFocus />
+                </div>
+                <div className="pt-2">
+                  <CardCustomizer />
+                </div>
               </div>
-
-              {/* 검색 입력 */}
-              <MultiSearchInput autoFocus />
 
               {/* 추천 단어 */}
               <RecommendedWords onSearchWord={handleSearchWord} />

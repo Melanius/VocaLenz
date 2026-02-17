@@ -47,11 +47,19 @@ export function Header() {
             className="mr-6 flex items-center space-x-2"
           >
             <Image
-              src="/logo/VocaLenz_logo.png"
+              src="/logo/VocaLenz_logo_light.png"
               alt="VocaLenz"
               width={160}
               height={44}
-              className="h-11 w-auto max-w-[160px] object-contain"
+              className="h-11 w-auto max-w-[160px] object-contain dark:hidden"
+              priority
+            />
+            <Image
+              src="/logo/VocaLenz_logo_dark.png"
+              alt="VocaLenz"
+              width={160}
+              height={44}
+              className="h-11 w-auto max-w-[160px] object-contain hidden dark:block"
               priority
             />
           </Link>

@@ -75,6 +75,31 @@ export default function VocabularyPage() {
     })
   }
 
+  const hasDateFilter = dateFrom !== '' || dateTo !== ''
+
+  const filtered = useMemo(() => {
+    return vocabularyItems.filter((item) => {
+      // 상태 필터
+      if (filter === 'memorized' && !item.is_memorized) return false
+      if (filter === 'not-memorized' && item.is_memorized) return false
+      if (filter === 'needs-review' && !item.needs_review) return false
+
+      // 날짜 필터
+      if (hasDateFilter && item.added_at) {
+        const addedDate = item.added_at.slice(0, 10) // YYYY-MM-DD
+        if (dateFrom && addedDate < dateFrom) return false
+        if (dateTo && addedDate > dateTo) return false
+      }
+
+      return true
+    })
+  }, [vocabularyItems, filter, dateFrom, dateTo, hasDateFilter])
+
+  const clearDateFilter = () => {
+    setDateFrom('')
+    setDateTo('')
+  }
+
   if (authLoading) {
     return (
       <div className="flex-1 flex items-center justify-center">
@@ -99,31 +124,6 @@ export default function VocabularyPage() {
         </div>
       </div>
     )
-  }
-
-  const hasDateFilter = dateFrom !== '' || dateTo !== ''
-
-  const filtered = useMemo(() => {
-    return vocabularyItems.filter((item) => {
-      // 상태 필터
-      if (filter === 'memorized' && !item.is_memorized) return false
-      if (filter === 'not-memorized' && item.is_memorized) return false
-      if (filter === 'needs-review' && !item.needs_review) return false
-
-      // 날짜 필터
-      if (hasDateFilter && item.added_at) {
-        const addedDate = item.added_at.slice(0, 10) // YYYY-MM-DD
-        if (dateFrom && addedDate < dateFrom) return false
-        if (dateTo && addedDate > dateTo) return false
-      }
-
-      return true
-    })
-  }, [vocabularyItems, filter, dateFrom, dateTo, hasDateFilter])
-
-  const clearDateFilter = () => {
-    setDateFrom('')
-    setDateTo('')
   }
 
   const handleDelete = async (item: UserVocabulary) => {

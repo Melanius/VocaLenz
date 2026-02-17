@@ -39,7 +39,7 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container flex h-14 max-w-screen-2xl items-center">
+      <div className="container flex h-16 max-w-screen-2xl items-center">
         <div className="mr-4 flex">
           <Link
             href="/"
@@ -49,9 +49,9 @@ export function Header() {
             <Image
               src="/logo/VocaLenz_logo.png"
               alt="VocaLenz"
-              width={120}
-              height={32}
-              className="h-8 w-auto max-w-[120px] object-contain"
+              width={160}
+              height={44}
+              className="h-11 w-auto max-w-[160px] object-contain"
               priority
             />
           </Link>

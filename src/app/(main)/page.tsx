@@ -15,11 +15,11 @@ import { getSessionId } from '@/lib/session'
 import { analytics } from '@/lib/analytics'
 import type { Word } from '@/types/database'
 
-const SEASON_VIDEOS = [
-  '/video/spring.mp4',
-  '/video/summer.mp4',
-  '/video/fall.mp4',
-  '/video/winter.mp4',
+const SEASON_IMAGES = [
+  '/video/spring.png',
+  '/video/summer.png',
+  '/video/fall.png',
+  '/video/winter.png',
 ]
 
 const LEVEL_CONFIG: Record<number, { label: string; color: string }> = {
@@ -81,8 +81,8 @@ export default function SearchPage() {
   const [historyOpen, setHistoryOpen] = useState(false)
 
   // 랜덤 영상 선택 (새로고침 시 변경)
-  const randomVideo = useMemo(
-    () => SEASON_VIDEOS[Math.floor(Math.random() * SEASON_VIDEOS.length)],
+  const randomImage = useMemo(
+    () => SEASON_IMAGES[Math.floor(Math.random() * SEASON_IMAGES.length)],
     []
   )
 
@@ -190,13 +190,11 @@ export default function SearchPage() {
           <div className="flex flex-col items-center px-4 pt-12 pb-8">
             <div className="mb-10 text-center w-full max-w-md mx-auto">
               <div className="mb-4">
-                <video
-                  key={randomVideo}
-                  src={randomVideo}
-                  autoPlay
-                  loop
-                  muted
-                  playsInline
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  key={randomImage}
+                  src={randomImage}
+                  alt="VocaLenz"
                   className="w-full h-auto rounded-lg"
                 />
               </div>

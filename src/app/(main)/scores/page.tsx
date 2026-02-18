@@ -2,14 +2,21 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
-import { BarChart3, Pencil, Trash2 } from 'lucide-react'
+import { BarChart3, Pencil, Plus, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { useAuthContext } from '@/components/providers/auth-provider'
 import { toast } from '@/hooks/use-toast'
+import { ScoreCoach } from '@/components/scores/score-coach'
 import type { UserScore } from '@/types/database'
 import {
   LineChart,
@@ -24,14 +31,6 @@ import {
 
 type ChartMode = 'total' | 'detail'
 
-const FIELD_LABELS: Record<string, string> = {
-  listening: '청해',
-  vocabulary: '어휘',
-  grammar: '문법',
-  reading: '독해',
-  total: '총점',
-}
-
 const LINE_COLORS: Record<string, string> = {
   total: '#6366f1',
   listening: '#f59e0b',
@@ -45,9 +44,11 @@ export default function ScoresPage() {
   const [scores, setScores] = useState<UserScore[]>([])
   const [loading, setLoading] = useState(false)
   const [chartMode, setChartMode] = useState<ChartMode>('total')
-  const [editingId, setEditingId] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState('list')
 
-  // Form state
+  // Dialog 상태
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState({
     round: '',
     listening: '',
@@ -88,6 +89,24 @@ export default function ScoresPage() {
     setEditingId(null)
   }
 
+  const openNewDialog = () => {
+    resetForm()
+    setDialogOpen(true)
+  }
+
+  const openEditDialog = (score: UserScore) => {
+    setEditingId(score.id)
+    setForm({
+      round: score.round || '',
+      listening: score.listening?.toString() || '',
+      vocabulary: score.vocabulary?.toString() || '',
+      grammar: score.grammar?.toString() || '',
+      reading: score.reading?.toString() || '',
+      exam_date: score.exam_date || '',
+    })
+    setDialogOpen(true)
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
@@ -110,6 +129,7 @@ export default function ScoresPage() {
         })
         if (res.ok) {
           toast({ title: '수정 완료', description: '성적이 수정되었습니다.' })
+          setDialogOpen(false)
           resetForm()
           fetchScores()
         }
@@ -121,6 +141,7 @@ export default function ScoresPage() {
         })
         if (res.ok) {
           toast({ title: '입력 완료', description: '성적이 입력되었습니다.' })
+          setDialogOpen(false)
           resetForm()
           fetchScores()
         }
@@ -128,18 +149,6 @@ export default function ScoresPage() {
     } catch {
       toast({ title: '오류', description: '저장에 실패했습니다.', variant: 'destructive' })
     }
-  }
-
-  const handleEdit = (score: UserScore) => {
-    setEditingId(score.id)
-    setForm({
-      round: score.round || '',
-      listening: score.listening?.toString() || '',
-      vocabulary: score.vocabulary?.toString() || '',
-      grammar: score.grammar?.toString() || '',
-      reading: score.reading?.toString() || '',
-      exam_date: score.exam_date || '',
-    })
   }
 
   const handleDelete = async (scoreId: string) => {
@@ -184,6 +193,7 @@ export default function ScoresPage() {
     )
   }
 
+  // 차트용: 오래된 순 (API가 ascending 반환)
   const chartData = scores.map((s) => ({
     name: s.round || s.exam_date || '-',
     총점: s.total,
@@ -193,121 +203,34 @@ export default function ScoresPage() {
     독해: s.reading,
   }))
 
+  // 목록용: 최신 순
+  const listScores = [...scores].reverse()
+
   return (
     <div className="flex-1 overflow-y-auto p-4 md:p-6">
       <div className="max-w-4xl mx-auto space-y-6">
         <h1 className="text-2xl font-bold">성적 관리</h1>
 
-        <Tabs defaultValue="input">
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="input">성적 입력</TabsTrigger>
             <TabsTrigger value="list">성적 목록</TabsTrigger>
             <TabsTrigger value="chart">추이 차트</TabsTrigger>
+            <TabsTrigger value="coach">TEPS 코치</TabsTrigger>
           </TabsList>
-
-          {/* 성적 입력 */}
-          <TabsContent value="input">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">
-                  {editingId ? '성적 수정' : '새 성적 입력'}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="round">회차</Label>
-                      <Input
-                        id="round"
-                        placeholder="예: 제200회"
-                        value={form.round}
-                        onChange={(e) => setForm({ ...form, round: e.target.value })}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="exam_date">시험일</Label>
-                      <Input
-                        id="exam_date"
-                        type="date"
-                        value={form.exam_date}
-                        onChange={(e) => setForm({ ...form, exam_date: e.target.value })}
-                      />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="listening">청해</Label>
-                      <Input
-                        id="listening"
-                        type="number"
-                        min={0}
-                        max={400}
-                        placeholder="0"
-                        value={form.listening}
-                        onChange={(e) => setForm({ ...form, listening: e.target.value })}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="vocabulary">어휘</Label>
-                      <Input
-                        id="vocabulary"
-                        type="number"
-                        min={0}
-                        max={100}
-                        placeholder="0"
-                        value={form.vocabulary}
-                        onChange={(e) => setForm({ ...form, vocabulary: e.target.value })}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="grammar">문법</Label>
-                      <Input
-                        id="grammar"
-                        type="number"
-                        min={0}
-                        max={100}
-                        placeholder="0"
-                        value={form.grammar}
-                        onChange={(e) => setForm({ ...form, grammar: e.target.value })}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="reading">독해</Label>
-                      <Input
-                        id="reading"
-                        type="number"
-                        min={0}
-                        max={400}
-                        placeholder="0"
-                        value={form.reading}
-                        onChange={(e) => setForm({ ...form, reading: e.target.value })}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between pt-2">
-                    <p className="text-sm text-muted-foreground">
-                      총점: <span className="font-bold text-foreground">{totalScore}</span>
-                    </p>
-                    <div className="flex gap-2">
-                      {editingId && (
-                        <Button type="button" variant="outline" onClick={resetForm}>
-                          취소
-                        </Button>
-                      )}
-                      <Button type="submit">
-                        {editingId ? '수정' : '저장'}
-                      </Button>
-                    </div>
-                  </div>
-                </form>
-              </CardContent>
-            </Card>
-          </TabsContent>
 
           {/* 성적 목록 */}
           <TabsContent value="list">
+            {/* 상단: 새 성적 입력 버튼 */}
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-sm text-muted-foreground">
+                {scores.length > 0 ? `총 ${scores.length}회 기록` : ''}
+              </p>
+              <Button size="sm" onClick={openNewDialog}>
+                <Plus className="h-4 w-4 mr-1.5" />
+                새 성적 입력
+              </Button>
+            </div>
+
             {loading ? (
               <div className="space-y-3">
                 {[1, 2, 3].map((i) => (
@@ -318,6 +241,9 @@ export default function ScoresPage() {
               <div className="text-center py-16 space-y-3">
                 <BarChart3 className="h-10 w-10 mx-auto text-muted-foreground" />
                 <p className="text-muted-foreground">아직 입력된 성적이 없습니다.</p>
+                <Button variant="outline" size="sm" onClick={openNewDialog}>
+                  첫 성적 입력하기
+                </Button>
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -335,7 +261,7 @@ export default function ScoresPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {scores.map((score) => (
+                    {listScores.map((score) => (
                       <tr key={score.id} className="border-b hover:bg-muted/50">
                         <td className="py-3 px-2">{score.round || '-'}</td>
                         <td className="py-3 px-2 text-right">{score.listening ?? '-'}</td>
@@ -352,7 +278,7 @@ export default function ScoresPage() {
                               variant="ghost"
                               size="icon"
                               className="h-7 w-7"
-                              onClick={() => handleEdit(score)}
+                              onClick={() => openEditDialog(score)}
                             >
                               <Pencil className="h-3.5 w-3.5" />
                             </Button>
@@ -434,8 +360,111 @@ export default function ScoresPage() {
               </Card>
             )}
           </TabsContent>
+
+          {/* TEPS 코치 */}
+          <TabsContent value="coach">
+            <ScoreCoach
+              hasScores={scores.length > 0}
+              onGoToList={() => setActiveTab('list')}
+            />
+          </TabsContent>
         </Tabs>
       </div>
+
+      {/* 성적 입력/수정 다이얼로그 */}
+      <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) { setDialogOpen(false); resetForm() } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{editingId ? '성적 수정' : '새 성적 입력'}</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="round">회차</Label>
+                <Input
+                  id="round"
+                  placeholder="예: 제200회"
+                  value={form.round}
+                  onChange={(e) => setForm({ ...form, round: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="exam_date">시험일</Label>
+                <Input
+                  id="exam_date"
+                  type="date"
+                  value={form.exam_date}
+                  onChange={(e) => setForm({ ...form, exam_date: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="listening">청해 (0~400)</Label>
+                <Input
+                  id="listening"
+                  type="number"
+                  min={0}
+                  max={400}
+                  placeholder="0"
+                  value={form.listening}
+                  onChange={(e) => setForm({ ...form, listening: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="vocabulary">어휘 (0~100)</Label>
+                <Input
+                  id="vocabulary"
+                  type="number"
+                  min={0}
+                  max={100}
+                  placeholder="0"
+                  value={form.vocabulary}
+                  onChange={(e) => setForm({ ...form, vocabulary: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="grammar">문법 (0~100)</Label>
+                <Input
+                  id="grammar"
+                  type="number"
+                  min={0}
+                  max={100}
+                  placeholder="0"
+                  value={form.grammar}
+                  onChange={(e) => setForm({ ...form, grammar: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="reading">독해 (0~400)</Label>
+                <Input
+                  id="reading"
+                  type="number"
+                  min={0}
+                  max={400}
+                  placeholder="0"
+                  value={form.reading}
+                  onChange={(e) => setForm({ ...form, reading: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-2">
+              <p className="text-sm text-muted-foreground">
+                총점: <span className="font-bold text-foreground">{totalScore}</span>
+              </p>
+              <div className="flex gap-2">
+                <Button type="button" variant="outline" onClick={() => { setDialogOpen(false); resetForm() }}>
+                  취소
+                </Button>
+                <Button type="submit">
+                  {editingId ? '수정' : '저장'}
+                </Button>
+              </div>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

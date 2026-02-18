@@ -1,7 +1,6 @@
 'use client'
 
 import { Check, CheckCircle2, Eye, RotateCcw, Trash2 } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { formatAddedDate } from '@/lib/date-utils'
 import type { UserVocabulary } from '@/types/database'
@@ -76,17 +75,9 @@ export function VocabularyFlipCard({
         >
           {/* 상단: 레벨 + POS | 날짜 */}
           <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold ${levelConfig.badge}`}>
-                Lv.{word.difficulty_level} {levelConfig.label}
-              </span>
-              {word.part_of_speech &&
-                word.part_of_speech.split('/').map((pos, i) => (
-                  <Badge key={i} variant="outline" className="text-xs font-medium">
-                    {pos.trim()}
-                  </Badge>
-                ))}
-            </div>
+            <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold ${levelConfig.badge}`}>
+              Lv.{word.difficulty_level} {levelConfig.label}
+            </span>
             <span className="text-xs text-muted-foreground whitespace-nowrap">
               {formatAddedDate(item.added_at)}
             </span>

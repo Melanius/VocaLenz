@@ -41,11 +41,8 @@ export function MultiSearchInput({ onSearchStart, autoFocus = false, compact = f
     const activeQueries = queries.slice(0, count).filter((q) => q.trim())
     if (activeQueries.length === 0 || isSearching) return
 
-    // 동시 검색 모드(2+)에서는 모든 입력창이 채워져야 함
-    if (count > 1) {
-      const allFilled = queries.slice(0, count).every((q) => q.trim())
-      if (!allFilled) return
-    }
+    // 1개 이상 입력되면 검색 가능
+    if (activeQueries.length === 0) return
 
     onSearchStart?.()
     setIsSearching(true)
@@ -126,7 +123,7 @@ export function MultiSearchInput({ onSearchStart, autoFocus = false, compact = f
   }
 
   // 모드 2~4: N개 입력창 + 검색 버튼
-  const allFilled = queries.slice(0, count).every((q) => q.trim())
+  const hasAnyInput = queries.slice(0, count).some((q) => q.trim())
 
   return (
     <form onSubmit={handleSubmit} className="space-y-2 w-full">
@@ -155,7 +152,7 @@ export function MultiSearchInput({ onSearchStart, autoFocus = false, compact = f
       <Button
         type="submit"
         className="w-full"
-        disabled={isSearching || !allFilled}
+        disabled={isSearching || !hasAnyInput}
       >
         {isSearching ? (
           <>
@@ -165,7 +162,7 @@ export function MultiSearchInput({ onSearchStart, autoFocus = false, compact = f
         ) : (
           <>
             <Search className="h-4 w-4 mr-2" />
-            {count}개 동시 검색
+            {queries.slice(0, count).filter((q) => q.trim()).length}개 검색
           </>
         )}
       </Button>

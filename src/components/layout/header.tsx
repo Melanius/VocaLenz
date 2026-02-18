@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
-import { Search, BookOpen, History, BarChart3, Brain, MoreVertical } from 'lucide-react'
+import { Search, BookOpen, History, BarChart3, Brain, Menu } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -17,9 +17,9 @@ import { createClient } from '@/lib/supabase/client'
 const NAV_LINKS = [
   { href: '/', label: '단어 검색', icon: Search },
   { href: '/vocabulary', label: '내 단어장', icon: BookOpen },
-  { href: '/history', label: '검색 이력', icon: History },
   { href: '/scores', label: '성적 관리', icon: BarChart3 },
   { href: '/quiz', label: '퀴즈', icon: Brain },
+  { href: '/history', label: '검색 이력', icon: History },
 ]
 
 export function Header() {
@@ -99,8 +99,8 @@ export function Header() {
           <div className="md:hidden">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8">
-                  <MoreVertical className="h-4 w-4" />
+                <Button variant="ghost" size="icon" className="h-10 w-10">
+                  <Menu className="h-5 w-5" />
                   <span className="sr-only">메뉴</span>
                 </Button>
               </DropdownMenuTrigger>

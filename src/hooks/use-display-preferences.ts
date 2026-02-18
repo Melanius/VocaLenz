@@ -32,6 +32,7 @@ const DEFAULT_PREFERENCES: DisplayPreferences = {
     'antonyms',
   ],
   searchMode: 1,
+  autoSaveToVocabulary: true,
 }
 
 // 이전 저장 데이터 마이그레이션

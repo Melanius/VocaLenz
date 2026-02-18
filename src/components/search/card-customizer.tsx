@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Settings, Save, BookmarkPlus } from 'lucide-react'
+import { Settings, Save } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
@@ -98,8 +98,8 @@ export function CardCustomizer() {
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="카드 설정">
-          <Settings className="h-4 w-4" />
+        <Button variant="ghost" size="icon" className="h-10 w-10" aria-label="카드 설정">
+          <Settings className="h-5 w-5" />
         </Button>
       </SheetTrigger>
       <SheetContent className="w-80">
@@ -117,21 +117,24 @@ export function CardCustomizer() {
           <Separator />
 
           {/* 자동 단어장 저장 */}
-          <div className="flex items-center gap-3 px-1">
+          <div className="flex items-start gap-3 px-1">
             <Checkbox
               id="auto-save-vocab"
-              checked={preferences.autoSaveToVocabulary ?? false}
+              checked={preferences.autoSaveToVocabulary ?? true}
               onCheckedChange={(checked) =>
                 updatePreferences({ autoSaveToVocabulary: !!checked })
               }
+              className="mt-0.5"
             />
-            <Label
-              htmlFor="auto-save-vocab"
-              className="text-sm cursor-pointer flex-1 flex items-center gap-2"
-            >
-              <BookmarkPlus className="h-4 w-4 text-muted-foreground" />
-              검색한 단어 자동 단어장 저장
-            </Label>
+            <div className="flex-1">
+              <Label
+                htmlFor="auto-save-vocab"
+                className="text-sm cursor-pointer font-medium"
+              >
+                자동 단어장 추가
+              </Label>
+              <p className="text-xs text-muted-foreground mt-0.5">검색한 단어를 단어장에 자동 저장</p>
+            </div>
           </div>
 
           <Separator />

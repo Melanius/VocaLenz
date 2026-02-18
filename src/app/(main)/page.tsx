@@ -222,13 +222,11 @@ export default function SearchPage() {
 
             <div className="w-full max-w-2xl space-y-6">
               {/* 검색 입력 + 카드 설정 */}
-              <div className="flex items-start gap-2">
+              <div className="flex items-center gap-2">
                 <div className="flex-1">
                   <MultiSearchInput autoFocus />
                 </div>
-                <div className="pt-2">
-                  <CardCustomizer />
-                </div>
+                <CardCustomizer />
               </div>
 
               {/* 추천 단어 */}

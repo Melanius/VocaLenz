@@ -2064,6 +2064,88 @@ Step 8.1 → 8.2 → 8.3 → 8.4 → `pnpm build` 검증 → Step 8.5 (수동 QA
 
 ---
 
+## ✅ Phase 13: 설정 페이지 + 관리자 페이지 + 계절 테마 (완료)
+
+### Step 13.1: TypeScript 타입 확장 ✅
+- `UserRole` 타입 추가 (`'user' | 'admin'`)
+- `SeasonTheme` 타입 추가 (`'spring' | 'summer' | 'fall' | 'winter'`)
+- `UserProfile` 인터페이스 확장: `role`, `nickname`, `target_score`, `goal_message`, `study_start_date`, `birth_date`, `phone`, `theme` 필드 추가
+
+**수정 파일:** `src/types/database.ts`
+
+### Step 13.2: 계절 테마 CSS + 테마 프로바이더 ✅
+- `globals.css`에 계절별 CSS 변수 오버라이드 추가 (spring/summer/fall/winter × light/dark)
+- `data-season` 속성 기반 선택자, primary/ring/accent/background만 변경하여 은은한 효과
+- `theme-provider.tsx`에 `season` 상태 + `setSeason` + localStorage 영속화 + `data-season` 속성 적용
+- winter는 기본 테마와 동일하므로 별도 오버라이드 불필요
+
+**수정 파일:** `src/app/globals.css`, `src/components/providers/theme-provider.tsx`
+
+### Step 13.3: 사용자 설정 페이지 ✅
+- **기본 정보 섹션**: 닉네임, 목표 TEPS 점수, 다짐 한마디, 학습 시작일, 생년월일(선택), 핸드폰(선택)
+- **테마 섹션**: 4계절 테마 선택기 (아이콘 + 색상 프리뷰 + 활성 표시)
+- **단어 카드 표시 설정**: @dnd-kit 드래그 순서 변경 + 체크박스 표시/숨김
+- **Profile API**: `/api/users/profile` GET(프로필 조회) / PUT(허용 필드만 업데이트)
+
+**신규 파일:** `src/app/(main)/settings/page.tsx`, `src/app/api/users/profile/route.ts`
+
+### Step 13.4: 관리자 페이지 ✅
+- **대시보드 탭**: 전체 사용자, 등록 단어, 오늘 검색, 오늘 신규 카운트 + 최근 검색어
+- **단어 관리 탭**: 검색, 수정 다이얼로그(12개 필드), 삭제, 페이지네이션
+- **신고 관리 탭**: word_report 액션 로그 조회 + 처리완료 마킹
+- **Admin Auth**: `requireAdmin()` 헬퍼로 로그인 + admin role 검증
+
+**신규 파일:** `src/app/(main)/admin/page.tsx`, `src/app/api/admin/words/route.ts`, `src/app/api/admin/dashboard/route.ts`, `src/app/api/admin/reports/route.ts`, `src/lib/admin-auth.ts`
+
+### Step 13.5: 검색 페이지 이미지 테마 연동 ✅
+- 랜덤 이미지 선택 → 계절 테마 기반 이미지 매핑으로 변경
+- `SEASON_IMAGES`를 배열에서 `Record<SeasonTheme, string>` 맵으로 전환
+- `useTheme().season` 값으로 해당 계절 이미지 표시
+
+**수정 파일:** `src/app/(main)/page.tsx`
+
+**커밋:** `e22556d`, `2d815e7`
+
+---
+
+## ✅ Phase 14: 네비게이션 리디자인 + 닉네임 시스템 + 푸터 (완료)
+
+### Step 14.1: 탭 이름 및 순서 변경 ✅
+- `퀴즈` → `단어 퀴즈`로 이름 변경
+- 순서: 단어 검색 / 내 단어장 / 단어 퀴즈 / 검색 이력 / 성적 관리
+
+### Step 14.2: 데스크톱 네비게이션 중앙 배치 + 호버 효과 ✅
+- 3분할 레이아웃: 로고(좌) | 네비(중앙 flex-1 justify-center) | 유저(우)
+- Active 탭: `font-medium` + primary 색상 밑줄
+- 호버: `hover:text-foreground hover:bg-accent/50` 은은한 배경 효과
+- `usePathname()`으로 현재 위치 감지
+
+### Step 14.3: 아바타 + 닉네임 드롭다운 ✅
+- 이름 표시 → 원형 아바타(이니셜) + 닉네임 + ▾ 화살표 조합
+- 클릭 시 드롭다운: 설정 / 관리자(admin만) / 로그아웃
+- 모바일: 아바타만 표시, 드롭다운에 닉네임 포함
+- 표시 우선순위: `nickname > name > email`
+
+### Step 14.4: 랜덤 닉네임 자동 생성 ✅
+- `nickname-generator.ts`: 형용사(26개) + 명사(22개) + 랜덤 숫자 조합
+- 예시: `용감한사자42`, `빛나는펭귄7`, `호기심많은탐험가33`
+- `auth-provider.tsx`에서 프로필 로드 시 닉네임 없으면 자동 생성 후 API로 저장
+- `useRef`로 중복 호출 방지
+
+**신규 파일:** `src/lib/nickname-generator.ts`
+**수정 파일:** `src/components/layout/header.tsx`, `src/components/providers/auth-provider.tsx`
+
+### Step 14.5: 미니멀 푸터 ✅
+- `VocaLenz · Made by HJ` + Instagram 링크 + Contact 이메일 링크
+- lucide-react 아이콘 사용 (Instagram, Mail)
+- 반응형: 모바일 세로 배치, 데스크톱 가로 배치
+
+**수정 파일:** `src/components/layout/footer.tsx`
+
+**커밋:** `2d815e7`
+
+---
+
 ## 개발 완료 후 운영 체크리스트
 
 | 항목 | 내용 | 상태 |

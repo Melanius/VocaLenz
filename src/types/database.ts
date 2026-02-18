@@ -69,6 +69,7 @@ export interface UserProfile {
   theme: SeasonTheme
   target_exam: string
   display_preferences: DisplayPreferences
+  onboarding_completed: boolean
   created_at: string
   updated_at: string
 }

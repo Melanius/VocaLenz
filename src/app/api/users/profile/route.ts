@@ -42,6 +42,7 @@ export async function PUT(request: NextRequest) {
     const allowedFields = [
       'nickname', 'target_score', 'goal_message',
       'study_start_date', 'birth_date', 'phone', 'theme',
+      'onboarding_completed',
     ]
     const updates: Record<string, unknown> = {}
     for (const field of allowedFields) {

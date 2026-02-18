@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useEffect, useState, useCallback, useMemo } from 'react'
+import { useRef, useEffect, useState, useCallback } from 'react'
 import { History, ChevronDown, Loader2, X } from 'lucide-react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
@@ -13,16 +13,17 @@ import { useSearchContext } from '@/contexts/search-context'
 import { useAuthContext } from '@/components/providers/auth-provider'
 import { useDisplayPreferences } from '@/hooks/use-display-preferences'
 import { useVocabulary } from '@/hooks/use-vocabulary'
+import { useTheme } from '@/components/providers/theme-provider'
 import { getSessionId } from '@/lib/session'
 import { analytics } from '@/lib/analytics'
 import type { Word } from '@/types/database'
 
-const SEASON_IMAGES = [
-  '/video/spring.png',
-  '/video/summer.png',
-  '/video/fall.png',
-  '/video/winter.png',
-]
+const SEASON_IMAGES: Record<string, string> = {
+  spring: '/video/spring.png',
+  summer: '/video/summer.png',
+  fall: '/video/fall.png',
+  winter: '/video/winter.png',
+}
 
 const LEVEL_CONFIG: Record<number, { label: string; color: string }> = {
   1: { label: 'Essential', color: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300' },
@@ -80,15 +81,13 @@ export default function SearchPage() {
   const { user } = useAuthContext()
   const { preferences } = useDisplayPreferences()
   const { isInVocabulary, addToVocabulary } = useVocabulary()
+  const { season } = useTheme()
   const scrollRef = useRef<HTMLDivElement>(null)
   const isEmpty = history.length === 0
   const [historyOpen, setHistoryOpen] = useState(false)
 
-  // 랜덤 영상 선택 (새로고침 시 변경)
-  const randomImage = useMemo(
-    () => SEASON_IMAGES[Math.floor(Math.random() * SEASON_IMAGES.length)],
-    []
-  )
+  // 계절 테마에 맞는 이미지 선택
+  const seasonImage = SEASON_IMAGES[season] || SEASON_IMAGES.winter
 
   // DB 검색 이력 상태 (바텀 시트용)
   const [dbHistory, setDbHistory] = useState<DbHistoryItem[]>([])
@@ -206,8 +205,8 @@ export default function SearchPage() {
               <div className="mb-4">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  key={randomImage}
-                  src={randomImage}
+                  key={seasonImage}
+                  src={seasonImage}
                   alt="VocaLenz"
                   className="w-full h-auto rounded-lg"
                 />

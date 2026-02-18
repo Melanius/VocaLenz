@@ -96,6 +96,49 @@
 
 
 
+/* Seasonal theme overrides — only accent colors change for subtle effect */
+/* 봄 Blossom Blink: #E08E9D / #F7D1D7 / #FFF9FA */
+[data-season="spring"] {
+  --primary: 350 60% 72%;
+  --ring: 350 60% 72%;
+  --accent: 350 70% 92%;
+  --background: 350 100% 99%;
+}
+[data-season="spring"].dark {
+  --primary: 350 55% 65%;
+  --ring: 350 55% 65%;
+  --accent: 350 30% 22%;
+}
+
+/* 여름 Forest Fresh: #4F772D / #90A955 / #F7FBF2 */
+[data-season="summer"] {
+  --primary: 96 46% 32%;
+  --ring: 96 46% 32%;
+  --accent: 90 40% 92%;
+  --background: 90 50% 97%;
+}
+[data-season="summer"].dark {
+  --primary: 96 40% 42%;
+  --ring: 96 40% 42%;
+  --accent: 96 25% 22%;
+}
+
+/* 가을 Maple Mute: #A0522D / #D2B48C / #FFFBF5 */
+[data-season="fall"] {
+  --primary: 19 57% 40%;
+  --ring: 19 57% 40%;
+  --accent: 30 50% 92%;
+  --background: 36 100% 98%;
+}
+[data-season="fall"].dark {
+  --primary: 19 50% 50%;
+  --ring: 19 50% 50%;
+  --accent: 19 30% 22%;
+}
+
+/* 겨울 Midnight Ice: #1B263B / #778DA9 / #F0F4F8 — 현재 기본 테마와 유사 */
+/* winter는 기본(:root/.dark)을 그대로 사용하므로 오버라이드 불필요 */
+
 @layer base {
   * {
     @apply border-border;

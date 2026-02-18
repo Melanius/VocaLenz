@@ -3,12 +3,13 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
-import { Search, BookOpen, History, BarChart3, Brain, Menu } from 'lucide-react'
+import { Search, BookOpen, History, BarChart3, Brain, Menu, Settings, Shield } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useAuthContext } from '@/components/providers/auth-provider'
@@ -75,6 +76,22 @@ export function Header() {
                 {link.label}
               </Link>
             ))}
+            {user && (
+              <Link
+                href="/settings"
+                className="transition-colors hover:text-foreground/80 text-foreground/60"
+              >
+                설정
+              </Link>
+            )}
+            {profile?.role === 'admin' && (
+              <Link
+                href="/admin"
+                className="transition-colors hover:text-foreground/80 text-foreground/60"
+              >
+                관리자
+              </Link>
+            )}
           </nav>
         </div>
         <div className="flex flex-1 items-center justify-end space-x-2">
@@ -116,6 +133,25 @@ export function Header() {
                     </DropdownMenuItem>
                   )
                 })}
+                {user && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild>
+                      <Link href="/settings" className="flex items-center gap-2">
+                        <Settings className="h-4 w-4" />
+                        설정
+                      </Link>
+                    </DropdownMenuItem>
+                    {profile?.role === 'admin' && (
+                      <DropdownMenuItem asChild>
+                        <Link href="/admin" className="flex items-center gap-2">
+                          <Shield className="h-4 w-4" />
+                          관리자
+                        </Link>
+                      </DropdownMenuItem>
+                    )}
+                  </>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>

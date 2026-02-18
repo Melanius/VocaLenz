@@ -52,12 +52,23 @@ export interface Word {
   updated_at: string
 }
 
+export type UserRole = 'user' | 'admin'
+export type SeasonTheme = 'spring' | 'summer' | 'fall' | 'winter'
+
 export interface UserProfile {
   id: string
   email: string
   name: string | null
+  role: UserRole
+  nickname: string | null
+  target_score: number | null
+  goal_message: string | null
+  study_start_date: string | null
+  birth_date: string | null
+  phone: string | null
+  theme: SeasonTheme
   target_exam: string
-  display_preferences: DisplayPreferences  // v1.7: 단어 카드 커스터마이징
+  display_preferences: DisplayPreferences
   created_at: string
   updated_at: string
 }

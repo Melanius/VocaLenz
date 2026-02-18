@@ -1,20 +1,28 @@
+import { Instagram, Mail } from 'lucide-react'
+
 export function Footer() {
   return (
-    <footer className="border-t">
-      <div className="container flex flex-col items-center justify-between gap-4 py-10 md:h-24 md:flex-row md:py-0">
-        <div className="flex flex-col items-center gap-4 px-8 md:flex-row md:gap-2 md:px-0">
-          <p className="text-center text-sm leading-loose text-muted-foreground md:text-left">
-            © 2025 VocaLenz. All rights reserved.
-          </p>
-        </div>
+    <footer className="border-t bg-background/80">
+      <div className="container max-w-screen-2xl flex flex-col sm:flex-row items-center justify-between gap-2 py-4 px-4 text-xs text-muted-foreground">
+        <p>
+          VocaLenz &middot; Made by <span className="font-medium text-foreground/70">HJ</span>
+        </p>
         <div className="flex items-center gap-4">
           <a
-            href="https://github.com/Melanius/VocaLenz"
+            href="https://instagram.com/your_instagram"
             target="_blank"
-            rel="noreferrer"
-            className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 hover:text-foreground transition-colors"
           >
-            GitHub
+            <Instagram className="h-3.5 w-3.5" />
+            Instagram
+          </a>
+          <a
+            href="mailto:your_email@example.com"
+            className="flex items-center gap-1.5 hover:text-foreground transition-colors"
+          >
+            <Mail className="h-3.5 w-3.5" />
+            Contact
           </a>
         </div>
       </div>

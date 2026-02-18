@@ -1,7 +1,8 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState, useMemo } from 'react'
+import { createContext, useContext, useEffect, useState, useRef, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { generateRandomNickname } from '@/lib/nickname-generator'
 import type { User, Session } from '@supabase/supabase-js'
 import type { UserProfile } from '@/types/database'
 
@@ -21,6 +22,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [mounted, setMounted] = useState(false)
+  const nicknameAssigned = useRef(false)
 
   // SSR-safe: 클라이언트에서만 supabase 인스턴스 생성
   const supabase = useMemo(() => {
@@ -37,7 +39,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .single()
 
     if (data) {
-      setProfile(data as UserProfile)
+      const profileData = data as UserProfile
+      setProfile(profileData)
+
+      // 닉네임이 없으면 자동 생성
+      if (!profileData.nickname && !nicknameAssigned.current) {
+        nicknameAssigned.current = true
+        const nickname = generateRandomNickname()
+        try {
+          await fetch('/api/users/profile', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ nickname }),
+          })
+          setProfile({ ...profileData, nickname })
+        } catch {
+          // silent - 다음 로그인 시 재시도
+        }
+      }
     }
   }
 

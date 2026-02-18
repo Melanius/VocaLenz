@@ -1949,6 +1949,121 @@ Step 8.1 → 8.2 → 8.3 → 8.4 → `pnpm build` 검증 → Step 8.5 (수동 QA
 
 ---
 
+## ✅ Phase 11: UI/UX 개선 3차 + 단어 카드 리디자인 (완료)
+**완료 일시:** 2026-02-17
+
+### Step 11.1: WordCard 컴포넌트 시각 디자인 리뉴얼 ✅
+- 아이콘 추가: 각 섹션별 lucide 아이콘 (BookOpen, Lightbulb, Volume2, Target 등)
+- 컬러 보더: 레벨별 좌측 색상 스트라이프 (green/blue/orange/red)
+- 타이포그래피 계층 정리 및 여백/배경색 강화
+
+**수정 파일:**
+- `src/components/search/word-card.tsx`
+
+**커밋:** `f0cb609 - feat: WordCard 컴포넌트 시각 디자인 리뉴얼`
+
+### Step 11.2: 검색한 단어 자동 단어장 저장 설정 ✅
+- 카드 설정(Sheet)에 "자동 단어장 추가" 체크박스 추가
+- `DisplayPreferences`에 `autoSaveToVocabulary` 필드 추가 (기본값 true)
+- 검색 성공 시 자동으로 `addToVocabulary()` 호출
+
+**수정 파일:**
+- `src/types/database.ts` (autoSaveToVocabulary 필드)
+- `src/hooks/use-display-preferences.ts` (기본값 true)
+- `src/components/search/card-customizer.tsx` (체크박스 UI)
+- `src/app/(main)/page.tsx` (자동 저장 로직)
+
+**커밋:** `a0c75fd - feat: 검색한 단어 자동 단어장 저장 설정 추가`
+
+### Step 11.3: 단어장 플립카드 디자인 리뉴얼 ✅
+- 레벨별 상단 색상 스트라이프 (`border-t-[3px]`)
+- 앞면: 단어 텍스트 확대 (`text-3xl font-extrabold`), 암기완료 시 CheckCircle2 오버레이
+- 뒷면: 에메랄드 번호 원형 뜻 목록, 인디고 보더 예문, 발음 텍스트 확대
+- 액션 버튼 색상 분화: outline(상세), green(암기), orange(복습), icon-only(삭제)
+- POS 배지 제거 (앞면 깔끔하게)
+
+**수정 파일:**
+- `src/components/vocabulary/vocabulary-flip-card.tsx`
+
+**커밋:** `574aa82 - feat: 단어장 플립카드 디자인 리뉴얼`
+
+### Step 11.4: 성적 관리 탭 재구성 + TEPS 코치 AI 채팅 ✅
+- 탭 구조 변경: 성적입력|성적목록|추이차트 → **성적목록|추이차트|TEPS코치**
+- 성적 입력을 Dialog 모달로 이동 (신규/수정 공용)
+- 목록 최신순 표시 (`[...scores].reverse()`)
+- AI 코치 채팅: GPT-4o-mini 스트리밍, 마크다운 렌더링, 자동 초기 분석
+
+**생성 파일:**
+- `src/components/scores/score-coach.tsx` (채팅 UI, 스트리밍, 마크다운)
+- `src/app/api/scores/consult/route.ts` (GPT 스트리밍 API)
+
+**수정 파일:**
+- `src/app/(main)/scores/page.tsx` (탭 재구성, Dialog 모달)
+
+**커밋:** `b8511bc - feat: 성적 관리 탭 재구성 + TEPS 코치 AI 채팅 + 플립카드 POS 제거`
+
+### Step 11.5: UX 개선 4건 ✅
+- 자동 단어장 저장 기본값 ON + 라벨 축약 ("자동 단어장 추가")
+- 동시 검색(2~4개)에서 1개 이상 입력만으로 검색 가능하도록 변경
+- 모바일 메뉴: MoreVertical → Menu 아이콘, 크기 확대 (h-10 w-10), 네비 순서 재정렬
+- 설정 버튼 크기 확대 (h-10 w-10) + 검색창과 수직 중앙 정렬
+
+**수정 파일:**
+- `src/hooks/use-display-preferences.ts` (기본값 autoSaveToVocabulary: true)
+- `src/components/search/card-customizer.tsx` (라벨 축약, 버튼 크기)
+- `src/components/search/multi-search-input.tsx` (1개 이상 입력 허용)
+- `src/components/layout/header.tsx` (Menu 아이콘, 크기, 순서)
+- `src/app/(main)/page.tsx` (설정 버튼 정렬)
+
+**커밋:** `6128b6d - feat: UX 개선 4건`
+
+---
+
+## ✅ Phase 12: AI 코칭 고도화 (완료)
+**완료 일시:** 2026-02-18
+
+### Step 12.1: 성적 입력 폼 TEPS 배점 수정 ✅
+- 기존 잘못된 max값 (청해 400, 어휘 100, 문법 100, 독해 400 = 1000점)
+- 신형 TEPS 정확 배점으로 수정 (청해 240, 어휘 60, 문법 60, 독해 240 = 600점)
+- 라벨도 `(0~240)`, `(0~60)` 등으로 업데이트
+
+**수정 파일:**
+- `src/app/(main)/scores/page.tsx` (Input max값 및 Label 수정)
+
+### Step 12.2: AI 시스템 프롬프트 전면 개편 ✅
+- **페르소나 강화**: "TEPS Strategic Analyst" — 냉철한 전략 분석가, 불필요한 응원/서론 금지
+- **TEPS 배점 정확화**: 600점 만점 체계 명시 (청해 240, 어휘 60, 문법 60, 독해 240)
+- **TEPS 등급 기준** 추가: 526+(1+급) ~ 195~251(3+급)
+- **추이 메타데이터 자동 계산** (`computeTrendAnalysis`):
+  - 최근 3회 총점 추이 (상승세/하락세/정체)
+  - 영역별 평균 달성률 (%)
+  - 가장 취약 영역 자동 판별
+  - 최고점 vs 최근점 비교
+- **목표 정보(GoalContext) 수신**: targetScore, targetDate(D-day 자동계산), studyHours, weakAreas, proxyLevel
+- **출력 형식 규격화**: 현재 상태 진단 → 전략적 우선순위 → 주간 학습 스케줄 → VocaLenz 활용법 → Reality Check
+- **max_tokens**: 1000 → 1500 상향
+
+**수정 파일:**
+- `src/app/api/scores/consult/route.ts` (전면 재작성)
+
+### Step 12.3: TEPS 코치 목표 입력 폼 + 성적 없는 사용자 대응 ✅
+- **Phase 1 (목표 설정 폼)**: 코치 탭 진입 시 카드 UI 목표 입력 폼 표시
+  - 목표 총점 (number, max 600)
+  - 목표 날짜 (date)
+  - 하루 학습 시간 (select: 30분 미만 ~ 3시간 이상)
+  - 체감 취약 영역 (checkbox 복수 선택: 청해/어휘/문법/독해)
+- **성적 없는 사용자 대체 경로**:
+  - 기존: "성적을 먼저 입력해 주세요" → 완전 차단 (최악의 UX)
+  - 변경: 영어 수준 참고 정보 입력 (수능 등급 1~5 / TOEIC 점수대)
+  - AI가 추정 레벨 기반으로 분석 수행
+  - "성적 입력하러 가기" 링크 제공
+- **Phase 2 (채팅)**: "분석 시작" 클릭 → goalContext 포함 즉시 맞춤 분석 → 이후 자유 채팅
+
+**수정 파일:**
+- `src/components/scores/score-coach.tsx` (전면 재작성)
+
+---
+
 ## 개발 완료 후 운영 체크리스트
 
 | 항목 | 내용 | 상태 |

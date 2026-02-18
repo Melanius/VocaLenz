@@ -400,48 +400,48 @@ export default function ScoresPage() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="listening">청해 (0~400)</Label>
+                <Label htmlFor="listening">청해 (0~240)</Label>
                 <Input
                   id="listening"
                   type="number"
                   min={0}
-                  max={400}
+                  max={240}
                   placeholder="0"
                   value={form.listening}
                   onChange={(e) => setForm({ ...form, listening: e.target.value })}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="vocabulary">어휘 (0~100)</Label>
+                <Label htmlFor="vocabulary">어휘 (0~60)</Label>
                 <Input
                   id="vocabulary"
                   type="number"
                   min={0}
-                  max={100}
+                  max={60}
                   placeholder="0"
                   value={form.vocabulary}
                   onChange={(e) => setForm({ ...form, vocabulary: e.target.value })}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="grammar">문법 (0~100)</Label>
+                <Label htmlFor="grammar">문법 (0~60)</Label>
                 <Input
                   id="grammar"
                   type="number"
                   min={0}
-                  max={100}
+                  max={60}
                   placeholder="0"
                   value={form.grammar}
                   onChange={(e) => setForm({ ...form, grammar: e.target.value })}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="reading">독해 (0~400)</Label>
+                <Label htmlFor="reading">독해 (0~240)</Label>
                 <Input
                   id="reading"
                   type="number"
                   min={0}
-                  max={400}
+                  max={240}
                   placeholder="0"
                   value={form.reading}
                   onChange={(e) => setForm({ ...form, reading: e.target.value })}

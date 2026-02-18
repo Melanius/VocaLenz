@@ -108,6 +108,8 @@
   --primary: 350 55% 65%;
   --ring: 350 55% 65%;
   --accent: 350 30% 22%;
+  --background: 350 20% 12%;
+  --card: 350 15% 16%;
 }
 
 /* 여름 Forest Fresh: #4F772D / #90A955 / #F7FBF2 */
@@ -121,6 +123,8 @@
   --primary: 96 40% 42%;
   --ring: 96 40% 42%;
   --accent: 96 25% 22%;
+  --background: 96 15% 12%;
+  --card: 96 12% 16%;
 }
 
 /* 가을 Maple Mute: #A0522D / #D2B48C / #FFFBF5 */
@@ -134,6 +138,8 @@
   --primary: 19 50% 50%;
   --ring: 19 50% 50%;
   --accent: 19 30% 22%;
+  --background: 19 18% 12%;
+  --card: 19 14% 16%;
 }
 
 /* 겨울 Midnight Ice: #1B263B / #778DA9 / #F0F4F8 — 현재 기본 테마와 유사 */

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { Search, BookOpen, Brain, BarChart3, Palette, ChevronLeft, ChevronRight, Rocket } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label'
 import { useAuthContext } from '@/components/providers/auth-provider'
 import { toast } from '@/hooks/use-toast'
 
-// --- Step 1: 환영 + 성적/목표 입력 ---
+// --- Step 1: 환영 + 성적 입력 ---
 
 type ScoreBranch = null | 'yes' | 'no'
 
@@ -20,24 +20,18 @@ interface ScoreForm {
   reading: string
 }
 
-interface GoalForm {
-  targetScore: string
-  targetDate: string
-}
-
 function WelcomeStep({
   nickname,
   onComplete,
+  onSkipToGoal,
 }: {
   nickname: string
   onComplete: () => void
+  onSkipToGoal: () => void
 }) {
   const [branch, setBranch] = useState<ScoreBranch>(null)
   const [scoreForm, setScoreForm] = useState<ScoreForm>({
     total: '', listening: '', vocabulary: '', grammar: '', reading: '',
-  })
-  const [goalForm, setGoalForm] = useState<GoalForm>({
-    targetScore: '', targetDate: '',
   })
   const [saving, setSaving] = useState(false)
 
@@ -65,28 +59,6 @@ function WelcomeStep({
       }
     } catch {
       toast({ title: '네트워크 오류', variant: 'destructive' })
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const handleGoalSubmit = async () => {
-    setSaving(true)
-    try {
-      const updates: Record<string, unknown> = {}
-      if (goalForm.targetScore) updates.target_score = parseInt(goalForm.targetScore)
-      if (goalForm.targetDate) updates.study_start_date = goalForm.targetDate
-
-      if (Object.keys(updates).length > 0) {
-        await fetch('/api/users/profile', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(updates),
-        })
-      }
-      onComplete()
-    } catch {
-      onComplete()
     } finally {
       setSaving(false)
     }
@@ -158,14 +130,63 @@ function WelcomeStep({
             건너뛰기
           </Button>
           <Button onClick={handleScoreSubmit} disabled={!scoreForm.total || saving} className="flex-1">
-            {saving ? '저장 중...' : '완료'}
+            {saving ? '저장 중...' : '다음'}
           </Button>
         </div>
       </div>
     )
   }
 
-  // "아니요" 선택: 목표 설정
+  // "아니요" 선택: 바로 목표 설정으로
+  return (
+    <div className="flex flex-col items-center px-6 py-8">
+      <div className="text-3xl mb-3">👍</div>
+      <h2 className="text-lg font-bold mb-2">괜찮아요!</h2>
+      <p className="text-sm text-muted-foreground mb-6">
+        성적은 나중에 성적 관리 메뉴에서 등록할 수 있어요.
+      </p>
+      <Button onClick={onSkipToGoal} className="w-full max-w-xs">
+        다음으로
+      </Button>
+    </div>
+  )
+}
+
+// --- Step 2: 목표 설정 ---
+
+interface GoalForm {
+  targetScore: string
+  targetDate: string
+}
+
+function GoalStep({ onComplete }: { onComplete: () => void }) {
+  const [goalForm, setGoalForm] = useState<GoalForm>({
+    targetScore: '', targetDate: '',
+  })
+  const [saving, setSaving] = useState(false)
+
+  const handleGoalSubmit = async () => {
+    setSaving(true)
+    try {
+      const updates: Record<string, unknown> = {}
+      if (goalForm.targetScore) updates.target_score = parseInt(goalForm.targetScore)
+      if (goalForm.targetDate) updates.study_start_date = goalForm.targetDate
+
+      if (Object.keys(updates).length > 0) {
+        await fetch('/api/users/profile', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updates),
+        })
+      }
+      onComplete()
+    } catch {
+      onComplete()
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <div className="flex flex-col items-center px-6 py-6">
       <div className="text-3xl mb-3">🎯</div>
@@ -185,7 +206,7 @@ function WelcomeStep({
           />
         </div>
         <div className="space-y-1">
-          <Label className="text-xs">달성 목표일</Label>
+          <Label className="text-xs">목표 달성일</Label>
           <Input
             type="date"
             value={goalForm.targetDate}
@@ -206,7 +227,7 @@ function WelcomeStep({
   )
 }
 
-// --- Step 2: 기능 소개 슬라이드 ---
+// --- Step 3: 기능 소개 슬라이드 (스와이프 지원) ---
 
 const FEATURE_SLIDES = [
   {
@@ -264,8 +285,38 @@ function FeatureSlidesStep({ onComplete }: { onComplete: () => void }) {
   const slide = FEATURE_SLIDES[current]
   const isLast = current === FEATURE_SLIDES.length - 1
 
+  // 스와이프 제스처
+  const touchStartX = useRef<number | null>(null)
+  const touchStartY = useRef<number | null>(null)
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX
+    touchStartY.current = e.touches[0].clientY
+  }
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX.current === null || touchStartY.current === null) return
+    const dx = e.changedTouches[0].clientX - touchStartX.current
+    const dy = e.changedTouches[0].clientY - touchStartY.current
+    touchStartX.current = null
+    touchStartY.current = null
+
+    // 수평 스와이프만 감지 (수직 스크롤과 구분)
+    if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy)) return
+
+    if (dx < 0 && !isLast) {
+      setCurrent((c) => c + 1)
+    } else if (dx > 0 && current > 0) {
+      setCurrent((c) => c - 1)
+    }
+  }
+
   return (
-    <div className="flex flex-col items-center px-6 py-6 min-h-[360px]">
+    <div
+      className="flex flex-col items-center px-6 py-6 min-h-[360px]"
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+    >
       {/* 슬라이드 콘텐츠 */}
       <div className="flex-1 flex flex-col items-center justify-center text-center w-full max-w-sm">
         <div className="text-5xl mb-4">{slide.emoji}</div>
@@ -333,7 +384,7 @@ function FeatureSlidesStep({ onComplete }: { onComplete: () => void }) {
 
 // --- 메인 온보딩 모달 ---
 
-type OnboardingStep = 'welcome' | 'features'
+type OnboardingStep = 'welcome' | 'goal' | 'features'
 
 export function OnboardingModal() {
   const { profile, refreshProfile } = useAuthContext()
@@ -343,6 +394,10 @@ export function OnboardingModal() {
   const displayName = profile?.nickname || profile?.name || '사용자'
 
   const handleWelcomeComplete = useCallback(() => {
+    setStep('goal')
+  }, [])
+
+  const handleGoalComplete = useCallback(() => {
     setStep('features')
   }, [])
 
@@ -362,13 +417,22 @@ export function OnboardingModal() {
 
   if (!visible) return null
 
+  const totalSteps = 3
+  const currentStepIndex = step === 'welcome' ? 0 : step === 'goal' ? 1 : 2
+
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
       <div className="bg-card rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border">
         {/* 상단 진행 바 */}
         <div className="flex items-center gap-1 px-5 pt-4">
-          <div className={`h-1 flex-1 rounded-full transition-colors ${step === 'welcome' ? 'bg-primary' : 'bg-primary'}`} />
-          <div className={`h-1 flex-1 rounded-full transition-colors ${step === 'features' ? 'bg-primary' : 'bg-muted'}`} />
+          {Array.from({ length: totalSteps }).map((_, i) => (
+            <div
+              key={i}
+              className={`h-1 flex-1 rounded-full transition-colors ${
+                i <= currentStepIndex ? 'bg-primary' : 'bg-muted'
+              }`}
+            />
+          ))}
         </div>
 
         {/* 건너뛰기 (기능 소개에서만) */}
@@ -385,7 +449,13 @@ export function OnboardingModal() {
 
         {/* 콘텐츠 */}
         {step === 'welcome' ? (
-          <WelcomeStep nickname={displayName} onComplete={handleWelcomeComplete} />
+          <WelcomeStep
+            nickname={displayName}
+            onComplete={handleWelcomeComplete}
+            onSkipToGoal={handleWelcomeComplete}
+          />
+        ) : step === 'goal' ? (
+          <GoalStep onComplete={handleGoalComplete} />
         ) : (
           <FeatureSlidesStep onComplete={handleFinish} />
         )}

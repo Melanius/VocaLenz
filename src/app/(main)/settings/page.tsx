@@ -219,7 +219,7 @@ export default function SettingsPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="study-start">학습 시작일</Label>
+              <Label htmlFor="study-start">목표 달성일</Label>
               <Input
                 id="study-start"
                 type="date"

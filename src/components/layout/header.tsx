@@ -45,6 +45,19 @@ export function Header() {
 
   const displayName = profile?.nickname || profile?.name || user?.email?.split('@')[0] || ''
 
+  // D-day 계산 (목표 달성일 기준)
+  const dDay = (() => {
+    if (!profile?.study_start_date) return null
+    const target = new Date(profile.study_start_date)
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    target.setHours(0, 0, 0, 0)
+    const diff = Math.ceil((target.getTime() - today.getTime()) / 86400000)
+    if (diff > 0) return `D-${diff}`
+    if (diff === 0) return 'D-Day'
+    return `D+${Math.abs(diff)}`
+  })()
+
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-14 max-w-screen-2xl items-center">
@@ -106,20 +119,26 @@ export function Header() {
           {loading ? (
             <div className="h-8 w-20 animate-pulse bg-muted rounded-full" />
           ) : user ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button className="flex items-center gap-2 rounded-full py-1 pl-1 pr-2.5 hover:bg-accent/50 transition-colors outline-none">
-                  <div
-                    className="h-7 w-7 rounded-full bg-primary/15 text-primary flex items-center justify-center text-xs font-semibold shrink-0"
-                  >
-                    {getInitial(displayName)}
-                  </div>
-                  <span className="text-sm text-foreground hidden sm:inline max-w-[100px] truncate">
-                    {displayName}
-                  </span>
-                  <ChevronDown className="h-3 w-3 text-muted-foreground hidden sm:block" />
-                </button>
-              </DropdownMenuTrigger>
+            <div className="flex items-center gap-1.5">
+              {dDay && (
+                <span className="text-[11px] font-semibold text-primary bg-primary/10 rounded-full px-2 py-0.5 hidden sm:inline-block">
+                  {dDay}
+                </span>
+              )}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="flex items-center gap-2 rounded-full py-1 pl-1 pr-2.5 hover:bg-accent/50 transition-colors outline-none">
+                    <div
+                      className="h-7 w-7 rounded-full bg-primary/15 text-primary flex items-center justify-center text-xs font-semibold shrink-0"
+                    >
+                      {getInitial(displayName)}
+                    </div>
+                    <span className="text-sm text-foreground hidden sm:inline max-w-[100px] truncate">
+                      {displayName}
+                    </span>
+                    <ChevronDown className="h-3 w-3 text-muted-foreground hidden sm:block" />
+                  </button>
+                </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-44">
                 <div className="px-2 py-1.5 sm:hidden">
                   <p className="text-sm font-medium truncate">{displayName}</p>
@@ -146,6 +165,7 @@ export function Header() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+            </div>
           ) : (
             <Button variant="ghost" size="sm" asChild>
               <Link href="/auth/login">로그인</Link>

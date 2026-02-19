@@ -310,35 +310,44 @@ function WordHistoryList({
 
               return (
                 <div key={item.id}>
-                  <button
-                    onClick={() => onToggle(isExpanded ? null : item.id)}
-                    className="w-full text-left rounded-lg border bg-card p-3 hover:bg-accent/50 transition-colors"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <span className="font-semibold text-foreground">{word.word}</span>
-                        <span className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-xs font-medium ${levelConfig.color}`}>
-                          Lv.{word.difficulty_level}
-                        </span>
-                        <span className="text-sm text-muted-foreground truncate hidden sm:inline">
-                          {word.meanings[0]}
-                        </span>
+                  <div className="rounded-lg border bg-card overflow-hidden">
+                    <button
+                      onClick={() => onToggle(isExpanded ? null : item.id)}
+                      className="w-full text-left p-3 hover:bg-accent/50 transition-colors"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <span className="font-semibold text-foreground">{word.word}</span>
+                          <span className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-xs font-medium ${levelConfig.color}`}>
+                            Lv.{word.difficulty_level}
+                          </span>
+                          <span className="text-sm text-muted-foreground truncate hidden sm:inline">
+                            {word.meanings[0]}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <Link
+                            href={`/?q=${encodeURIComponent(word.word)}&mode=word`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-xs text-primary hover:underline px-1.5 py-0.5 rounded hover:bg-primary/10 transition-colors"
+                          >
+                            검색
+                          </Link>
+                          <span className="text-xs text-muted-foreground">{time}</span>
+                          {isExpanded ? (
+                            <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                          )}
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <span className="text-xs text-muted-foreground">{time}</span>
-                        {isExpanded ? (
-                          <ChevronUp className="h-4 w-4 text-muted-foreground" />
-                        ) : (
-                          <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                        )}
+                    </button>
+                    {isExpanded && (
+                      <div className="border-t">
+                        <WordCard word={word} />
                       </div>
-                    </div>
-                  </button>
-                  {isExpanded && (
-                    <div className="mt-2">
-                      <WordCard word={word} />
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               )
             })}
@@ -376,36 +385,45 @@ function ExpressionHistoryList({
 
               return (
                 <div key={item.id}>
-                  <button
-                    onClick={() => onToggle(isExpanded ? null : item.id)}
-                    className="w-full text-left rounded-lg border bg-card p-3 hover:bg-accent/50 transition-colors"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <Headphones className="h-3.5 w-3.5 text-indigo-500 flex-shrink-0" />
-                        <span className="font-semibold text-foreground">{expr.expression}</span>
-                        <span className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-xs font-medium ${levelConfig.color}`}>
-                          Lv.{expr.difficulty_level}
-                        </span>
-                        <span className="text-sm text-muted-foreground truncate hidden sm:inline">
-                          {expr.meanings[0]}
-                        </span>
+                  <div className="rounded-lg border bg-card overflow-hidden">
+                    <button
+                      onClick={() => onToggle(isExpanded ? null : item.id)}
+                      className="w-full text-left p-3 hover:bg-accent/50 transition-colors"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <Headphones className="h-3.5 w-3.5 text-indigo-500 flex-shrink-0" />
+                          <span className="font-semibold text-foreground">{expr.expression}</span>
+                          <span className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-xs font-medium ${levelConfig.color}`}>
+                            Lv.{expr.difficulty_level}
+                          </span>
+                          <span className="text-sm text-muted-foreground truncate hidden sm:inline">
+                            {expr.meanings[0]}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <Link
+                            href={`/?q=${encodeURIComponent(expr.expression)}&mode=expression`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline px-1.5 py-0.5 rounded hover:bg-indigo-50 dark:hover:bg-indigo-950/50 transition-colors"
+                          >
+                            검색
+                          </Link>
+                          <span className="text-xs text-muted-foreground">{time}</span>
+                          {isExpanded ? (
+                            <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                          )}
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <span className="text-xs text-muted-foreground">{time}</span>
-                        {isExpanded ? (
-                          <ChevronUp className="h-4 w-4 text-muted-foreground" />
-                        ) : (
-                          <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                        )}
+                    </button>
+                    {isExpanded && (
+                      <div className="border-t">
+                        <ExpressionCard expression={expr} />
                       </div>
-                    </div>
-                  </button>
-                  {isExpanded && (
-                    <div className="mt-2">
-                      <ExpressionCard expression={expr} />
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               )
             })}

@@ -17,7 +17,7 @@ import { useExpressionVocabulary } from '@/hooks/use-expression-vocabulary'
 import { useTheme } from '@/components/providers/theme-provider'
 import { getSessionId } from '@/lib/session'
 import { analytics } from '@/lib/analytics'
-import type { Word, SearchMode } from '@/types/database'
+import type { Word, Expression, SearchMode } from '@/types/database'
 
 const SEASON_IMAGES: Record<string, string> = {
   spring: '/video/spring.png',
@@ -33,26 +33,22 @@ const LEVEL_CONFIG: Record<number, { label: string; color: string }> = {
   4: { label: 'Killer', color: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300' },
 }
 
-interface DbHistoryItem {
-  id: string
-  user_id: string
-  word_id: string
-  searched_at: string
-  word: Word | null
-}
+type UnifiedHistoryItem =
+  | { type: 'word'; id: string; searched_at: string; word: Word | null }
+  | { type: 'expression'; id: string; searched_at: string; expression: Expression | null }
 
 interface GroupedHistory {
   label: string
-  items: DbHistoryItem[]
+  items: UnifiedHistoryItem[]
 }
 
-function groupByDate(items: DbHistoryItem[]): GroupedHistory[] {
+function groupByDate(items: UnifiedHistoryItem[]): GroupedHistory[] {
   const now = new Date()
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
   const yesterday = new Date(today.getTime() - 86400000)
   const weekAgo = new Date(today.getTime() - 7 * 86400000)
 
-  const groups: Record<string, DbHistoryItem[]> = {
+  const groups: Record<string, UnifiedHistoryItem[]> = {
     '오늘': [],
     '어제': [],
     '이번 주': [],
@@ -92,7 +88,7 @@ export default function SearchPage() {
   const seasonImage = SEASON_IMAGES[season] || SEASON_IMAGES.winter
 
   // DB 검색 이력 상태 (바텀 시트용)
-  const [dbHistory, setDbHistory] = useState<DbHistoryItem[]>([])
+  const [dbHistory, setDbHistory] = useState<UnifiedHistoryItem[]>([])
   const [dbHistoryLoading, setDbHistoryLoading] = useState(false)
   const [dbHistoryPage, setDbHistoryPage] = useState(1)
   const [dbHistoryHasMore, setDbHistoryHasMore] = useState(false)
@@ -110,13 +106,27 @@ export default function SearchPage() {
   const fetchDbHistory = useCallback(async (pageNum: number, append = false) => {
     setDbHistoryLoading(true)
     try {
-      const res = await fetch(`/api/history?page=${pageNum}&limit=20`)
-      if (res.ok) {
-        const data = await res.json()
-        setDbHistory((prev) => append ? [...prev, ...data.items] : data.items)
-        setDbHistoryHasMore(data.hasMore)
-        setDbHistoryLoaded(true)
-      }
+      const [wordRes, exprRes] = await Promise.all([
+        fetch(`/api/history?page=${pageNum}&limit=20&type=word`),
+        fetch(`/api/history?page=${pageNum}&limit=20&type=expression`),
+      ])
+      const wordData = wordRes.ok ? await wordRes.json() : { items: [], hasMore: false }
+      const exprData = exprRes.ok ? await exprRes.json() : { items: [], hasMore: false }
+
+      const wordItems: UnifiedHistoryItem[] = (wordData.items || []).map(
+        (i: { id: string; searched_at: string; word: Word | null }) => ({ ...i, type: 'word' as const })
+      )
+      const exprItems: UnifiedHistoryItem[] = (exprData.items || []).map(
+        (i: { id: string; searched_at: string; expression: Expression | null }) => ({ ...i, type: 'expression' as const })
+      )
+
+      const merged = [...wordItems, ...exprItems].sort(
+        (a, b) => new Date(b.searched_at).getTime() - new Date(a.searched_at).getTime()
+      )
+
+      setDbHistory((prev) => append ? [...prev, ...merged] : merged)
+      setDbHistoryHasMore(wordData.hasMore || exprData.hasMore)
+      setDbHistoryLoaded(true)
     } catch {
       // silent
     } finally {
@@ -148,8 +158,36 @@ export default function SearchPage() {
     }
   }, [history])
 
+  const urlSearchDoneRef = useRef(false)
+
+  // URL 파라미터로 검색 트리거 (history 페이지 등에서 이동 시)
+  useEffect(() => {
+    if (urlSearchDoneRef.current) return
+    const params = new URLSearchParams(window.location.search)
+    const q = params.get('q')
+    if (q) {
+      urlSearchDoneRef.current = true
+      const mode = params.get('mode') as SearchMode | null
+      window.history.replaceState({}, '', '/')
+      handleSearchWord(decodeURIComponent(q), mode || undefined)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const handleSearchWord = async (word: string, modeOverride?: SearchMode) => {
     setHistoryOpen(false)
+
+    // 현재 세션 채팅에 이미 있으면 스크롤만 (새 검색 안 함)
+    const existing = history.find((item) => {
+      if (item.result.type === 'word') return item.result.data?.word === word
+      if (item.result.type === 'expression') return item.result.data?.expression === word
+      return false
+    })
+    if (existing) {
+      scrollToItem(existing.id)
+      return
+    }
+
     const itemId = addToHistory(word, { type: 'loading', message: '검색 중...' })
     const mode = modeOverride || searchType
 
@@ -351,32 +389,39 @@ export default function SearchPage() {
                         </h3>
                         <div className="space-y-1">
                           {group.items.map((item) => {
-                            const word = item.word
-                            if (!word) return null
-                            const levelConfig = LEVEL_CONFIG[word.difficulty_level] || LEVEL_CONFIG[2]
+                            const isExpr = item.type === 'expression'
+                            const label = isExpr ? item.expression?.expression : item.word?.word
+                            const meanings = isExpr ? item.expression?.meanings : item.word?.meanings
+                            const difficulty = isExpr ? item.expression?.difficulty_level : item.word?.difficulty_level
+                            if (!label) return null
+                            const levelConfig = LEVEL_CONFIG[difficulty ?? 2] || LEVEL_CONFIG[2]
                             const time = new Date(item.searched_at).toLocaleTimeString('ko-KR', {
                               hour: '2-digit',
                               minute: '2-digit',
                             })
+                            const mode: SearchMode = isExpr ? 'expression' : 'word'
 
                             return (
                               <button
                                 key={item.id}
-                                onClick={() => handleSearchWord(word.word)}
+                                onClick={() => handleSearchWord(label, mode)}
                                 className="w-full text-left rounded-lg px-3 py-2.5 hover:bg-accent/50 transition-colors"
                               >
                                 <div className="flex items-center justify-between">
-                                  <div className="flex items-center gap-2.5 min-w-0">
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    {isExpr && (
+                                      <Headphones className="h-3.5 w-3.5 text-indigo-500 flex-shrink-0" />
+                                    )}
                                     <span className="font-semibold text-sm text-foreground">
-                                      {word.word}
+                                      {label}
                                     </span>
                                     <span
                                       className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-xs font-medium ${levelConfig.color}`}
                                     >
-                                      Lv.{word.difficulty_level}
+                                      Lv.{difficulty}
                                     </span>
                                     <span className="text-xs text-muted-foreground truncate">
-                                      {word.meanings[0]}
+                                      {meanings?.[0]}
                                     </span>
                                   </div>
                                   <span className="text-xs text-muted-foreground flex-shrink-0 ml-2">

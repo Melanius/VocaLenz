@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { BookOpen, Headphones, Star, Loader2, Upload, Search, Calendar, X } from 'lucide-react'
+import { BookOpen, Headphones, Star, Loader2, Upload, Search, Calendar, X, StickyNote } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -50,8 +50,8 @@ type VocabTab = 'words' | 'expressions'
 export default function VocabularyPage() {
   const router = useRouter()
   const { user, loading: authLoading } = useAuthContext()
-  const { vocabularyItems, count, loading, toggleMemorized, refresh } = useVocabulary()
-  const { expressionItems, count: exprCount, loading: exprLoading, toggleMemorized: toggleExprMemorized, refresh: refreshExpr } = useExpressionVocabulary()
+  const { vocabularyItems, count, loading, toggleMemorized, updateMemo, refresh } = useVocabulary()
+  const { expressionItems, count: exprCount, loading: exprLoading, toggleMemorized: toggleExprMemorized, updateMemo: updateExprMemo, refresh: refreshExpr } = useExpressionVocabulary()
   const [vocabTab, setVocabTab] = useState<VocabTab>('words')
   const [filter, setFilter] = useState<FilterType>('all')
   const [dateFrom, setDateFrom] = useState('')
@@ -61,6 +61,7 @@ export default function VocabularyPage() {
   const [detailExpression, setDetailExpression] = useState<Expression | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [flippedCards, setFlippedCards] = useState<Set<string>>(new Set())
+  const [memoFilter, setMemoFilter] = useState('')
 
   // 업로드 상태
   const [uploadOpen, setUploadOpen] = useState(false)
@@ -86,6 +87,8 @@ export default function VocabularyPage() {
 
   const hasDateFilter = dateFrom !== '' || dateTo !== ''
 
+  const memoFilterLower = memoFilter.trim().toLowerCase()
+
   const filtered = useMemo(() => {
     return vocabularyItems.filter((item) => {
       // 상태 필터
@@ -100,9 +103,12 @@ export default function VocabularyPage() {
         if (dateTo && addedDate > dateTo) return false
       }
 
+      // 메모 필터
+      if (memoFilterLower && !(item.memo || '').toLowerCase().includes(memoFilterLower)) return false
+
       return true
     })
-  }, [vocabularyItems, filter, dateFrom, dateTo, hasDateFilter])
+  }, [vocabularyItems, filter, dateFrom, dateTo, hasDateFilter, memoFilterLower])
 
   const filteredExpressions = useMemo(() => {
     return expressionItems.filter((item) => {
@@ -114,9 +120,10 @@ export default function VocabularyPage() {
         if (dateFrom && addedDate < dateFrom) return false
         if (dateTo && addedDate > dateTo) return false
       }
+      if (memoFilterLower && !(item.memo || '').toLowerCase().includes(memoFilterLower)) return false
       return true
     })
-  }, [expressionItems, filter, dateFrom, dateTo, hasDateFilter])
+  }, [expressionItems, filter, dateFrom, dateTo, hasDateFilter, memoFilterLower])
 
   const clearDateFilter = () => {
     setDateFrom('')
@@ -297,9 +304,9 @@ export default function VocabularyPage() {
       }
 
       const uniqueWords = [...new Set(allWords)]
-      const limited = uniqueWords.slice(0, 50)
-      if (uniqueWords.length > 50) {
-        toast({ title: '안내', description: `50개를 초과하여 앞 50개만 처리합니다. (전체 ${uniqueWords.length}개)` })
+      const limited = uniqueWords.slice(0, 500)
+      if (uniqueWords.length > 500) {
+        toast({ title: '안내', description: `500개를 초과하여 앞 500개만 처리합니다. (전체 ${uniqueWords.length}개)` })
       }
 
       setParsedWords(limited)
@@ -318,7 +325,7 @@ export default function VocabularyPage() {
     if (parsedWords.length === 0) return
 
     const currentCount = uploadTarget === 'word' ? count : exprCount
-    const remaining = 100 - currentCount
+    const remaining = 2000 - currentCount
     const listName = uploadTarget === 'word' ? 'Voca 리스트' : 'Lenz 픽'
     if (remaining <= 0) {
       toast({ title: '오류', description: `${listName}가 가득 찼습니다.`, variant: 'destructive' })
@@ -413,7 +420,7 @@ export default function VocabularyPage() {
           <div>
             <h1 className="text-2xl font-bold">내 단어장</h1>
             <p className="text-muted-foreground text-sm mt-1">
-              {vocabTab === 'words' ? `Voca 리스트 ${count}/100` : `Lenz 픽 ${exprCount}/100`}
+              {vocabTab === 'words' ? `Voca 리스트 ${count}/2000` : `Lenz 픽 ${exprCount}/2000`}
             </p>
           </div>
           <Button
@@ -457,6 +464,27 @@ export default function VocabularyPage() {
             <Headphones className="h-3.5 w-3.5 shrink-0" />
             Lenz 픽 ({exprCount})
           </button>
+        </div>
+
+        {/* 메모 검색 필터 */}
+        <div className="relative flex items-center gap-2">
+          <StickyNote className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-amber-500 pointer-events-none" />
+          <input
+            type="text"
+            value={memoFilter}
+            onChange={(e) => setMemoFilter(e.target.value)}
+            placeholder="메모로 검색 (예: test-4)"
+            className="pl-8 pr-8 py-1.5 text-sm rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-amber-400 w-52"
+          />
+          {memoFilter && (
+            <button
+              onClick={() => setMemoFilter('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              aria-label="메모 필터 지우기"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
         </div>
 
         {/* 필터 버튼 별도 행 */}
@@ -604,6 +632,7 @@ export default function VocabularyPage() {
                   onToggleMemorized={handleToggle}
                   onToggleReview={handleToggleReview}
                   onDelete={handleDelete}
+                  onMemoUpdate={updateMemo}
                 />
               ))}
             </div>
@@ -641,6 +670,7 @@ export default function VocabularyPage() {
                   onToggleMemorized={handleExprToggle}
                   onToggleReview={handleExprToggleReview}
                   onDelete={handleExprDelete}
+                  onMemoUpdate={updateExprMemo}
                 />
               ))}
             </div>
@@ -786,10 +816,10 @@ export default function VocabularyPage() {
                 {filteredOutCount > 0 && (
                   <p className="text-orange-500">{filteredOutCount}개 비영어 항목은 제외되었습니다.</p>
                 )}
-                {(uploadTarget === 'word' ? 100 - count : 100 - exprCount) < parsedWords.length && (
+                {(uploadTarget === 'word' ? 2000 - count : 2000 - exprCount) < parsedWords.length && (
                   <p className="text-orange-500">
                     {uploadTarget === 'word' ? 'Voca 리스트' : 'Lenz 픽'} 잔여 용량(
-                    {uploadTarget === 'word' ? 100 - count : 100 - exprCount}개)만큼만 추가됩니다.
+                    {uploadTarget === 'word' ? 2000 - count : 2000 - exprCount}개)만큼만 추가됩니다.
                   </p>
                 )}
               </div>
@@ -813,7 +843,7 @@ export default function VocabularyPage() {
             // 파일 선택
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                Excel 또는 CSV 파일의 A열에 영단어/구문을 넣어주세요. (최대 50개)
+                Excel 또는 CSV 파일의 A열에 영단어/구문을 넣어주세요. (최대 500개)
               </p>
               <div className="border-2 border-dashed rounded-lg p-8 text-center">
                 <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />

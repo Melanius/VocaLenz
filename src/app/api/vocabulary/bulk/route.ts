@@ -6,7 +6,7 @@ import { generateExpressionData } from '@/lib/expression-generator'
 import { evaluateWithGatekeeper } from '@/lib/gatekeeper'
 import { logEvent } from '@/lib/event-logger'
 
-const MAX_VOCABULARY_SIZE = 100
+const MAX_VOCABULARY_SIZE = 2000
 
 export async function POST(request: NextRequest) {
   try {
@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
 
     const remaining = MAX_VOCABULARY_SIZE - (currentCount || 0)
     if (remaining <= 0) {
-      return new Response(JSON.stringify({ error: `${listName}가 가득 찼습니다. (최대 100개)` }), {
+      return new Response(JSON.stringify({ error: `${listName}가 가득 찼습니다. (최대 2000개)` }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' },
       })

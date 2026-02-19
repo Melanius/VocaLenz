@@ -80,6 +80,7 @@ export interface UserVocabulary {
   word_id: string
   is_memorized: boolean
   needs_review: boolean
+  memo: string
   added_at: string
   word?: Word  // joined
 }
@@ -193,6 +194,7 @@ export interface UserExpression {
   expression_id: string
   is_memorized: boolean
   needs_review: boolean
+  memo: string
   added_at: string
   expression?: Expression  // joined
 }

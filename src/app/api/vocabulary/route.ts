@@ -3,7 +3,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { logEvent } from '@/lib/event-logger'
 
-const MAX_VOCABULARY_SIZE = 100
+const MAX_VOCABULARY_SIZE = 2000
 
 export async function GET() {
   try {
@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
 
     if (count !== null && count >= MAX_VOCABULARY_SIZE) {
       return NextResponse.json(
-        { error: '단어장이 가득 찼습니다. (최대 100개)' },
+        { error: '단어장이 가득 찼습니다. (최대 2000개)' },
         { status: 400 }
       )
     }
@@ -156,15 +156,16 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
     }
 
-    const { vocabularyId, is_memorized, needs_review, sessionId } = await request.json()
+    const { vocabularyId, is_memorized, needs_review, memo, sessionId } = await request.json()
 
     if (!vocabularyId) {
       return NextResponse.json({ error: '잘못된 요청입니다.' }, { status: 400 })
     }
 
-    const updateData: Record<string, boolean> = {}
+    const updateData: Record<string, boolean | string> = {}
     if (typeof is_memorized === 'boolean') updateData.is_memorized = is_memorized
     if (typeof needs_review === 'boolean') updateData.needs_review = needs_review
+    if (typeof memo === 'string') updateData.memo = memo
 
     if (Object.keys(updateData).length === 0) {
       return NextResponse.json({ error: '잘못된 요청입니다.' }, { status: 400 })

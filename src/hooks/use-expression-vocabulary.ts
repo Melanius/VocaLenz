@@ -5,7 +5,7 @@ import { useAuthContext } from '@/components/providers/auth-provider'
 import { getSessionId } from '@/lib/session'
 import type { UserExpression } from '@/types/database'
 
-const MAX_EXPRESSION_SIZE = 100
+const MAX_EXPRESSION_SIZE = 2000
 
 export function useExpressionVocabulary() {
   const { user } = useAuthContext()
@@ -48,7 +48,7 @@ export function useExpressionVocabulary() {
     async (expressionId: string): Promise<{ success: boolean; message: string }> => {
       if (!user) return { success: false, message: '로그인이 필요합니다.' }
       if (expressionIdSet.size >= MAX_EXPRESSION_SIZE) {
-        return { success: false, message: '표현 단어장이 가득 찼습니다. (최대 100개)' }
+        return { success: false, message: '표현 단어장이 가득 찼습니다. (최대 2000개)' }
       }
 
       try {
@@ -122,6 +122,23 @@ export function useExpressionVocabulary() {
     []
   )
 
+  const updateMemo = useCallback(async (userExpressionId: string, memo: string) => {
+    try {
+      const res = await fetch('/api/vocabulary/expressions', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userExpressionId, memo }),
+      })
+      if (res.ok) {
+        setExpressionItems((prev) =>
+          prev.map((v) => v.id === userExpressionId ? { ...v, memo } : v)
+        )
+      }
+    } catch {
+      // silent fail
+    }
+  }, [])
+
   return {
     expressionItems,
     expressionIdSet,
@@ -131,6 +148,7 @@ export function useExpressionVocabulary() {
     addToExpressionVocabulary,
     removeFromExpressionVocabulary,
     toggleMemorized,
+    updateMemo,
     refresh: fetchExpressions,
   }
 }

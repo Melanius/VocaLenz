@@ -1,6 +1,7 @@
 'use client'
 
-import { Check, CheckCircle2, Eye, RotateCcw, Trash2 } from 'lucide-react'
+import { useState } from 'react'
+import { Check, CheckCircle2, Eye, RotateCcw, Trash2, StickyNote } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { formatAddedDate } from '@/lib/date-utils'
 import type { UserExpression } from '@/types/database'
@@ -36,6 +37,7 @@ interface Props {
   onToggleMemorized: (item: UserExpression) => void
   onToggleReview: (item: UserExpression) => void
   onDelete: (item: UserExpression) => void
+  onMemoUpdate: (id: string, memo: string) => void
 }
 
 export function ExpressionFlipCard({
@@ -46,7 +48,9 @@ export function ExpressionFlipCard({
   onToggleMemorized,
   onToggleReview,
   onDelete,
+  onMemoUpdate,
 }: Props) {
+  const [memoValue, setMemoValue] = useState(item.memo || '')
   const expr = item.expression
   if (!expr) return null
   const levelConfig = LEVEL_CONFIG[expr.difficulty_level] || LEVEL_CONFIG[2]
@@ -93,9 +97,17 @@ export function ExpressionFlipCard({
             )}
           </div>
 
-          <p className="text-xs text-muted-foreground text-center animate-pulse">
-            탭하여 뜻 확인
-          </p>
+          {/* 하단: 메모 or 힌트 */}
+          {item.memo ? (
+            <div className="flex items-center gap-1 min-w-0">
+              <StickyNote className="h-3 w-3 text-amber-500 flex-shrink-0" />
+              <p className="text-xs text-amber-700 dark:text-amber-400 truncate">{item.memo}</p>
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground text-center animate-pulse">
+              탭하여 뜻 확인
+            </p>
+          )}
         </div>
 
         {/* 뒷면 */}
@@ -180,6 +192,31 @@ export function ExpressionFlipCard({
             >
               <Trash2 className="h-3.5 w-3.5" />
             </Button>
+          </div>
+
+          {/* 메모 입력 */}
+          <div className="mt-2 pt-2 border-t border-dashed border-border" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-1.5 mb-1">
+              <StickyNote className="h-3 w-3 text-amber-500" />
+              <span className="text-xs text-muted-foreground font-medium">메모</span>
+            </div>
+            <input
+              type="text"
+              value={memoValue}
+              onChange={(e) => setMemoValue(e.target.value)}
+              onBlur={() => {
+                if (memoValue !== (item.memo || '')) {
+                  onMemoUpdate(item.id, memoValue)
+                }
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.currentTarget.blur()
+                }
+              }}
+              placeholder="메모를 입력하세요 (예: test-4 청해)"
+              className="w-full text-xs px-2.5 py-1.5 rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-amber-400"
+            />
           </div>
         </div>
       </div>

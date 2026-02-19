@@ -5,7 +5,7 @@ import { useAuthContext } from '@/components/providers/auth-provider'
 import { getSessionId } from '@/lib/session'
 import type { UserVocabulary } from '@/types/database'
 
-const MAX_VOCABULARY_SIZE = 100
+const MAX_VOCABULARY_SIZE = 2000
 
 export function useVocabulary() {
   const { user } = useAuthContext()
@@ -48,7 +48,7 @@ export function useVocabulary() {
     async (wordId: string): Promise<{ success: boolean; message: string }> => {
       if (!user) return { success: false, message: '로그인이 필요합니다.' }
       if (wordIdSet.size >= MAX_VOCABULARY_SIZE) {
-        return { success: false, message: '단어장이 가득 찼습니다. (최대 100개)' }
+        return { success: false, message: '단어장이 가득 찼습니다. (최대 2000개)' }
       }
 
       try {
@@ -122,6 +122,23 @@ export function useVocabulary() {
     []
   )
 
+  const updateMemo = useCallback(async (vocabId: string, memo: string) => {
+    try {
+      const res = await fetch('/api/vocabulary', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ vocabularyId: vocabId, memo }),
+      })
+      if (res.ok) {
+        setVocabularyItems((prev) =>
+          prev.map((v) => v.id === vocabId ? { ...v, memo } : v)
+        )
+      }
+    } catch {
+      // silent fail
+    }
+  }, [])
+
   return {
     vocabularyItems,
     wordIdSet,
@@ -131,6 +148,7 @@ export function useVocabulary() {
     addToVocabulary,
     removeFromVocabulary,
     toggleMemorized,
+    updateMemo,
     refresh: fetchVocabulary,
   }
 }

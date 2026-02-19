@@ -121,7 +121,7 @@ export function Header() {
           ) : user ? (
             <div className="flex items-center gap-1.5">
               {dDay && (
-                <span className="text-[11px] font-semibold text-primary bg-primary/10 rounded-full px-2 py-0.5 hidden sm:inline-block">
+                <span className="text-xs font-bold text-primary bg-primary/10 border border-primary/25 rounded-md px-2.5 py-1 inline-flex items-center leading-none tracking-wide">
                   {dDay}
                 </span>
               )}

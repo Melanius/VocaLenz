@@ -2,13 +2,14 @@
 
 import { useState, useCallback, useRef } from 'react'
 import Link from 'next/link'
-import { Brain, Loader2, RotateCcw, BookOpen, Trophy, XCircle, CheckCircle2, Shuffle, RefreshCw } from 'lucide-react'
+import { Brain, Loader2, RotateCcw, BookOpen, Trophy, XCircle, CheckCircle2, Shuffle, RefreshCw, Headphones } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { useAuthContext } from '@/components/providers/auth-provider'
 import { toast } from '@/hooks/use-toast'
 import { getSessionId } from '@/lib/session'
 
+type QuizType = 'word' | 'expression'
 type QuizState = 'idle' | 'loading' | 'playing' | 'result'
 
 interface QuizQuestionData {
@@ -29,6 +30,7 @@ interface AnswerRecord {
 
 export default function QuizPage() {
   const { user, loading: authLoading } = useAuthContext()
+  const [quizType, setQuizType] = useState<QuizType>('word')
   const [state, setState] = useState<QuizState>('idle')
   const [questionCount, setQuestionCount] = useState<number>(10)
   const [totalWords, setTotalWords] = useState<number>(0)
@@ -69,7 +71,7 @@ export default function QuizPage() {
     setState('loading')
     try {
       const sid = getSessionId()
-      let url = `/api/quiz?count=${questionCount}&source=${source}&sessionId=${sid}`
+      let url = `/api/quiz?count=${questionCount}&source=${source}&sessionId=${sid}&quizType=${quizType}`
       if (sourceHistory && historyDate) {
         url += `&historyDate=${historyDate}`
         if (historyDateMode === 'range' && historyDateTo) {
@@ -99,7 +101,7 @@ export default function QuizPage() {
       setState('idle')
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [questionCount, sourceUnmemorized, sourceMemorized, sourceHistory, historyDate, historyDateMode, historyDateTo])
+  }, [quizType, questionCount, sourceUnmemorized, sourceMemorized, sourceHistory, historyDate, historyDateMode, historyDateTo])
 
   const handleAnswer = (index: number) => {
     if (showFeedback || selectedIndex !== null) return
@@ -122,7 +124,6 @@ export default function QuizPage() {
         setShowFeedback(false)
         questionStartTime.current = Date.now()
       } else {
-        // 퀴즈 완료 → 결과 전송
         sendQuizComplete(newAnswers)
         setState('result')
       }
@@ -165,12 +166,10 @@ export default function QuizPage() {
     setReviewMarked(new Set())
   }
 
-  const markForReview = async (wordId: string, vocabId: string) => {
+  const markForReview = async (wordId: string) => {
     try {
-      const res = await fetch('/api/vocabulary', {
+      const res = await fetch(`/api/vocabulary/review?wordId=${wordId}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ vocabularyId: vocabId, needs_review: true }),
       })
       if (res.ok) {
         setReviewMarked((prev) => new Set(prev).add(wordId))
@@ -184,7 +183,6 @@ export default function QuizPage() {
   const markAllForReview = async (wrongAnswers: AnswerRecord[]) => {
     for (const a of wrongAnswers) {
       if (!reviewMarked.has(a.question.wordId)) {
-        // vocabId를 모르므로 word_id 기반 API 호출
         try {
           const res = await fetch(`/api/vocabulary/review?wordId=${a.question.wordId}`, {
             method: 'PATCH',
@@ -197,7 +195,7 @@ export default function QuizPage() {
         }
       }
     }
-    toast({ title: '복습 표시 완료', description: '틀린 단어 모두 복습 표시되었습니다.' })
+    toast({ title: '복습 표시 완료', description: '틀린 항목 모두 복습 표시되었습니다.' })
   }
 
   // --- 인증 로딩 ---
@@ -215,7 +213,7 @@ export default function QuizPage() {
       <div className="flex-1 flex items-center justify-center">
         <div className="text-center space-y-4">
           <Brain className="h-12 w-12 mx-auto text-muted-foreground" />
-          <h2 className="text-xl font-semibold">퀴즈로 단어 실력을 점검해 보세요</h2>
+          <h2 className="text-xl font-semibold">퀴즈로 실력을 점검해 보세요</h2>
           <p className="text-muted-foreground">
             로그인하면 내 단어장을 기반으로<br />
             4지선다 퀴즈를 풀 수 있어요.
@@ -223,7 +221,7 @@ export default function QuizPage() {
           <ul className="text-sm text-muted-foreground space-y-1">
             <li>영어 → 한국어 퀴즈</li>
             <li>같은 품사 오답으로 실전 감각 UP</li>
-            <li>틀린 단어 즉시 확인 가능</li>
+            <li>틀린 항목 즉시 확인 가능</li>
           </ul>
           <Button asChild>
             <Link href="/auth/login">로그인하고 시작하기</Link>
@@ -281,13 +279,13 @@ export default function QuizPage() {
             </CardContent>
           </Card>
 
-          {/* 틀린 단어 */}
+          {/* 틀린 항목 */}
           {wrongAnswers.length > 0 && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold flex items-center gap-2">
                   <XCircle className="h-5 w-5 text-red-500" />
-                  틀린 단어 ({wrongAnswers.length}개)
+                  틀린 {quizType === 'expression' ? '구문' : '단어'} ({wrongAnswers.length}개)
                 </h3>
                 <Button
                   variant="outline"
@@ -320,17 +318,7 @@ export default function QuizPage() {
                           variant="ghost"
                           size="sm"
                           className="text-orange-500 hover:text-orange-600 shrink-0"
-                          onClick={() => {
-                            // word_id 기반 복습 표시
-                            fetch(`/api/vocabulary/review?wordId=${a.question.wordId}`, {
-                              method: 'PATCH',
-                            }).then((res) => {
-                              if (res.ok) {
-                                setReviewMarked((prev) => new Set(prev).add(a.question.wordId))
-                                toast({ title: '복습 표시 완료' })
-                              }
-                            })
-                          }}
+                          onClick={() => markForReview(a.question.wordId)}
                         >
                           <RefreshCw className="h-3 w-3 mr-1" />
                           복습 표시
@@ -377,7 +365,14 @@ export default function QuizPage() {
           <div className="space-y-2">
             <div className="flex justify-between text-sm text-muted-foreground">
               <span>{currentIndex + 1} / {questions.length}</span>
-              <span>영어 → 한국어</span>
+              <span className="flex items-center gap-1">
+                {quizType === 'expression' ? (
+                  <><Headphones className="h-3.5 w-3.5" /> 청해 구문</>
+                ) : (
+                  <><BookOpen className="h-3.5 w-3.5" /> 단어</>
+                )}
+                {' → 한국어'}
+              </span>
             </div>
             <div className="h-2 bg-muted rounded-full overflow-hidden">
               <div
@@ -391,7 +386,7 @@ export default function QuizPage() {
           <Card>
             <CardContent className="p-8 text-center">
               <p className="text-sm text-muted-foreground mb-2">
-                다음 단어의 뜻은?
+                다음 {quizType === 'expression' ? '구문' : '단어'}의 뜻은?
               </p>
               <p className="text-3xl font-bold">{current.question}</p>
             </CardContent>
@@ -443,19 +438,51 @@ export default function QuizPage() {
   }
 
   // --- idle: 퀴즈 설정 ---
+  const isExpression = quizType === 'expression'
+  const listName = isExpression ? 'Lenz 픽' : 'Voca 리스트'
+
   return (
     <div className="flex-1 overflow-y-auto p-4 md:p-6">
       <div className="max-w-md mx-auto space-y-6">
         <div className="text-center space-y-2">
           <Brain className="h-10 w-10 mx-auto text-primary" />
-          <h1 className="text-2xl font-bold">단어 퀴즈</h1>
+          <h1 className="text-2xl font-bold">퀴즈</h1>
           <p className="text-muted-foreground text-sm">
-            단어장의 단어로 실력을 테스트해 보세요
+            저장한 항목으로 실력을 테스트해 보세요
           </p>
         </div>
 
         <Card>
           <CardContent className="p-6 space-y-5">
+            {/* 퀴즈 유형 */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">퀴즈 유형</label>
+              <div className="inline-flex items-center rounded-xl bg-muted p-0.5 w-full">
+                <button
+                  onClick={() => setQuizType('word')}
+                  className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                    quizType === 'word'
+                      ? 'bg-background shadow-sm text-foreground'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <BookOpen className="h-4 w-4" />
+                  단어 퀴즈
+                </button>
+                <button
+                  onClick={() => setQuizType('expression')}
+                  className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                    quizType === 'expression'
+                      ? 'bg-indigo-50 dark:bg-indigo-950/50 shadow-sm text-indigo-700 dark:text-indigo-300'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <Headphones className="h-4 w-4" />
+                  청해 구문 퀴즈
+                </button>
+              </div>
+            </div>
+
             {/* 문제 수 슬라이더 */}
             <div className="space-y-2">
               <label className="text-sm font-medium">문제 수</label>
@@ -483,7 +510,7 @@ export default function QuizPage() {
                     onChange={(e) => setSourceUnmemorized(e.target.checked)}
                     className="rounded border-gray-300 text-primary focus:ring-primary"
                   />
-                  <span className="text-sm">단어장 미암기 단어</span>
+                  <span className="text-sm">{listName} 미암기 {isExpression ? '구문' : '단어'}</span>
                 </label>
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
@@ -492,7 +519,7 @@ export default function QuizPage() {
                     onChange={(e) => setSourceMemorized(e.target.checked)}
                     className="rounded border-gray-300 text-primary focus:ring-primary"
                   />
-                  <span className="text-sm">단어장 암기완료 단어</span>
+                  <span className="text-sm">{listName} 암기완료 {isExpression ? '구문' : '단어'}</span>
                 </label>
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
@@ -501,7 +528,7 @@ export default function QuizPage() {
                     onChange={(e) => setSourceHistory(e.target.checked)}
                     className="rounded border-gray-300 text-primary focus:ring-primary"
                   />
-                  <span className="text-sm">검색 이력 단어</span>
+                  <span className="text-sm">검색 이력 {isExpression ? '구문' : '단어'}</span>
                 </label>
                 {sourceHistory && (
                   <div className="ml-6 space-y-2">
@@ -529,7 +556,7 @@ export default function QuizPage() {
                     </div>
                     {historyDateMode === 'single' ? (
                       <div>
-                        <label className="text-xs text-muted-foreground">이 날짜에 검색한 단어</label>
+                        <label className="text-xs text-muted-foreground">이 날짜에 검색한 {isExpression ? '구문' : '단어'}</label>
                         <input
                           type="date"
                           value={historyDate}
@@ -563,6 +590,13 @@ export default function QuizPage() {
                 )}
               </div>
             </div>
+
+            {/* 총 단어 수 표시 (퀴즈 직전) */}
+            {totalWords > 0 && (
+              <p className="text-xs text-muted-foreground text-center">
+                범위 내 {isExpression ? '구문' : '단어'}: {totalWords}개
+              </p>
+            )}
 
             {/* 시작 버튼 */}
             <Button

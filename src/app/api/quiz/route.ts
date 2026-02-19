@@ -23,6 +23,12 @@ type WordRow = {
   meanings: string[]
 }
 
+type ExpressionRow = {
+  id: string
+  expression: string
+  meanings: string[]
+}
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createServerSupabaseClient()
@@ -38,147 +44,277 @@ export async function GET(request: NextRequest) {
     const historyDate = searchParams.get('historyDate') || ''
     const historyDateTo = searchParams.get('historyDateTo') || ''
     const sessionId = searchParams.get('sessionId') || ''
+    const quizType = searchParams.get('quizType') || 'word'
     const sources = sourceParam.split(',').filter(Boolean)
 
-    // 1. 소스별 단어 수집
-    const collectedWords: WordRow[] = []
-    const seenIds = new Set<string>()
-
-    const addWords = (words: WordRow[]) => {
-      for (const w of words) {
-        if (!seenIds.has(w.id)) {
-          seenIds.add(w.id)
-          collectedWords.push(w)
-        }
-      }
+    if (quizType === 'expression') {
+      return handleExpressionQuiz({ user, count, sources, historyDate, historyDateTo, sessionId, sourceParam })
     }
 
-    if (sources.includes('unmemorized')) {
-      const { data } = await supabaseAdmin
-        .from('user_vocabulary')
-        .select('word:words(id, word, part_of_speech, meanings)')
-        .eq('user_id', user.id)
-        .eq('is_memorized', false)
-
-      const words = (data || [])
-        .map((v: Record<string, unknown>) => v.word)
-        .filter((w): w is WordRow => w !== null && w !== undefined)
-      addWords(words)
-    }
-
-    if (sources.includes('memorized')) {
-      const { data } = await supabaseAdmin
-        .from('user_vocabulary')
-        .select('word:words(id, word, part_of_speech, meanings)')
-        .eq('user_id', user.id)
-        .eq('is_memorized', true)
-
-      const words = (data || [])
-        .map((v: Record<string, unknown>) => v.word)
-        .filter((w): w is WordRow => w !== null && w !== undefined)
-      addWords(words)
-    }
-
-    if (sources.includes('history') && historyDate) {
-      let query = supabaseAdmin
-        .from('user_word_history')
-        .select('word:words(id, word, part_of_speech, meanings)')
-        .eq('user_id', user.id)
-        .gte('searched_at', historyDate)
-
-      if (historyDateTo) {
-        // 종료일의 다음 날 자정까지 포함
-        query = query.lt('searched_at', historyDateTo + 'T23:59:59.999Z')
-      }
-
-      const { data } = await query
-
-      const words = (data || [])
-        .map((v: Record<string, unknown>) => v.word)
-        .filter((w): w is WordRow => w !== null && w !== undefined)
-      addWords(words)
-    }
-
-    // 2. 단어 4개 미만 체크
-    if (collectedWords.length < 4) {
-      return NextResponse.json(
-        { error: '선택한 범위에 단어가 4개 이상 필요합니다. 범위를 넓혀 주세요.' },
-        { status: 400 }
-      )
-    }
-
-    // 3. 랜덤 선택 (정답 단어)
-    const shuffledVocab = shuffleArray(collectedWords)
-    const questionWords = shuffledVocab.slice(0, Math.min(count, shuffledVocab.length))
-
-    // 4. 오답 후보 전체 조회 (words 테이블에서)
-    const questionWordIds = questionWords.map((w) => w.id)
-    const { data: allWords } = await supabaseAdmin
-      .from('words')
-      .select('id, word, part_of_speech, meanings')
-
-    const candidateWords = (allWords || []).filter(
-      (w: { id: string }) => !questionWordIds.includes(w.id)
-    ) as WordRow[]
-
-    // 5. 문제 생성 (en2ko 고정)
-    const questions = questionWords.map((correctWord) => {
-      const samePOS = candidateWords.filter(
-        (w) => w.part_of_speech && w.part_of_speech === correctWord.part_of_speech && w.id !== correctWord.id
-      )
-      const diffPOS = candidateWords.filter(
-        (w) => w.part_of_speech !== correctWord.part_of_speech && w.id !== correctWord.id
-      )
-
-      const shuffledSame = shuffleArray(samePOS)
-      const shuffledDiff = shuffleArray(diffPOS)
-
-      const wrongAnswers: WordRow[] = []
-      for (const w of shuffledSame) {
-        if (wrongAnswers.length >= 3) break
-        wrongAnswers.push(w)
-      }
-      for (const w of shuffledDiff) {
-        if (wrongAnswers.length >= 3) break
-        wrongAnswers.push(w)
-      }
-
-      const allOptions = [correctWord, ...wrongAnswers]
-      const shuffledOptions = shuffleArray(allOptions)
-      const correctIndex = shuffledOptions.findIndex((w) => w.id === correctWord.id)
-
-      const question = correctWord.word
-      const options = shuffledOptions.map((w) => stripPOS(w.meanings[0] || w.word))
-
-      return {
-        id: crypto.randomUUID(),
-        wordId: correctWord.id,
-        type: 'en2ko' as const,
-        question,
-        options,
-        correctIndex,
-      }
-    })
-
-    if (sessionId) {
-      logEvent({
-        sessionId,
-        userId: user.id,
-        page: '/quiz',
-        action: 'quiz_start',
-        metadata: {
-          count: questions.length,
-          source: sourceParam,
-          ...(historyDate && { historyDate }),
-        },
-      })
-    }
-
-    return NextResponse.json({
-      questions,
-      totalWords: collectedWords.length,
-    })
+    return handleWordQuiz({ user, count, sources, historyDate, historyDateTo, sessionId, sourceParam })
   } catch {
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 })
   }
+}
+
+async function handleWordQuiz({
+  user, count, sources, historyDate, historyDateTo, sessionId, sourceParam,
+}: {
+  user: { id: string }
+  count: number
+  sources: string[]
+  historyDate: string
+  historyDateTo: string
+  sessionId: string
+  sourceParam: string
+}) {
+  const collectedWords: WordRow[] = []
+  const seenIds = new Set<string>()
+
+  const addWords = (words: WordRow[]) => {
+    for (const w of words) {
+      if (!seenIds.has(w.id)) {
+        seenIds.add(w.id)
+        collectedWords.push(w)
+      }
+    }
+  }
+
+  if (sources.includes('unmemorized')) {
+    const { data } = await supabaseAdmin
+      .from('user_vocabulary')
+      .select('word:words(id, word, part_of_speech, meanings)')
+      .eq('user_id', user.id)
+      .eq('is_memorized', false)
+
+    const words = (data || [])
+      .map((v: Record<string, unknown>) => v.word)
+      .filter((w): w is WordRow => w !== null && w !== undefined)
+    addWords(words)
+  }
+
+  if (sources.includes('memorized')) {
+    const { data } = await supabaseAdmin
+      .from('user_vocabulary')
+      .select('word:words(id, word, part_of_speech, meanings)')
+      .eq('user_id', user.id)
+      .eq('is_memorized', true)
+
+    const words = (data || [])
+      .map((v: Record<string, unknown>) => v.word)
+      .filter((w): w is WordRow => w !== null && w !== undefined)
+    addWords(words)
+  }
+
+  if (sources.includes('history') && historyDate) {
+    let query = supabaseAdmin
+      .from('user_word_history')
+      .select('word:words(id, word, part_of_speech, meanings)')
+      .eq('user_id', user.id)
+      .gte('searched_at', historyDate)
+
+    if (historyDateTo) {
+      query = query.lt('searched_at', historyDateTo + 'T23:59:59.999Z')
+    }
+
+    const { data } = await query
+
+    const words = (data || [])
+      .map((v: Record<string, unknown>) => v.word)
+      .filter((w): w is WordRow => w !== null && w !== undefined)
+    addWords(words)
+  }
+
+  if (collectedWords.length < 4) {
+    return NextResponse.json(
+      { error: '선택한 범위에 단어가 4개 이상 필요합니다. 범위를 넓혀 주세요.' },
+      { status: 400 }
+    )
+  }
+
+  const shuffledVocab = shuffleArray(collectedWords)
+  const questionWords = shuffledVocab.slice(0, Math.min(count, shuffledVocab.length))
+
+  const questionWordIds = questionWords.map((w) => w.id)
+  const { data: allWords } = await supabaseAdmin
+    .from('words')
+    .select('id, word, part_of_speech, meanings')
+
+  const candidateWords = (allWords || []).filter(
+    (w: { id: string }) => !questionWordIds.includes(w.id)
+  ) as WordRow[]
+
+  const questions = questionWords.map((correctWord) => {
+    const samePOS = candidateWords.filter(
+      (w) => w.part_of_speech && w.part_of_speech === correctWord.part_of_speech && w.id !== correctWord.id
+    )
+    const diffPOS = candidateWords.filter(
+      (w) => w.part_of_speech !== correctWord.part_of_speech && w.id !== correctWord.id
+    )
+
+    const shuffledSame = shuffleArray(samePOS)
+    const shuffledDiff = shuffleArray(diffPOS)
+
+    const wrongAnswers: WordRow[] = []
+    for (const w of shuffledSame) {
+      if (wrongAnswers.length >= 3) break
+      wrongAnswers.push(w)
+    }
+    for (const w of shuffledDiff) {
+      if (wrongAnswers.length >= 3) break
+      wrongAnswers.push(w)
+    }
+
+    const allOptions = [correctWord, ...wrongAnswers]
+    const shuffledOptions = shuffleArray(allOptions)
+    const correctIndex = shuffledOptions.findIndex((w) => w.id === correctWord.id)
+
+    return {
+      id: crypto.randomUUID(),
+      wordId: correctWord.id,
+      type: 'en2ko' as const,
+      question: correctWord.word,
+      options: shuffledOptions.map((w) => stripPOS(w.meanings[0] || w.word)),
+      correctIndex,
+    }
+  })
+
+  if (sessionId) {
+    logEvent({
+      sessionId,
+      userId: user.id,
+      page: '/quiz',
+      action: 'quiz_start',
+      metadata: {
+        quizType: 'word',
+        count: questions.length,
+        source: sourceParam,
+        ...(historyDate && { historyDate }),
+      },
+    })
+  }
+
+  return NextResponse.json({ questions, totalWords: collectedWords.length })
+}
+
+async function handleExpressionQuiz({
+  user, count, sources, historyDate, historyDateTo, sessionId, sourceParam,
+}: {
+  user: { id: string }
+  count: number
+  sources: string[]
+  historyDate: string
+  historyDateTo: string
+  sessionId: string
+  sourceParam: string
+}) {
+  const collectedExprs: ExpressionRow[] = []
+  const seenIds = new Set<string>()
+
+  const addExprs = (exprs: ExpressionRow[]) => {
+    for (const e of exprs) {
+      if (!seenIds.has(e.id)) {
+        seenIds.add(e.id)
+        collectedExprs.push(e)
+      }
+    }
+  }
+
+  if (sources.includes('unmemorized')) {
+    const { data } = await supabaseAdmin
+      .from('user_expression_vocabulary')
+      .select('expression:expressions(id, expression, meanings)')
+      .eq('user_id', user.id)
+      .eq('is_memorized', false)
+
+    const exprs = (data || [])
+      .map((v: Record<string, unknown>) => v.expression)
+      .filter((e): e is ExpressionRow => e !== null && e !== undefined)
+    addExprs(exprs)
+  }
+
+  if (sources.includes('memorized')) {
+    const { data } = await supabaseAdmin
+      .from('user_expression_vocabulary')
+      .select('expression:expressions(id, expression, meanings)')
+      .eq('user_id', user.id)
+      .eq('is_memorized', true)
+
+    const exprs = (data || [])
+      .map((v: Record<string, unknown>) => v.expression)
+      .filter((e): e is ExpressionRow => e !== null && e !== undefined)
+    addExprs(exprs)
+  }
+
+  if (sources.includes('history') && historyDate) {
+    let query = supabaseAdmin
+      .from('user_expression_history')
+      .select('expression:expressions(id, expression, meanings)')
+      .eq('user_id', user.id)
+      .gte('searched_at', historyDate)
+
+    if (historyDateTo) {
+      query = query.lt('searched_at', historyDateTo + 'T23:59:59.999Z')
+    }
+
+    const { data } = await query
+
+    const exprs = (data || [])
+      .map((v: Record<string, unknown>) => v.expression)
+      .filter((e): e is ExpressionRow => e !== null && e !== undefined)
+    addExprs(exprs)
+  }
+
+  if (collectedExprs.length < 4) {
+    return NextResponse.json(
+      { error: '선택한 범위에 청해 구문이 4개 이상 필요합니다. 범위를 넓혀 주세요.' },
+      { status: 400 }
+    )
+  }
+
+  const shuffledExprs = shuffleArray(collectedExprs)
+  const questionExprs = shuffledExprs.slice(0, Math.min(count, shuffledExprs.length))
+
+  const questionExprIds = questionExprs.map((e) => e.id)
+  const { data: allExprs } = await supabaseAdmin
+    .from('expressions')
+    .select('id, expression, meanings')
+
+  const candidateExprs = (allExprs || []).filter(
+    (e: { id: string }) => !questionExprIds.includes(e.id)
+  ) as ExpressionRow[]
+
+  const questions = questionExprs.map((correctExpr) => {
+    const wrongAnswers = shuffleArray(candidateExprs).slice(0, 3)
+
+    const allOptions = [correctExpr, ...wrongAnswers]
+    const shuffledOptions = shuffleArray(allOptions)
+    const correctIndex = shuffledOptions.findIndex((e) => e.id === correctExpr.id)
+
+    return {
+      id: crypto.randomUUID(),
+      wordId: correctExpr.id,
+      type: 'en2ko' as const,
+      question: correctExpr.expression,
+      options: shuffledOptions.map((e) => stripPOS(e.meanings[0] || e.expression)),
+      correctIndex,
+    }
+  })
+
+  if (sessionId) {
+    logEvent({
+      sessionId,
+      userId: user.id,
+      page: '/quiz',
+      action: 'quiz_start',
+      metadata: {
+        quizType: 'expression',
+        count: questions.length,
+        source: sourceParam,
+        ...(historyDate && { historyDate }),
+      },
+    })
+  }
+
+  return NextResponse.json({ questions, totalWords: collectedExprs.length })
 }

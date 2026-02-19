@@ -8,14 +8,12 @@ export interface SearchHistoryItem {
   query: string
   result: SearchResult
   timestamp: number
-  autoRouted?: boolean
-  actualMode?: string
 }
 
 interface SearchContextType {
   history: SearchHistoryItem[]
   addToHistory: (query: string, result: SearchResult) => string
-  updateHistoryItem: (id: string, result: SearchResult, meta?: { autoRouted?: boolean; actualMode?: string }) => void
+  updateHistoryItem: (id: string, result: SearchResult) => void
   clearHistory: () => void
   scrollToItem: (id: string) => void
   searchCount: number
@@ -40,9 +38,9 @@ export function SearchProvider({ children }: { children: React.ReactNode }) {
     return item.id
   }, [])
 
-  const updateHistoryItem = useCallback((id: string, result: SearchResult, meta?: { autoRouted?: boolean; actualMode?: string }) => {
+  const updateHistoryItem = useCallback((id: string, result: SearchResult) => {
     setHistory((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, result, ...meta } : item))
+      prev.map((item) => (item.id === id ? { ...item, result } : item))
     )
   }, [])
 

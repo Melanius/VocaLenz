@@ -131,9 +131,9 @@ export function CardCustomizer() {
                 htmlFor="auto-save-vocab"
                 className="text-sm cursor-pointer font-medium"
               >
-                자동 단어장 추가
+                자동 저장 (Voca 리스트 / Lenz 픽)
               </Label>
-              <p className="text-xs text-muted-foreground mt-0.5">검색한 단어를 단어장에 자동 저장</p>
+              <p className="text-xs text-muted-foreground mt-0.5">검색 결과를 해당 리스트에 자동 저장</p>
             </div>
           </div>
 

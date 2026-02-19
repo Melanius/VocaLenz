@@ -15,7 +15,30 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '20')
     const offset = (page - 1) * limit
+    const type = searchParams.get('type') || 'word'
 
+    if (type === 'expression') {
+      const { data, error, count } = await supabaseAdmin
+        .from('user_expression_history')
+        .select('*, expression:expressions(*)', { count: 'exact' })
+        .eq('user_id', user.id)
+        .order('searched_at', { ascending: false })
+        .range(offset, offset + limit - 1)
+
+      if (error) {
+        return NextResponse.json({ error: '이력 조회에 실패했습니다.' }, { status: 500 })
+      }
+
+      return NextResponse.json({
+        items: data,
+        total: count,
+        page,
+        limit,
+        hasMore: count !== null && offset + limit < count,
+      })
+    }
+
+    // Default: word history
     const { data, error, count } = await supabaseAdmin
       .from('user_word_history')
       .select('*, word:words(*)', { count: 'exact' })

@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { BookOpen, Star, Loader2, Upload, Search, Calendar, X } from 'lucide-react'
+import { BookOpen, Headphones, Star, Loader2, Upload, Search, Calendar, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -64,6 +64,7 @@ export default function VocabularyPage() {
 
   // 업로드 상태
   const [uploadOpen, setUploadOpen] = useState(false)
+  const [uploadTarget, setUploadTarget] = useState<'word' | 'expression'>('word')
   const [parsedWords, setParsedWords] = useState<string[]>([])
   const [filteredOutCount, setFilteredOutCount] = useState(0)
   const [uploading, setUploading] = useState(false)
@@ -156,7 +157,7 @@ export default function VocabularyPage() {
         body: JSON.stringify({ vocabularyId: item.id }),
       })
       if (res.ok) {
-        toast({ title: '삭제 완료', description: '단어장에서 제거되었습니다.' })
+        toast({ title: '삭제 완료', description: 'Voca 리스트에서 제거되었습니다.' })
         refresh()
       }
     } catch {
@@ -226,7 +227,7 @@ export default function VocabularyPage() {
         body: JSON.stringify({ userExpressionId: item.id }),
       })
       if (res.ok) {
-        toast({ title: '삭제 완료', description: '표현 단어장에서 제거되었습니다.' })
+        toast({ title: '삭제 완료', description: 'Lenz 픽에서 제거되었습니다.' })
         refreshExpr()
       }
     } catch {
@@ -316,9 +317,11 @@ export default function VocabularyPage() {
   const handleBulkUpload = async () => {
     if (parsedWords.length === 0) return
 
-    const remaining = 100 - count
+    const currentCount = uploadTarget === 'word' ? count : exprCount
+    const remaining = 100 - currentCount
+    const listName = uploadTarget === 'word' ? 'Voca 리스트' : 'Lenz 픽'
     if (remaining <= 0) {
-      toast({ title: '오류', description: '단어장이 가득 찼습니다.', variant: 'destructive' })
+      toast({ title: '오류', description: `${listName}가 가득 찼습니다.`, variant: 'destructive' })
       return
     }
 
@@ -331,7 +334,7 @@ export default function VocabularyPage() {
       const res = await fetch('/api/vocabulary/bulk', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ words: wordsToUpload }),
+        body: JSON.stringify({ words: wordsToUpload, uploadType: uploadTarget }),
       })
 
       if (!res.ok) {
@@ -385,7 +388,8 @@ export default function VocabularyPage() {
         }
       }
 
-      refresh()
+      if (uploadTarget === 'word') refresh()
+      else refreshExpr()
     } catch {
       toast({ title: '오류', description: '업로드에 실패했습니다.', variant: 'destructive' })
     } finally {
@@ -409,45 +413,49 @@ export default function VocabularyPage() {
           <div>
             <h1 className="text-2xl font-bold">내 단어장</h1>
             <p className="text-muted-foreground text-sm mt-1">
-              {vocabTab === 'words' ? `${count}/100 단어` : `${exprCount}/100 표현`}
+              {vocabTab === 'words' ? `Voca 리스트 ${count}/100` : `Lenz 픽 ${exprCount}/100`}
             </p>
           </div>
-          {vocabTab === 'words' && (
-            <Button
-              variant="outline"
-              size="icon"
-              className="h-10 w-10 rounded-full"
-              onClick={() => { resetUpload(); setUploadOpen(true) }}
-              aria-label="단어 일괄 추가"
-            >
-              <Upload className="h-4 w-4" />
-            </Button>
-          )}
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-10 w-10 rounded-full"
+            onClick={() => {
+              resetUpload()
+              setUploadTarget(vocabTab === 'words' ? 'word' : 'expression')
+              setUploadOpen(true)
+            }}
+            aria-label="일괄 추가"
+          >
+            <Upload className="h-4 w-4" />
+          </Button>
         </div>
 
-        {/* 단어/표현 탭 토글 */}
-        <div className="inline-flex items-center rounded-lg bg-muted p-0.5">
+        {/* Voca 리스트 / Lenz 픽 탭 토글 */}
+        <div className="inline-flex items-center rounded-xl bg-muted p-0.5">
           <button
             type="button"
             onClick={() => setVocabTab('words')}
-            className={`rounded-md px-4 py-1.5 text-sm font-medium transition-all ${
+            className={`flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-sm font-medium transition-all ${
               vocabTab === 'words'
                 ? 'bg-background text-foreground shadow-sm'
                 : 'text-muted-foreground hover:text-foreground'
             }`}
           >
-            단어 ({count})
+            <BookOpen className="h-3.5 w-3.5 shrink-0" />
+            Voca 리스트 ({count})
           </button>
           <button
             type="button"
             onClick={() => setVocabTab('expressions')}
-            className={`rounded-md px-4 py-1.5 text-sm font-medium transition-all ${
+            className={`flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-sm font-medium transition-all ${
               vocabTab === 'expressions'
                 ? 'bg-background text-foreground shadow-sm'
                 : 'text-muted-foreground hover:text-foreground'
             }`}
           >
-            표현 ({exprCount})
+            <Headphones className="h-3.5 w-3.5 shrink-0" />
+            Lenz 픽 ({exprCount})
           </button>
         </div>
 
@@ -576,11 +584,11 @@ export default function VocabularyPage() {
               <p className="text-muted-foreground">
                 {filter !== 'all'
                   ? '해당 필터에 맞는 단어가 없습니다.'
-                  : '아직 단어장에 추가한 단어가 없습니다.'}
+                  : 'Voca 리스트에 추가한 단어가 없습니다.'}
               </p>
               {filter === 'all' && (
                 <p className="text-sm text-muted-foreground">
-                  검색 결과에서 버튼을 눌러 단어를 추가하세요.
+                  &ldquo;단어&rdquo; 모드로 검색 후 자동 저장되거나, 일괄 업로드를 이용하세요.
                 </p>
               )}
             </div>
@@ -612,12 +620,12 @@ export default function VocabularyPage() {
               <Star className="h-10 w-10 mx-auto text-muted-foreground" />
               <p className="text-muted-foreground">
                 {filter !== 'all'
-                  ? '해당 필터에 맞는 표현이 없습니다.'
-                  : '아직 단어장에 추가한 표현이 없습니다.'}
+                  ? '해당 필터에 맞는 구문이 없습니다.'
+                  : 'Lenz 픽에 추가한 청해 구문이 없습니다.'}
               </p>
               {filter === 'all' && (
                 <p className="text-sm text-muted-foreground">
-                  검색 탭에서 &ldquo;표현&rdquo; 모드로 검색 후 추가하세요.
+                  &ldquo;청해 구문&rdquo; 모드로 검색 후 자동 저장되거나, 일괄 업로드를 이용하세요.
                 </p>
               )}
             </div>
@@ -662,7 +670,7 @@ export default function VocabularyPage() {
       >
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{detailExpression ? '표현 상세' : '단어 상세'}</DialogTitle>
+            <DialogTitle>{detailExpression ? 'Lenz 픽 상세' : '단어 상세'}</DialogTitle>
           </DialogHeader>
           {detailLoading ? (
             <DetailLoading />
@@ -674,12 +682,42 @@ export default function VocabularyPage() {
         </DialogContent>
       </Dialog>
 
-      {/* 단어 일괄 추가 다이얼로그 */}
+      {/* 일괄 추가 다이얼로그 */}
       <Dialog open={uploadOpen} onOpenChange={(open) => { if (!open && !uploading) { setUploadOpen(false); resetUpload() } }}>
         <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>단어 일괄 추가</DialogTitle>
+            <DialogTitle>일괄 추가</DialogTitle>
           </DialogHeader>
+
+          {/* 목적지 선택 토글 (업로드 중이 아닐 때) */}
+          {!uploading && !uploadResult && (
+            <div className="flex items-center rounded-xl bg-muted p-0.5 mb-1">
+              <button
+                type="button"
+                onClick={() => setUploadTarget('word')}
+                className={`flex items-center justify-center gap-1.5 flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-all ${
+                  uploadTarget === 'word'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <BookOpen className="h-3.5 w-3.5" />
+                Voca 리스트
+              </button>
+              <button
+                type="button"
+                onClick={() => setUploadTarget('expression')}
+                className={`flex items-center justify-center gap-1.5 flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-all ${
+                  uploadTarget === 'expression'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Headphones className="h-3.5 w-3.5" />
+                Lenz 픽
+              </button>
+            </div>
+          )}
 
           {uploadResult ? (
             // 완료 결과
@@ -703,7 +741,7 @@ export default function VocabularyPage() {
               <div className="text-center">
                 <Loader2 className="h-8 w-8 mx-auto animate-spin text-primary mb-2" />
                 <p className="text-sm text-muted-foreground">
-                  {parsedWords.length}개의 단어를 추가하고 있어요. 조금만 기다려 주세요!
+                  {parsedWords.length}개 항목을 {uploadTarget === 'word' ? 'Voca 리스트' : 'Lenz 픽'}에 추가하고 있어요.
                 </p>
               </div>
               {uploadProgress.length > 0 && (
@@ -726,7 +764,7 @@ export default function VocabularyPage() {
                         <span className="font-mono shrink-0">{p.word}</span>
                         <span className="text-xs text-muted-foreground truncate">
                           {p.status === 'added' ? '추가 완료' :
-                           p.status === 'skipped' ? '이미 단어장에 있음' :
+                           p.status === 'skipped' ? `이미 ${uploadTarget === 'word' ? 'Voca 리스트' : 'Lenz 픽'}에 있음` :
                            p.status === 'generating' ? '생성 중...' :
                            p.status === 'failed' ? (
                              p.correction
@@ -744,13 +782,14 @@ export default function VocabularyPage() {
             // 파싱 결과 확인
             <div className="space-y-4">
               <div className="text-sm text-muted-foreground">
-                <p>{parsedWords.length}개 영단어를 찾았습니다.</p>
+                <p>{parsedWords.length}개 영단어/구문을 찾았습니다.</p>
                 {filteredOutCount > 0 && (
                   <p className="text-orange-500">{filteredOutCount}개 비영어 항목은 제외되었습니다.</p>
                 )}
-                {100 - count < parsedWords.length && (
+                {(uploadTarget === 'word' ? 100 - count : 100 - exprCount) < parsedWords.length && (
                   <p className="text-orange-500">
-                    단어장 잔여 용량({100 - count}개)만큼만 추가됩니다.
+                    {uploadTarget === 'word' ? 'Voca 리스트' : 'Lenz 픽'} 잔여 용량(
+                    {uploadTarget === 'word' ? 100 - count : 100 - exprCount}개)만큼만 추가됩니다.
                   </p>
                 )}
               </div>
@@ -766,7 +805,7 @@ export default function VocabularyPage() {
                   다시 선택
                 </Button>
                 <Button className="flex-1" onClick={handleBulkUpload}>
-                  추가하기
+                  {uploadTarget === 'word' ? 'Voca 리스트에 추가' : 'Lenz 픽에 추가'}
                 </Button>
               </div>
             </div>
@@ -774,7 +813,7 @@ export default function VocabularyPage() {
             // 파일 선택
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                Excel 또는 CSV 파일의 A열에 영단어를 넣어주세요. (최대 50개)
+                Excel 또는 CSV 파일의 A열에 영단어/구문을 넣어주세요. (최대 50개)
               </p>
               <div className="border-2 border-dashed rounded-lg p-8 text-center">
                 <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />

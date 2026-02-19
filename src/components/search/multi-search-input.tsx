@@ -74,10 +74,7 @@ export function MultiSearchInput({ onSearchStart, autoFocus = false, compact = f
           return
         }
 
-        updateHistoryItem(itemId, data.result, {
-          autoRouted: data.autoRouted,
-          actualMode: data.actualMode,
-        })
+        updateHistoryItem(itemId, data.result)
       } catch {
         updateHistoryItem(itemId, {
           type: 'error',
@@ -99,7 +96,7 @@ export function MultiSearchInput({ onSearchStart, autoFocus = false, compact = f
           <Input
             ref={inputRef}
             type="text"
-            placeholder={searchType === 'expression' ? '영어 표현을 검색하세요...' : '영어 단어를 검색하세요...'}
+            placeholder={searchType === 'expression' ? '청해 구문을 검색하세요...' : '영어 단어를 검색하세요...'}
             value={queries[0]}
             onChange={(e) => updateQuery(0, e.target.value)}
             maxLength={100}
@@ -141,7 +138,7 @@ export function MultiSearchInput({ onSearchStart, autoFocus = false, compact = f
             <Input
               ref={i === 0 ? inputRef : undefined}
               type="text"
-              placeholder={searchType === 'expression' ? `표현 ${i + 1}` : `단어 ${i + 1}`}
+              placeholder={searchType === 'expression' ? `구문 ${i + 1}` : `단어 ${i + 1}`}
               value={queries[i]}
               onChange={(e) => updateQuery(i, e.target.value)}
               maxLength={100}

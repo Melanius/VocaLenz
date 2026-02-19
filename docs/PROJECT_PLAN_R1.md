@@ -2146,6 +2146,94 @@ Step 8.1 → 8.2 → 8.3 → 8.4 → `pnpm build` 검증 → Step 8.5 (수동 QA
 
 ---
 
+## ✅ Phase 15: 청해 구문(Expression) 기능 전면 확장 + UX 리브랜딩 (완료)
+
+**날짜:** 2026-02-19
+
+### Step 15.1: 청해 구문 검색 기능 추가 ✅
+- `expressions` 테이블 및 `user_expression_vocabulary`, `user_expression_history` 테이블 신설
+- Gatekeeper: `PHRASE` 상태 추가 (청해 구문 판별)
+- `generateExpressionData()`: GPT-4o-mini로 청해 카드 생성
+  - 필드: `expression`, `meanings`, `description`, `teps_point`, `context`, `pronunciation_tip`, `listening_parts`, `paraphrasing`, `comparisons`, `example_sentence`, `example_translation`, `difficulty_level`
+- 검색 API(`/api/words/search`): `mode` 파라미터 기반 분기 처리
+  - `word` 모드 → `words` 테이블, `expression` 모드 → `expressions` 테이블 (cross-table 검색 완전 제거)
+- `ExpressionCard` 컴포넌트 신설
+- `SearchMode: 'word' | 'expression'` 타입 정의
+
+**신규 파일:** `src/db/migrations/002_add_expressions.sql`, `src/components/search/expression-card.tsx`
+
+**커밋:** `413736a`, `641665e`, `76baee7`
+
+### Step 15.2: UX 개선 6종 ✅
+- 사이드바(모바일) 토글 버튼 추가
+- 푸터 정보 보강 (Instagram, Contact 링크)
+- 온보딩 모달 개선
+- D-day 표시 (TEPS 시험일 카운트다운)
+- 다크모드 테마 수정
+
+**커밋:** `d54ec8f`
+
+### Step 15.3: 신규 회원 온보딩 플로우 ✅
+- `OnboardingModal` 신설: 첫 로그인 시 5단계 가이드 모달
+  - 슬라이드 1: VocaLenz 소개
+  - 슬라이드 2: 단어 & 청해 구문 검색 안내
+  - 슬라이드 3: AI 학습 카드 안내
+  - 슬라이드 4: Voca 리스트 / Lenz 픽 안내
+  - 슬라이드 5: 퀴즈 & 이력 안내
+- `onboarding_completed` 필드로 중복 표시 방지
+- 우측 하단 고정 버튼으로 재열람 가능
+
+**신규 파일:** `src/components/onboarding/onboarding-modal.tsx`
+
+**커밋:** `eb67897`
+
+### Step 15.4: 네이밍 표준화 (Voca 리스트 / Lenz 픽) ✅
+- `단어 보관함` → **Voca 리스트** (`user_vocabulary` ↔ `words`)
+- `숙어 보관함` → **Lenz 픽** (`user_expression_vocabulary` ↔ `expressions`)
+- 검색 탭1: **단어 (Word)** / 검색 탭2: **청해 구문 (Phrase)**
+- 자동 저장 설정 레이블: `자동 저장 (Voca 리스트 / Lenz 픽)`
+
+### Step 15.5: SearchTypeToggle 리디자인 ✅
+- 기존 텍스트 토글 → BookOpen / Headphones 아이콘 + 2라인 레이아웃
+- 청해 구문 모드 활성 시: 인디고 배경(`bg-indigo-100/70`) 강조
+- compact 모드: 아이콘 + 축약 텍스트
+
+**수정 파일:** `src/app/(main)/page.tsx`
+
+### Step 15.6: 단어장 탭 리디자인 + 청해 구문 Bulk 업로드 ✅
+- Vocabulary 페이지 탭: **Voca 리스트** / **Lenz 픽** (BookOpen / Headphones 아이콘)
+- 업로드 대상 선택 토글: Voca 리스트 vs Lenz 픽
+- Bulk upload API(`/api/vocabulary/bulk`): `uploadType: 'word' | 'expression'` 파라미터 추가
+  - `expression` 타입: `expressions` 테이블 + `generateExpressionData()` + `user_expression_vocabulary`
+  - `logEvent` 액션: `lenz_pick_bulk` vs `voca_list_bulk`
+
+**수정 파일:** `src/app/(main)/vocabulary/page.tsx`, `src/app/api/vocabulary/bulk/route.ts`
+
+### Step 15.7: 검색 이력 - 청해 구문 탭 추가 ✅
+- `/api/history`: `type` 파라미터 추가 (`word` | `expression`)
+  - `expression` → `user_expression_history` JOIN `expressions`
+- History 페이지: **단어 / 청해 구문 탭** (각 탭 독립 페이지네이션)
+- 청해 구문 이력: Headphones 아이콘 + `ExpressionCard` 확장 표시
+- 청해 구문 탭 활성 시 인디고 강조 스타일
+
+**수정 파일:** `src/app/(main)/history/page.tsx`, `src/app/api/history/route.ts`
+
+### Step 15.8: 퀴즈 - 청해 구문 퀴즈 추가 ✅
+- Quiz 설정 화면 최상단에 **퀴즈 유형 선택기** 추가
+  - 단어 퀴즈 (BookOpen) / 청해 구문 퀴즈 (Headphones)
+- 퀴즈 범위 레이블 동적 변경: `Voca 리스트` vs `Lenz 픽`, `단어` vs `구문`
+- `/api/quiz`: `quizType: 'word' | 'expression'` 파라미터 추가
+  - `expression`: `user_expression_vocabulary`, `user_expression_history` 소스
+  - 오답 후보: `expressions` 테이블 전체 활용
+  - 문제 형식: expression → Korean meaning (en2ko)
+- 퀴즈 진행 화면: 유형별 아이콘/레이블 표시
+
+**수정 파일:** `src/app/(main)/quiz/page.tsx`, `src/app/api/quiz/route.ts`
+
+**수정 파일 전체:** `src/app/api/words/search/route.ts`, `src/components/search/search-results.tsx`, `src/contexts/search-context.tsx`, `src/components/search/multi-search-input.tsx`, `src/components/search/card-customizer.tsx`, `src/components/onboarding/onboarding-modal.tsx`
+
+---
+
 ## 개발 완료 후 운영 체크리스트
 
 | 항목 | 내용 | 상태 |

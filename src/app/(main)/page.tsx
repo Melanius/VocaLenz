@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useEffect, useState, useCallback } from 'react'
-import { History, ChevronDown, Loader2, X } from 'lucide-react'
+import { History, ChevronDown, Loader2, X, BookOpen, Headphones } from 'lucide-react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
@@ -171,10 +171,7 @@ export default function SearchPage() {
         return
       }
 
-      updateHistoryItem(itemId, data.result, {
-        autoRouted: data.autoRouted,
-        actualMode: data.actualMode,
-      })
+      updateHistoryItem(itemId, data.result)
 
       // 자동 단어장 저장
       if (preferences.autoSaveToVocabulary && user) {
@@ -246,7 +243,7 @@ export default function SearchPage() {
               <RecommendedWords onSearchWord={handleSearchWord} />
 
               <p className="text-xs text-muted-foreground text-center max-w-md mx-auto">
-                AI가 입력을 분석하여 정확한 {searchType === 'expression' ? '표현' : '단어'} 학습 카드를 생성합니다
+                AI가 입력을 분석하여 {searchType === 'expression' ? '청해 학습 카드 (Lenz 픽 자동 저장)' : '독해 학습 카드 (Voca 리스트 자동 저장)'}를 생성합니다
               </p>
             </div>
           </div>
@@ -262,8 +259,6 @@ export default function SearchPage() {
                     query={item.query}
                     result={item.result}
                     onSearchWord={handleSearchWord}
-                    autoRouted={item.autoRouted}
-                    actualMode={item.actualMode}
                   />
                 </div>
               ))}
@@ -437,33 +432,62 @@ function SearchTypeToggle({
   onChange: (mode: SearchMode) => void
   compact?: boolean
 }) {
+  const isExpression = value === 'expression'
+
   return (
-    <div className={`inline-flex items-center rounded-lg bg-muted p-0.5 ${compact ? '' : 'mx-auto flex justify-center'}`}>
+    <div
+      className={`inline-flex items-center rounded-xl p-0.5 transition-colors duration-300 ${
+        compact ? '' : 'mx-auto flex justify-center'
+      } ${
+        isExpression
+          ? 'bg-indigo-100/70 dark:bg-indigo-950/50'
+          : 'bg-muted'
+      }`}
+    >
+      {/* 단어 (Word) */}
       <button
         type="button"
         onClick={() => onChange('word')}
-        className={`rounded-md px-3 text-sm font-medium transition-all ${
-          compact ? 'py-1' : 'py-1.5'
+        className={`flex items-center gap-1.5 rounded-lg transition-all ${
+          compact ? 'px-2.5 py-1' : 'px-3 py-1.5'
         } ${
           value === 'word'
             ? 'bg-background text-foreground shadow-sm'
             : 'text-muted-foreground hover:text-foreground'
         }`}
       >
-        단어
+        <BookOpen className={compact ? 'h-3.5 w-3.5 shrink-0' : 'h-4 w-4 shrink-0'} />
+        {compact ? (
+          <span className="text-sm font-medium">단어</span>
+        ) : (
+          <div className="flex flex-col items-start leading-none">
+            <span className="text-sm font-semibold">단어</span>
+            <span className="text-[10px] opacity-60 font-normal mt-0.5">Word</span>
+          </div>
+        )}
       </button>
+
+      {/* 청해 구문 (Phrase) */}
       <button
         type="button"
         onClick={() => onChange('expression')}
-        className={`rounded-md px-3 text-sm font-medium transition-all ${
-          compact ? 'py-1' : 'py-1.5'
+        className={`flex items-center gap-1.5 rounded-lg transition-all ${
+          compact ? 'px-2.5 py-1' : 'px-3 py-1.5'
         } ${
           value === 'expression'
             ? 'bg-background text-foreground shadow-sm'
             : 'text-muted-foreground hover:text-foreground'
         }`}
       >
-        표현
+        <Headphones className={compact ? 'h-3.5 w-3.5 shrink-0' : 'h-4 w-4 shrink-0'} />
+        {compact ? (
+          <span className="text-sm font-medium">청해구문</span>
+        ) : (
+          <div className="flex flex-col items-start leading-none">
+            <span className="text-sm font-semibold">청해 구문</span>
+            <span className="text-[10px] opacity-60 font-normal mt-0.5">Phrase</span>
+          </div>
+        )}
       </button>
     </div>
   )

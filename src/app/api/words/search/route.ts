@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
     const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || request.headers.get('x-real-ip') || null
     const ua = request.headers.get('user-agent') || null
 
-    // 1. 요청 모드의 DB 조회
+    // 1. 요청 모드의 DB 조회 (모드에 해당하는 테이블만 조회)
     if (mode === 'word') {
       const { data: existingWord } = await supabaseAdmin
         .from('words')
@@ -83,7 +83,6 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({
           result: { type: 'word', data: transformWord(existingWord) } as SearchResult,
           remaining: rateLimit.remaining - 1,
-          autoRouted: false,
           actualMode: 'word',
         })
       }
@@ -104,138 +103,114 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({
           result: { type: 'expression', data: transformExpression(existingExpr) } as SearchResult,
           remaining: rateLimit.remaining - 1,
-          autoRouted: false,
           actualMode: 'expression',
         })
       }
     }
 
-    // 2. 반대 테이블도 조회 (이미 다른 카테고리에 있을 수 있음)
-    if (mode === 'word') {
-      const { data: crossExpr } = await supabaseAdmin
-        .from('expressions')
-        .select('*')
-        .eq('expression', normalized)
-        .eq('exam_type', 'TEPS')
-        .single()
-
-      if (crossExpr) {
-        await supabaseAdmin.from('expressions').update({ search_count: (crossExpr.search_count || 0) + 1 }).eq('id', crossExpr.id)
-        await logSearch(sessionId, userId, normalized, 'PHRASE', ip, ua)
-        if (userId) await saveUserExpressionHistory(userId, crossExpr.id)
-
-        return NextResponse.json({
-          result: { type: 'expression', data: transformExpression(crossExpr) } as SearchResult,
-          remaining: rateLimit.remaining - 1,
-          autoRouted: true,
-          actualMode: 'expression',
-        })
-      }
-    } else {
-      const { data: crossWord } = await supabaseAdmin
-        .from('words')
-        .select('*')
-        .eq('word', normalized)
-        .eq('exam_type', 'TEPS')
-        .single()
-
-      if (crossWord) {
-        await supabaseAdmin.rpc('increment_search_count', { word_id: crossWord.id })
-        await logSearch(sessionId, userId, normalized, 'WORD', ip, ua)
-        if (userId) await saveUserWordHistory(userId, crossWord.id)
-
-        return NextResponse.json({
-          result: { type: 'word', data: transformWord(crossWord) } as SearchResult,
-          remaining: rateLimit.remaining - 1,
-          autoRouted: true,
-          actualMode: 'word',
-        })
-      }
-    }
-
-    // 3. Gatekeeper 평가
+    // 2. Gatekeeper 평가
     const gatekeeperResult = await evaluateWithGatekeeper(normalized)
     await logSearch(sessionId, userId, normalized, gatekeeperResult.status, ip, ua)
     logEvent({ sessionId, userId, page: '/search', action: 'search', metadata: { input: normalized, status: gatekeeperResult.status, mode, ip, ua } })
 
-    // 4. Gatekeeper 결과에 따른 처리
+    // 3. Gatekeeper 결과에 따른 처리 (저장 테이블은 mode가 결정)
     switch (gatekeeperResult.status) {
-      case 'WORD': {
-        const wordData = await generateWordData(normalized)
-        const { data: savedWord, error: saveError } = await supabaseAdmin
-          .from('words')
-          .upsert({
-            word: normalized,
-            exam_type: 'TEPS',
-            part_of_speech: wordData.part_of_speech,
-            pronunciation: wordData.pronunciation,
-            meanings: wordData.meanings,
-            image_text: wordData.image_text,
-            description: wordData.description,
-            description_en: wordData.description_en,
-            teps_point: wordData.teps_point,
-            synonyms: wordData.synonyms,
-            antonyms: wordData.antonyms,
-            comparisons: wordData.comparisons,
-            paraphrasing: wordData.paraphrasing,
-            example_sentence: wordData.example_sentence,
-            example_translation: wordData.example_translation,
-            difficulty_level: wordData.difficulty_level,
-            search_count: 1,
-          }, { onConflict: 'word,exam_type', ignoreDuplicates: false })
-          .select()
-          .single()
+      case 'WORD':
+      case 'PHRASE': {
+        // canonical_form: PHRASE의 경우 원형 추출, WORD는 normalized 그대로
+        const canonicalForm = (gatekeeperResult.status === 'PHRASE' && gatekeeperResult.canonical_form)
+          ? gatekeeperResult.canonical_form.toLowerCase().trim()
+          : normalized
 
-        if (saveError) {
-          const { data: retryWord } = await supabaseAdmin
-            .from('words').select('*').eq('word', normalized).eq('exam_type', 'TEPS').single()
-          if (retryWord) {
-            if (userId) await saveUserWordHistory(userId, retryWord.id)
-            return NextResponse.json({
-              result: { type: 'word', data: transformWord(retryWord) },
-              remaining: rateLimit.remaining - 1,
-              autoRouted: mode !== 'word',
-              actualMode: 'word',
-            })
+        // canonical_form이 다를 경우, 모드에 해당하는 테이블에서 재조회
+        if (canonicalForm !== normalized) {
+          if (mode === 'word') {
+            const { data: canonicalWord } = await supabaseAdmin
+              .from('words')
+              .select('*')
+              .eq('word', canonicalForm)
+              .eq('exam_type', 'TEPS')
+              .single()
+
+            if (canonicalWord) {
+              await supabaseAdmin.rpc('increment_search_count', { word_id: canonicalWord.id })
+              if (userId) await saveUserWordHistory(userId, canonicalWord.id)
+              return NextResponse.json({
+                result: { type: 'word', data: transformWord(canonicalWord) } as SearchResult,
+                remaining: rateLimit.remaining - 1,
+                actualMode: 'word',
+              })
+            }
+          } else {
+            const { data: canonicalExpr } = await supabaseAdmin
+              .from('expressions')
+              .select('*')
+              .eq('expression', canonicalForm)
+              .eq('exam_type', 'TEPS')
+              .single()
+
+            if (canonicalExpr) {
+              await supabaseAdmin.from('expressions').update({ search_count: (canonicalExpr.search_count || 0) + 1 }).eq('id', canonicalExpr.id)
+              if (userId) await saveUserExpressionHistory(userId, canonicalExpr.id)
+              return NextResponse.json({
+                result: { type: 'expression', data: transformExpression(canonicalExpr) } as SearchResult,
+                remaining: rateLimit.remaining - 1,
+                actualMode: 'expression',
+              })
+            }
           }
-          throw new Error('단어 저장에 실패했습니다.')
         }
 
-        if (userId && savedWord) await saveUserWordHistory(userId, savedWord.id)
-        return NextResponse.json({
-          result: { type: 'word', data: transformWord(savedWord!) },
-          remaining: rateLimit.remaining - 1,
-          autoRouted: mode !== 'word',
-          actualMode: 'word',
-        })
-      }
-
-      case 'PHRASE': {
-        // canonical_form 추출: gatekeeper가 제공한 핵심 표현 원형 사용
-        const canonicalForm = gatekeeperResult.canonical_form?.toLowerCase().trim() || normalized
-
-        // canonical_form이 normalized와 다르면 DB 재조회 (이미 저장된 표현일 수 있음)
-        if (canonicalForm !== normalized) {
-          const { data: canonicalExpr } = await supabaseAdmin
-            .from('expressions')
-            .select('*')
-            .eq('expression', canonicalForm)
-            .eq('exam_type', 'TEPS')
+        // 단어 모드: words 테이블에 저장 (단어·숙어 모두 독해 컨텍스트 카드로 생성)
+        if (mode === 'word') {
+          const wordData = await generateWordData(canonicalForm)
+          const { data: savedWord, error: saveError } = await supabaseAdmin
+            .from('words')
+            .upsert({
+              word: canonicalForm,
+              exam_type: 'TEPS',
+              part_of_speech: wordData.part_of_speech,
+              pronunciation: wordData.pronunciation,
+              meanings: wordData.meanings,
+              image_text: wordData.image_text,
+              description: wordData.description,
+              description_en: wordData.description_en,
+              teps_point: wordData.teps_point,
+              synonyms: wordData.synonyms,
+              antonyms: wordData.antonyms,
+              comparisons: wordData.comparisons,
+              paraphrasing: wordData.paraphrasing,
+              example_sentence: wordData.example_sentence,
+              example_translation: wordData.example_translation,
+              difficulty_level: wordData.difficulty_level,
+              search_count: 1,
+            }, { onConflict: 'word,exam_type', ignoreDuplicates: false })
+            .select()
             .single()
 
-          if (canonicalExpr) {
-            await supabaseAdmin.from('expressions').update({ search_count: (canonicalExpr.search_count || 0) + 1 }).eq('id', canonicalExpr.id)
-            if (userId) await saveUserExpressionHistory(userId, canonicalExpr.id)
-            return NextResponse.json({
-              result: { type: 'expression', data: transformExpression(canonicalExpr) } as SearchResult,
-              remaining: rateLimit.remaining - 1,
-              autoRouted: mode !== 'expression',
-              actualMode: 'expression',
-            })
+          if (saveError) {
+            const { data: retryWord } = await supabaseAdmin
+              .from('words').select('*').eq('word', canonicalForm).eq('exam_type', 'TEPS').single()
+            if (retryWord) {
+              if (userId) await saveUserWordHistory(userId, retryWord.id)
+              return NextResponse.json({
+                result: { type: 'word', data: transformWord(retryWord) },
+                remaining: rateLimit.remaining - 1,
+                actualMode: 'word',
+              })
+            }
+            throw new Error('단어 저장에 실패했습니다.')
           }
+
+          if (userId && savedWord) await saveUserWordHistory(userId, savedWord.id)
+          return NextResponse.json({
+            result: { type: 'word', data: transformWord(savedWord!) },
+            remaining: rateLimit.remaining - 1,
+            actualMode: 'word',
+          })
         }
 
-        // AI 표현 데이터 생성
+        // 청해 구문 모드: expressions 테이블에 저장 (단어·숙어 모두 청해 컨텍스트 카드로 생성)
         let exprData
         try {
           exprData = await generateExpressionData(canonicalForm)
@@ -244,7 +219,6 @@ export async function POST(request: NextRequest) {
           throw new Error(`표현 생성 실패: ${genError instanceof Error ? genError.message : 'Unknown'}`)
         }
 
-        // DB 저장: insert 시도 → 실패 시 select 폴백
         const { data: savedExpr, error: insertError } = await supabaseAdmin
           .from('expressions')
           .insert({
@@ -267,8 +241,7 @@ export async function POST(request: NextRequest) {
           .single()
 
         if (insertError) {
-          console.error('[PHRASE] insert failed:', canonicalForm, insertError.message)
-          // insert 실패 시 (중복 등) 기존 레코드 조회
+          console.error('[EXPR] insert failed:', canonicalForm, insertError.message)
           const { data: existingExpr } = await supabaseAdmin
             .from('expressions').select('*').eq('expression', canonicalForm).eq('exam_type', 'TEPS').single()
           if (existingExpr) {
@@ -277,7 +250,6 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({
               result: { type: 'expression', data: transformExpression(existingExpr) },
               remaining: rateLimit.remaining - 1,
-              autoRouted: mode !== 'expression',
               actualMode: 'expression',
             })
           }
@@ -288,7 +260,6 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({
           result: { type: 'expression', data: transformExpression(savedExpr!) },
           remaining: rateLimit.remaining - 1,
-          autoRouted: mode !== 'expression',
           actualMode: 'expression',
         })
       }
@@ -298,7 +269,6 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({
           result: { type: 'typo', correction: gatekeeperResult.correction || '', original: normalized } as SearchResult,
           remaining: rateLimit.remaining - 1,
-          autoRouted: false,
           actualMode: mode,
         })
       }
@@ -309,7 +279,6 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({
           result: { type: 'korean', suggestions: (koreanResults || []).map((r: Record<string, unknown>) => transformWord(r)), original: normalized } as SearchResult,
           remaining: rateLimit.remaining - 1,
-          autoRouted: false,
           actualMode: mode,
         })
       }
@@ -320,7 +289,6 @@ export async function POST(request: NextRequest) {
           result: { type: 'low_value', original: normalized } as SearchResult,
           reason: gatekeeperResult.reason,
           remaining: rateLimit.remaining - 1,
-          autoRouted: false,
           actualMode: mode,
         })
       }
@@ -332,7 +300,6 @@ export async function POST(request: NextRequest) {
           result: { type: 'invalid', original: normalized } as SearchResult,
           reason: gatekeeperResult.reason,
           remaining: rateLimit.remaining - 1,
-          autoRouted: false,
           actualMode: mode,
         })
       }

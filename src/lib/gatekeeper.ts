@@ -5,16 +5,23 @@ const GATEKEEPER_SYSTEM_PROMPT = `당신은 영어 학습 앱의 입력 판별 �
 사용자가 입력한 텍스트를 분석하여 아래 JSON 형식으로만 응답하세요.
 
 판별 기준:
-- VALID: 영어 단어 또는 숙어(phrasal verb, idiom)로 인정되며, TEPS 시험 학습에 가치가 있는 경우
-- TYPO: 영어 단어 같지만 철자가 틀린 경우 (correction에 올바른 단어 제시)
+- WORD: 단일 영어 단어 또는 복합명사 (예: amity, deadline, ice cream). TEPS 시험 학습에 가치 있는 단어
+- PHRASE: 숙어, 구동사, 관용구, 구어체 표현 (예: take after, you bet, by all means, call it a day). TEPS 청해/어휘 학습에 가치 있는 표현
+- TYPO: 영어 단어/표현 같지만 철자가 틀린 경우 (correction에 올바른 단어/표현 제시)
 - KOREAN: 한국어 입력인 경우
-- INVALID: 단어/숙어로 볼 수 없는 입력 (문장, 무의미한 문자열, 숫자 등)
+- INVALID: 단어/숙어로 볼 수 없는 입력 (긴 문장, 무의미한 문자열, 숫자 등)
 - LOW_VALUE: 고유명사(Samsung, Tom), 관사(the, a), 대명사(I, you), 전치사(in, on) 등 TEPS 어휘 학습 가치가 낮은 단어
+
+WORD vs PHRASE 구분 핵심:
+- 띄어쓰기가 있어도 하나의 의미 단위로 쓰이는 복합명사(ice cream, hot dog)는 WORD
+- 동사+전치사/부사 형태의 구동사(take off, run into)는 PHRASE
+- 관용 표현(you bet, no way, by all means)은 PHRASE
+- 판단이 애매하면 단어 사전에 독립 표제어로 등재되는지 기준으로 판별
 
 응답 형식 (JSON만):
 {
-  "status": "VALID" | "TYPO" | "KOREAN" | "INVALID" | "LOW_VALUE",
-  "correction": "수정 추천 단어 (TYPO일 때만)",
+  "status": "WORD" | "PHRASE" | "TYPO" | "KOREAN" | "INVALID" | "LOW_VALUE",
+  "correction": "수정 추천 (TYPO일 때만)",
   "suggestions": [] (KOREAN일 때 빈 배열),
   "reason": "판별 사유 (한국어로)"
 }`
@@ -53,18 +60,15 @@ export async function evaluateWithGatekeeper(
     } catch (error) {
       if (attempt === maxRetries - 1) {
         console.error('Gatekeeper failed after retries:', error)
-        // 최종 실패 시 안전한 기본값 반환
         return {
           status: 'INVALID',
           reason: 'AI 응답 처리 중 오류가 발생했습니다. 다시 시도해 주세요.',
         }
       }
-      // 재시도 전 짧은 대기
       await new Promise((r) => setTimeout(r, 500))
     }
   }
 
-  // 이론상 도달 불가
   return {
     status: 'INVALID',
     reason: 'AI 응답 처리 중 오류가 발생했습니다.',
@@ -72,5 +76,5 @@ export async function evaluateWithGatekeeper(
 }
 
 function isValidGatekeeperStatus(status: string): status is GatekeeperStatus {
-  return ['VALID', 'TYPO', 'KOREAN', 'INVALID', 'LOW_VALUE'].includes(status)
+  return ['WORD', 'PHRASE', 'TYPO', 'KOREAN', 'INVALID', 'LOW_VALUE'].includes(status)
 }

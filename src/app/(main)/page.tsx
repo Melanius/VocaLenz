@@ -16,7 +16,7 @@ import { useVocabulary } from '@/hooks/use-vocabulary'
 import { useTheme } from '@/components/providers/theme-provider'
 import { getSessionId } from '@/lib/session'
 import { analytics } from '@/lib/analytics'
-import type { Word } from '@/types/database'
+import type { Word, SearchMode } from '@/types/database'
 
 const SEASON_IMAGES: Record<string, string> = {
   spring: '/video/spring.png',
@@ -77,7 +77,7 @@ function groupByDate(items: DbHistoryItem[]): GroupedHistory[] {
 }
 
 export default function SearchPage() {
-  const { history, addToHistory, updateHistoryItem, scrollToItem } = useSearchContext()
+  const { history, addToHistory, updateHistoryItem, scrollToItem, searchType, setSearchType } = useSearchContext()
   const { user } = useAuthContext()
   const { preferences } = useDisplayPreferences()
   const { isInVocabulary, addToVocabulary } = useVocabulary()
@@ -146,16 +146,17 @@ export default function SearchPage() {
     }
   }, [history])
 
-  const handleSearchWord = async (word: string) => {
+  const handleSearchWord = async (word: string, modeOverride?: SearchMode) => {
     setHistoryOpen(false)
     const itemId = addToHistory(word, { type: 'loading', message: '검색 중...' })
+    const mode = modeOverride || searchType
 
     try {
       const sessionId = getSessionId()
       const response = await fetch('/api/words/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ input: word, sessionId }),
+        body: JSON.stringify({ input: word, sessionId, mode }),
       })
 
       const data = await response.json()
@@ -168,9 +169,12 @@ export default function SearchPage() {
         return
       }
 
-      updateHistoryItem(itemId, data.result)
+      updateHistoryItem(itemId, data.result, {
+        autoRouted: data.autoRouted,
+        actualMode: data.actualMode,
+      })
 
-      // 자동 단어장 저장
+      // 자동 단어장 저장 (단어 타입만)
       if (
         data.result.type === 'word' &&
         preferences.autoSaveToVocabulary &&
@@ -187,9 +191,9 @@ export default function SearchPage() {
     }
   }
 
-  // 최근 검색 단어 (word 타입만, 최신 5개)
+  // 최근 검색 단어/표현 (word/expression 타입, 최신 5개)
   const recentWords = history
-    .filter((item) => item.result.type === 'word')
+    .filter((item) => item.result.type === 'word' || item.result.type === 'expression')
     .slice(-5)
     .reverse()
 
@@ -220,6 +224,9 @@ export default function SearchPage() {
             </div>
 
             <div className="w-full max-w-2xl space-y-6">
+              {/* 단어/표현 탭 토글 */}
+              <SearchTypeToggle value={searchType} onChange={setSearchType} />
+
               {/* 검색 입력 + 카드 설정 */}
               <div className="flex items-center gap-2">
                 <div className="flex-1">
@@ -232,7 +239,7 @@ export default function SearchPage() {
               <RecommendedWords onSearchWord={handleSearchWord} />
 
               <p className="text-xs text-muted-foreground text-center max-w-md mx-auto">
-                AI가 입력을 분석하여 정확한 단어 학습 카드를 생성합니다
+                AI가 입력을 분석하여 정확한 {searchType === 'expression' ? '표현' : '단어'} 학습 카드를 생성합니다
               </p>
             </div>
           </div>
@@ -248,6 +255,8 @@ export default function SearchPage() {
                     query={item.query}
                     result={item.result}
                     onSearchWord={handleSearchWord}
+                    autoRouted={item.autoRouted}
+                    actualMode={item.actualMode}
                   />
                 </div>
               ))}
@@ -271,6 +280,7 @@ export default function SearchPage() {
                 </div>
               )}
               <div className="flex items-center gap-2">
+                <SearchTypeToggle value={searchType} onChange={setSearchType} compact />
                 <div className="flex-1">
                   <MultiSearchInput compact />
                 </div>
@@ -407,6 +417,47 @@ export default function SearchPage() {
           </div>
         </SheetContent>
       </Sheet>
+    </div>
+  )
+}
+
+function SearchTypeToggle({
+  value,
+  onChange,
+  compact = false,
+}: {
+  value: SearchMode
+  onChange: (mode: SearchMode) => void
+  compact?: boolean
+}) {
+  return (
+    <div className={`inline-flex items-center rounded-lg bg-muted p-0.5 ${compact ? '' : 'mx-auto flex justify-center'}`}>
+      <button
+        type="button"
+        onClick={() => onChange('word')}
+        className={`rounded-md px-3 text-sm font-medium transition-all ${
+          compact ? 'py-1' : 'py-1.5'
+        } ${
+          value === 'word'
+            ? 'bg-background text-foreground shadow-sm'
+            : 'text-muted-foreground hover:text-foreground'
+        }`}
+      >
+        단어
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange('expression')}
+        className={`rounded-md px-3 text-sm font-medium transition-all ${
+          compact ? 'py-1' : 'py-1.5'
+        } ${
+          value === 'expression'
+            ? 'bg-background text-foreground shadow-sm'
+            : 'text-muted-foreground hover:text-foreground'
+        }`}
+      >
+        표현
+      </button>
     </div>
   )
 }

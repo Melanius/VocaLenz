@@ -18,11 +18,14 @@ import {
 } from '@/components/ui/popover'
 import { useAuthContext } from '@/components/providers/auth-provider'
 import { useVocabulary } from '@/hooks/use-vocabulary'
+import { useExpressionVocabulary } from '@/hooks/use-expression-vocabulary'
 import { toast } from '@/hooks/use-toast'
 import { WordCard } from '@/components/search/word-card'
+import { ExpressionCard } from '@/components/search/expression-card'
 import { VocabularyFlipCard } from '@/components/vocabulary/vocabulary-flip-card'
+import { ExpressionFlipCard } from '@/components/vocabulary/expression-flip-card'
 import { getRandomPhrase, type LoadingPhrase } from '@/lib/loading-phrases'
-import type { UserVocabulary, Word } from '@/types/database'
+import type { UserVocabulary, UserExpression, Word, Expression } from '@/types/database'
 
 type FilterType = 'all' | 'not-memorized' | 'memorized' | 'needs-review'
 
@@ -42,15 +45,20 @@ interface BulkComplete {
   failed: number
 }
 
+type VocabTab = 'words' | 'expressions'
+
 export default function VocabularyPage() {
   const router = useRouter()
   const { user, loading: authLoading } = useAuthContext()
   const { vocabularyItems, count, loading, toggleMemorized, refresh } = useVocabulary()
+  const { expressionItems, count: exprCount, loading: exprLoading, toggleMemorized: toggleExprMemorized, refresh: refreshExpr } = useExpressionVocabulary()
+  const [vocabTab, setVocabTab] = useState<VocabTab>('words')
   const [filter, setFilter] = useState<FilterType>('all')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [datePopoverOpen, setDatePopoverOpen] = useState(false)
   const [detailWord, setDetailWord] = useState<Word | null>(null)
+  const [detailExpression, setDetailExpression] = useState<Expression | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [flippedCards, setFlippedCards] = useState<Set<string>>(new Set())
 
@@ -94,6 +102,20 @@ export default function VocabularyPage() {
       return true
     })
   }, [vocabularyItems, filter, dateFrom, dateTo, hasDateFilter])
+
+  const filteredExpressions = useMemo(() => {
+    return expressionItems.filter((item) => {
+      if (filter === 'memorized' && !item.is_memorized) return false
+      if (filter === 'not-memorized' && item.is_memorized) return false
+      if (filter === 'needs-review' && !item.needs_review) return false
+      if (hasDateFilter && item.added_at) {
+        const addedDate = item.added_at.slice(0, 10)
+        if (dateFrom && addedDate < dateFrom) return false
+        if (dateTo && addedDate > dateTo) return false
+      }
+      return true
+    })
+  }, [expressionItems, filter, dateFrom, dateTo, hasDateFilter])
 
   const clearDateFilter = () => {
     setDateFrom('')
@@ -146,8 +168,20 @@ export default function VocabularyPage() {
     if (!item.word) return
     setDetailLoading(true)
     setDetailWord(null)
+    setDetailExpression(null)
     setTimeout(() => {
       setDetailWord(item.word!)
+      setDetailLoading(false)
+    }, 800)
+  }
+
+  const handleExprDetail = (item: UserExpression) => {
+    if (!item.expression) return
+    setDetailLoading(true)
+    setDetailWord(null)
+    setDetailExpression(null)
+    setTimeout(() => {
+      setDetailExpression(item.expression!)
       setDetailLoading(false)
     }, 800)
   }
@@ -171,6 +205,54 @@ export default function VocabularyPage() {
       })
       if (res.ok) {
         refresh()
+        toast({
+          title: item.needs_review ? '복습 해제' : '복습 표시',
+          description: item.needs_review
+            ? '복습 표시를 해제했습니다.'
+            : '복습 필요로 표시했습니다.',
+        })
+      }
+    } catch {
+      toast({ title: '오류', description: '수정에 실패했습니다.', variant: 'destructive' })
+    }
+  }
+
+  // --- Expression handlers ---
+  const handleExprDelete = async (item: UserExpression) => {
+    try {
+      const res = await fetch('/api/vocabulary/expressions', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userExpressionId: item.id }),
+      })
+      if (res.ok) {
+        toast({ title: '삭제 완료', description: '표현 단어장에서 제거되었습니다.' })
+        refreshExpr()
+      }
+    } catch {
+      toast({ title: '오류', description: '삭제에 실패했습니다.', variant: 'destructive' })
+    }
+  }
+
+  const handleExprToggle = async (item: UserExpression) => {
+    await toggleExprMemorized(item.id, !item.is_memorized)
+    toast({
+      title: item.is_memorized ? '미암기로 변경' : '암기 완료!',
+      description: item.is_memorized
+        ? `"${item.expression?.expression}"을(를) 미암기로 변경했습니다.`
+        : `"${item.expression?.expression}"을(를) 암기 완료로 표시했습니다.`,
+    })
+  }
+
+  const handleExprToggleReview = async (item: UserExpression) => {
+    try {
+      const res = await fetch('/api/vocabulary/expressions', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userExpressionId: item.id, needs_review: !item.needs_review }),
+      })
+      if (res.ok) {
+        refreshExpr()
         toast({
           title: item.needs_review ? '복습 해제' : '복습 표시',
           description: item.needs_review
@@ -327,18 +409,46 @@ export default function VocabularyPage() {
           <div>
             <h1 className="text-2xl font-bold">내 단어장</h1>
             <p className="text-muted-foreground text-sm mt-1">
-              {count}/100 단어
+              {vocabTab === 'words' ? `${count}/100 단어` : `${exprCount}/100 표현`}
             </p>
           </div>
-          <Button
-            variant="outline"
-            size="icon"
-            className="h-10 w-10 rounded-full"
-            onClick={() => { resetUpload(); setUploadOpen(true) }}
-            aria-label="단어 일괄 추가"
+          {vocabTab === 'words' && (
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-10 w-10 rounded-full"
+              onClick={() => { resetUpload(); setUploadOpen(true) }}
+              aria-label="단어 일괄 추가"
+            >
+              <Upload className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+
+        {/* 단어/표현 탭 토글 */}
+        <div className="inline-flex items-center rounded-lg bg-muted p-0.5">
+          <button
+            type="button"
+            onClick={() => setVocabTab('words')}
+            className={`rounded-md px-4 py-1.5 text-sm font-medium transition-all ${
+              vocabTab === 'words'
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
           >
-            <Upload className="h-4 w-4" />
-          </Button>
+            단어 ({count})
+          </button>
+          <button
+            type="button"
+            onClick={() => setVocabTab('expressions')}
+            className={`rounded-md px-4 py-1.5 text-sm font-medium transition-all ${
+              vocabTab === 'expressions'
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            표현 ({exprCount})
+          </button>
         </div>
 
         {/* 필터 버튼 별도 행 */}
@@ -453,41 +563,80 @@ export default function VocabularyPage() {
         </div>
 
         {/* Content */}
-        {loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="h-[180px] bg-muted animate-pulse rounded-xl" />
-            ))}
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="text-center py-16 space-y-3">
-            <Star className="h-10 w-10 mx-auto text-muted-foreground" />
-            <p className="text-muted-foreground">
-              {filter !== 'all'
-                ? '해당 필터에 맞는 단어가 없습니다.'
-                : '아직 단어장에 추가한 단어가 없습니다.'}
-            </p>
-            {filter === 'all' && (
-              <p className="text-sm text-muted-foreground">
-                검색 결과에서 버튼을 눌러 단어를 추가하세요.
+        {vocabTab === 'words' ? (
+          loading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="h-[180px] bg-muted animate-pulse rounded-xl" />
+              ))}
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="text-center py-16 space-y-3">
+              <Star className="h-10 w-10 mx-auto text-muted-foreground" />
+              <p className="text-muted-foreground">
+                {filter !== 'all'
+                  ? '해당 필터에 맞는 단어가 없습니다.'
+                  : '아직 단어장에 추가한 단어가 없습니다.'}
               </p>
-            )}
-          </div>
+              {filter === 'all' && (
+                <p className="text-sm text-muted-foreground">
+                  검색 결과에서 버튼을 눌러 단어를 추가하세요.
+                </p>
+              )}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              {filtered.map((item) => (
+                <VocabularyFlipCard
+                  key={item.id}
+                  item={item}
+                  isFlipped={flippedCards.has(item.id)}
+                  onFlip={() => toggleFlip(item.id)}
+                  onDetail={handleDetail}
+                  onToggleMemorized={handleToggle}
+                  onToggleReview={handleToggleReview}
+                  onDelete={handleDelete}
+                />
+              ))}
+            </div>
+          )
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            {filtered.map((item) => (
-              <VocabularyFlipCard
-                key={item.id}
-                item={item}
-                isFlipped={flippedCards.has(item.id)}
-                onFlip={() => toggleFlip(item.id)}
-                onDetail={handleDetail}
-                onToggleMemorized={handleToggle}
-                onToggleReview={handleToggleReview}
-                onDelete={handleDelete}
-              />
-            ))}
-          </div>
+          exprLoading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="h-[180px] bg-muted animate-pulse rounded-xl" />
+              ))}
+            </div>
+          ) : filteredExpressions.length === 0 ? (
+            <div className="text-center py-16 space-y-3">
+              <Star className="h-10 w-10 mx-auto text-muted-foreground" />
+              <p className="text-muted-foreground">
+                {filter !== 'all'
+                  ? '해당 필터에 맞는 표현이 없습니다.'
+                  : '아직 단어장에 추가한 표현이 없습니다.'}
+              </p>
+              {filter === 'all' && (
+                <p className="text-sm text-muted-foreground">
+                  검색 탭에서 &ldquo;표현&rdquo; 모드로 검색 후 추가하세요.
+                </p>
+              )}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              {filteredExpressions.map((item) => (
+                <ExpressionFlipCard
+                  key={item.id}
+                  item={item}
+                  isFlipped={flippedCards.has(item.id)}
+                  onFlip={() => toggleFlip(item.id)}
+                  onDetail={handleExprDetail}
+                  onToggleMemorized={handleExprToggle}
+                  onToggleReview={handleExprToggleReview}
+                  onDelete={handleExprDelete}
+                />
+              ))}
+            </div>
+          )
         )}
       </div>
 
@@ -502,22 +651,25 @@ export default function VocabularyPage() {
 
       {/* 상세 보기 다이얼로그 */}
       <Dialog
-        open={detailLoading || detailWord !== null}
+        open={detailLoading || detailWord !== null || detailExpression !== null}
         onOpenChange={(open) => {
           if (!open) {
             setDetailWord(null)
+            setDetailExpression(null)
             setDetailLoading(false)
           }
         }}
       >
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>단어 상세</DialogTitle>
+            <DialogTitle>{detailExpression ? '표현 상세' : '단어 상세'}</DialogTitle>
           </DialogHeader>
           {detailLoading ? (
             <DetailLoading />
           ) : detailWord ? (
             <WordCard word={detailWord} showVocabularyButton={false} />
+          ) : detailExpression ? (
+            <ExpressionCard expression={detailExpression} />
           ) : null}
         </DialogContent>
       </Dialog>

@@ -11,7 +11,7 @@ export async function GET() {
     const { data: logs, error: logsError } = await supabaseAdmin
       .from('search_logs')
       .select('word')
-      .eq('gatekeeper_status', 'VALID')
+      .in('gatekeeper_status', ['WORD', 'PHRASE'])
       .gte('searched_at', today.toISOString())
 
     if (logsError) {

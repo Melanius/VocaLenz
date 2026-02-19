@@ -1,10 +1,11 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Search, AlertTriangle, Globe, Ban, MinusCircle, Loader2, AlertCircle, Flag } from 'lucide-react'
+import { Search, AlertTriangle, Globe, Ban, MinusCircle, Loader2, AlertCircle, Flag, ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { WordCard } from './word-card'
+import { ExpressionCard } from './expression-card'
 import { getRandomPhrase, type LoadingPhrase } from '@/lib/loading-phrases'
 import { getSessionId } from '@/lib/session'
 import { useToast } from '@/hooks/use-toast'
@@ -14,9 +15,11 @@ interface SearchResultsProps {
   query: string
   result: SearchResult
   onSearchWord?: (word: string) => void
+  autoRouted?: boolean
+  actualMode?: string
 }
 
-export function SearchResults({ query, result, onSearchWord }: SearchResultsProps) {
+export function SearchResults({ query, result, onSearchWord, autoRouted, actualMode }: SearchResultsProps) {
   return (
     <div className="space-y-3">
       {/* 사용자 검색 버블 */}
@@ -28,6 +31,18 @@ export function SearchResults({ query, result, onSearchWord }: SearchResultsProp
           </div>
         </div>
       </div>
+
+      {/* 자동 라우팅 안내 */}
+      {autoRouted && actualMode && (
+        <div className="flex justify-start">
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-accent/50 rounded-lg px-3 py-1.5">
+            <ArrowRight className="h-3 w-3" />
+            <span>
+              {actualMode === 'expression' ? '표현' : '단어'}으로 자동 분류되었습니다
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* AI 응답 버블 */}
       <div className="flex justify-start">
@@ -52,6 +67,9 @@ function ResultBubble({
 
     case 'word':
       return <WordCard word={result.data} />
+
+    case 'expression':
+      return <ExpressionCard expression={result.data} />
 
     case 'typo':
       return (

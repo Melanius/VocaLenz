@@ -1,28 +1,33 @@
 'use client'
 
 import { createContext, useContext, useState, useCallback, useEffect } from 'react'
-import type { SearchResult } from '@/types/database'
+import type { SearchResult, SearchMode } from '@/types/database'
 
 export interface SearchHistoryItem {
   id: string
   query: string
   result: SearchResult
   timestamp: number
+  autoRouted?: boolean
+  actualMode?: string
 }
 
 interface SearchContextType {
   history: SearchHistoryItem[]
   addToHistory: (query: string, result: SearchResult) => string
-  updateHistoryItem: (id: string, result: SearchResult) => void
+  updateHistoryItem: (id: string, result: SearchResult, meta?: { autoRouted?: boolean; actualMode?: string }) => void
   clearHistory: () => void
   scrollToItem: (id: string) => void
   searchCount: number
+  searchType: SearchMode
+  setSearchType: (mode: SearchMode) => void
 }
 
 const SearchContext = createContext<SearchContextType | undefined>(undefined)
 
 export function SearchProvider({ children }: { children: React.ReactNode }) {
   const [history, setHistory] = useState<SearchHistoryItem[]>([])
+  const [searchType, setSearchType] = useState<SearchMode>('word')
 
   const addToHistory = useCallback((query: string, result: SearchResult) => {
     const item: SearchHistoryItem = {
@@ -35,9 +40,9 @@ export function SearchProvider({ children }: { children: React.ReactNode }) {
     return item.id
   }, [])
 
-  const updateHistoryItem = useCallback((id: string, result: SearchResult) => {
+  const updateHistoryItem = useCallback((id: string, result: SearchResult, meta?: { autoRouted?: boolean; actualMode?: string }) => {
     setHistory((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, result } : item))
+      prev.map((item) => (item.id === id ? { ...item, result, ...meta } : item))
     )
   }, [])
 
@@ -70,6 +75,8 @@ export function SearchProvider({ children }: { children: React.ReactNode }) {
         clearHistory,
         scrollToItem,
         searchCount: history.length,
+        searchType,
+        setSearchType,
       }}
     >
       {children}

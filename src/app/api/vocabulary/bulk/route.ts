@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
                 // Gatekeeper로 단어 유효성 검증
                 const gkResult = await evaluateWithGatekeeper(word)
 
-                if (gkResult.status !== 'VALID') {
+                if (gkResult.status !== 'WORD' && gkResult.status !== 'PHRASE') {
                   failed++
                   controller.enqueue(encoder.encode(
                     JSON.stringify({

@@ -106,7 +106,10 @@ export interface SearchLog {
   searched_at: string
 }
 
-export type GatekeeperStatus = 'VALID' | 'TYPO' | 'KOREAN' | 'INVALID' | 'LOW_VALUE'
+export type GatekeeperStatus = 'WORD' | 'PHRASE' | 'TYPO' | 'KOREAN' | 'INVALID' | 'LOW_VALUE'
+
+// 검색 모드
+export type SearchMode = 'word' | 'expression'
 
 export interface GatekeeperResponse {
   status: GatekeeperStatus
@@ -161,9 +164,68 @@ export interface UserWordHistory {
   searched_at: string
 }
 
+// --- 표현(Expression) 관련 타입 ---
+
+export interface Expression {
+  id: string
+  expression: string
+  exam_type: string
+  meanings: string[]
+  description: string | null
+  teps_point: string | null
+  context: string | null              // 대화 상황
+  pronunciation_tip: string | null    // 발음/연음 팁
+  listening_parts: string[]           // 출제 파트 (Part 1~5)
+  paraphrasing: string[]
+  comparisons: string[]
+  example_sentence: string | null     // A/B 대화 형식
+  example_translation: string | null
+  difficulty_level: number
+  search_count: number
+  created_at: string
+  updated_at: string
+}
+
+export interface UserExpression {
+  id: string
+  user_id: string
+  expression_id: string
+  is_memorized: boolean
+  needs_review: boolean
+  added_at: string
+  expression?: Expression  // joined
+}
+
+export interface ExpressionGenerationResponse {
+  expression: string
+  meanings: string[]
+  description: string
+  teps_point: string
+  context: string
+  pronunciation_tip: string
+  listening_parts: string[]
+  paraphrasing: string[]
+  comparisons: string[]
+  example_sentence: string
+  example_translation: string
+  difficulty_level: number
+}
+
+// 표현 카드 표시 필드
+export type ExpressionCardField =
+  | 'meanings'
+  | 'description'
+  | 'teps_point'
+  | 'context'
+  | 'pronunciation_tip'
+  | 'paraphrasing'
+  | 'comparisons'
+  | 'example'
+
 // 검색 결과 통합 타입 (UI에서 사용)
 export type SearchResult =
   | { type: 'word'; data: Word }
+  | { type: 'expression'; data: Expression }
   | { type: 'typo'; correction: string; original: string }
   | { type: 'korean'; suggestions: Word[]; original: string }
   | { type: 'invalid'; original: string }

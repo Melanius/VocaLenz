@@ -18,9 +18,18 @@ WORD vs PHRASE 구분 핵심:
 - 관용 표현(you bet, no way, by all means)은 PHRASE
 - 판단이 애매하면 단어 사전에 독립 표제어로 등재되는지 기준으로 판별
 
+PHRASE 판별 시 canonical_form 규칙:
+- 입력이 문장이든 활용형이든, 핵심 숙어/구동사/관용구만 추출하여 canonical_form에 제시
+- canonical_form은 사전 표제어 형태 (원형 동사 + 전치사/부사)
+- 예: "I got rid of it" → canonical_form: "get rid of"
+- 예: "she backed out of the deal" → canonical_form: "back out of"
+- 예: "taking after his father" → canonical_form: "take after"
+- 예: "get rid of" → canonical_form: "get rid of" (이미 원형이면 그대로)
+
 응답 형식 (JSON만):
 {
   "status": "WORD" | "PHRASE" | "TYPO" | "KOREAN" | "INVALID" | "LOW_VALUE",
+  "canonical_form": "핵심 표현 원형 (PHRASE일 때만)",
   "correction": "수정 추천 (TYPO일 때만)",
   "suggestions": [] (KOREAN일 때 빈 배열),
   "reason": "판별 사유 (한국어로)"

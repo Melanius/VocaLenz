@@ -113,6 +113,7 @@ export type SearchMode = 'word' | 'expression'
 
 export interface GatekeeperResponse {
   status: GatekeeperStatus
+  canonical_form?: string    // PHRASE일 때 핵심 표현 (사전 표제어 형태)
   correction?: string        // TYPO일 때 수정 추천 단어
   suggestions?: string[]     // KOREAN일 때 추천 단어 목록
   reason: string             // 판별 사유

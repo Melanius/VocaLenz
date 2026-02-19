@@ -211,11 +211,36 @@ export async function POST(request: NextRequest) {
       }
 
       case 'PHRASE': {
-        const exprData = await generateExpressionData(normalized)
+        // canonical_form 추출: gatekeeper가 제공한 핵심 표현 원형 사용
+        const canonicalForm = gatekeeperResult.canonical_form?.toLowerCase().trim() || normalized
+
+        // canonical_form이 normalized와 다르면 DB 재조회 (이미 저장된 표현일 수 있음)
+        if (canonicalForm !== normalized) {
+          const { data: canonicalExpr } = await supabaseAdmin
+            .from('expressions')
+            .select('*')
+            .eq('expression', canonicalForm)
+            .eq('exam_type', 'TEPS')
+            .single()
+
+          if (canonicalExpr) {
+            await supabaseAdmin.from('expressions').update({ search_count: (canonicalExpr.search_count || 0) + 1 }).eq('id', canonicalExpr.id)
+            if (userId) await saveUserExpressionHistory(userId, canonicalExpr.id)
+            return NextResponse.json({
+              result: { type: 'expression', data: transformExpression(canonicalExpr) } as SearchResult,
+              remaining: rateLimit.remaining - 1,
+              autoRouted: mode !== 'expression',
+              actualMode: 'expression',
+            })
+          }
+        }
+
+        // canonical_form으로 생성 및 저장
+        const exprData = await generateExpressionData(canonicalForm)
         const { data: savedExpr, error: saveError } = await supabaseAdmin
           .from('expressions')
           .upsert({
-            expression: normalized,
+            expression: canonicalForm,
             exam_type: 'TEPS',
             meanings: exprData.meanings,
             description: exprData.description,
@@ -235,7 +260,7 @@ export async function POST(request: NextRequest) {
 
         if (saveError) {
           const { data: retryExpr } = await supabaseAdmin
-            .from('expressions').select('*').eq('expression', normalized).eq('exam_type', 'TEPS').single()
+            .from('expressions').select('*').eq('expression', canonicalForm).eq('exam_type', 'TEPS').single()
           if (retryExpr) {
             if (userId) await saveUserExpressionHistory(userId, retryExpr.id)
             return NextResponse.json({
@@ -302,9 +327,10 @@ export async function POST(request: NextRequest) {
       }
     }
   } catch (error) {
-    console.error('Search API error:', error)
+    const message = error instanceof Error ? error.message : 'Unknown error'
+    console.error('Search API error:', message, error)
     return NextResponse.json(
-      { error: '검색 중 오류가 발생했습니다. 다시 시도해 주세요.' },
+      { error: '검색 중 오류가 발생했습니다. 다시 시도해 주세요.', detail: message },
       { status: 500 }
     )
   }

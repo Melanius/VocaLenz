@@ -13,6 +13,7 @@ import { useSearchContext } from '@/contexts/search-context'
 import { useAuthContext } from '@/components/providers/auth-provider'
 import { useDisplayPreferences } from '@/hooks/use-display-preferences'
 import { useVocabulary } from '@/hooks/use-vocabulary'
+import { useExpressionVocabulary } from '@/hooks/use-expression-vocabulary'
 import { useTheme } from '@/components/providers/theme-provider'
 import { getSessionId } from '@/lib/session'
 import { analytics } from '@/lib/analytics'
@@ -81,6 +82,7 @@ export default function SearchPage() {
   const { user } = useAuthContext()
   const { preferences } = useDisplayPreferences()
   const { isInVocabulary, addToVocabulary } = useVocabulary()
+  const { isInExpressionVocabulary, addToExpressionVocabulary } = useExpressionVocabulary()
   const { season } = useTheme()
   const scrollRef = useRef<HTMLDivElement>(null)
   const isEmpty = history.length === 0
@@ -174,14 +176,19 @@ export default function SearchPage() {
         actualMode: data.actualMode,
       })
 
-      // 자동 단어장 저장 (단어 타입만)
-      if (
-        data.result.type === 'word' &&
-        preferences.autoSaveToVocabulary &&
-        user &&
-        !isInVocabulary(data.result.data.id)
-      ) {
-        addToVocabulary(data.result.data.id)
+      // 자동 단어장 저장
+      if (preferences.autoSaveToVocabulary && user) {
+        if (
+          data.result.type === 'word' &&
+          !isInVocabulary(data.result.data.id)
+        ) {
+          addToVocabulary(data.result.data.id)
+        } else if (
+          data.result.type === 'expression' &&
+          !isInExpressionVocabulary(data.result.data.id)
+        ) {
+          addToExpressionVocabulary(data.result.data.id)
+        }
       }
     } catch {
       updateHistoryItem(itemId, {

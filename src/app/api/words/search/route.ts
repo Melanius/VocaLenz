@@ -235,11 +235,19 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // canonical_form으로 생성 및 저장
-        const exprData = await generateExpressionData(canonicalForm)
-        const { data: savedExpr, error: saveError } = await supabaseAdmin
+        // AI 표현 데이터 생성
+        let exprData
+        try {
+          exprData = await generateExpressionData(canonicalForm)
+        } catch (genError) {
+          console.error('[PHRASE] generateExpressionData failed:', canonicalForm, genError)
+          throw new Error(`표현 생성 실패: ${genError instanceof Error ? genError.message : 'Unknown'}`)
+        }
+
+        // DB 저장: insert 시도 → 실패 시 select 폴백
+        const { data: savedExpr, error: insertError } = await supabaseAdmin
           .from('expressions')
-          .upsert({
+          .insert({
             expression: canonicalForm,
             exam_type: 'TEPS',
             meanings: exprData.meanings,
@@ -254,23 +262,26 @@ export async function POST(request: NextRequest) {
             example_translation: exprData.example_translation,
             difficulty_level: exprData.difficulty_level,
             search_count: 1,
-          }, { onConflict: 'expression,exam_type', ignoreDuplicates: false })
+          })
           .select()
           .single()
 
-        if (saveError) {
-          const { data: retryExpr } = await supabaseAdmin
+        if (insertError) {
+          console.error('[PHRASE] insert failed:', canonicalForm, insertError.message)
+          // insert 실패 시 (중복 등) 기존 레코드 조회
+          const { data: existingExpr } = await supabaseAdmin
             .from('expressions').select('*').eq('expression', canonicalForm).eq('exam_type', 'TEPS').single()
-          if (retryExpr) {
-            if (userId) await saveUserExpressionHistory(userId, retryExpr.id)
+          if (existingExpr) {
+            await supabaseAdmin.from('expressions').update({ search_count: (existingExpr.search_count || 0) + 1 }).eq('id', existingExpr.id)
+            if (userId) await saveUserExpressionHistory(userId, existingExpr.id)
             return NextResponse.json({
-              result: { type: 'expression', data: transformExpression(retryExpr) },
+              result: { type: 'expression', data: transformExpression(existingExpr) },
               remaining: rateLimit.remaining - 1,
               autoRouted: mode !== 'expression',
               actualMode: 'expression',
             })
           }
-          throw new Error('표현 저장에 실패했습니다.')
+          throw new Error(`표현 저장 실패: ${insertError.message}`)
         }
 
         if (userId && savedExpr) await saveUserExpressionHistory(userId, savedExpr.id)

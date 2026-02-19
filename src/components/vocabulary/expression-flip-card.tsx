@@ -79,7 +79,7 @@ export function ExpressionFlipCard({
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-1.5">
               <span className="inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-semibold bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300">
-                표현
+                청해
               </span>
               <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold ${levelConfig.badge}`}>
                 Lv.{expr.difficulty_level} {levelConfig.label}

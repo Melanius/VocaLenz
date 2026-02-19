@@ -230,7 +230,7 @@ export function ExpressionCard({ expression, showVocabularyButton = true }: Expr
           </div>
           <div className="flex items-center gap-2">
             <Badge variant="secondary" className="text-xs font-semibold bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300">
-              표현
+              청해
             </Badge>
             <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold ${levelConfig.color}`}>
               Lv.{expression.difficulty_level} {levelConfig.label}

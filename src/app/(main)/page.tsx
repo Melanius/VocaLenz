@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useEffect, useState, useCallback } from 'react'
-import { History, ChevronDown, Loader2, X, BookOpen, Headphones } from 'lucide-react'
+import { History, ChevronDown, Loader2, BookOpen, Headphones } from 'lucide-react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
@@ -24,13 +24,6 @@ const SEASON_IMAGES: Record<string, string> = {
   summer: '/video/summer.png',
   fall: '/video/fall.png',
   winter: '/video/winter.png',
-}
-
-const LEVEL_CONFIG: Record<number, { label: string; color: string }> = {
-  1: { label: 'Essential', color: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300' },
-  2: { label: 'Core', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300' },
-  3: { label: 'Advanced', color: 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300' },
-  4: { label: 'Killer', color: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300' },
 }
 
 type UnifiedHistoryItem =
@@ -346,20 +339,9 @@ export default function SearchPage() {
         <SheetContent side="bottom" className="h-[70vh] rounded-t-2xl p-0">
           <div className="flex flex-col h-full">
             {/* 헤더 */}
-            <div className="flex items-center justify-between px-4 py-3 border-b">
-              <div className="flex items-center gap-2">
-                <History className="h-4 w-4 text-muted-foreground" />
-                <h2 className="text-sm font-medium">검색 이력</h2>
-              </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7"
-                onClick={() => setHistoryOpen(false)}
-                aria-label="닫기"
-              >
-                <X className="h-3.5 w-3.5" />
-              </Button>
+            <div className="flex items-center gap-2 px-4 py-3 border-b">
+              <History className="h-4 w-4 text-muted-foreground" />
+              <h2 className="text-sm font-medium">검색 이력</h2>
             </div>
 
             {/* 이력 목록 */}
@@ -392,9 +374,7 @@ export default function SearchPage() {
                             const isExpr = item.type === 'expression'
                             const label = isExpr ? item.expression?.expression : item.word?.word
                             const meanings = isExpr ? item.expression?.meanings : item.word?.meanings
-                            const difficulty = isExpr ? item.expression?.difficulty_level : item.word?.difficulty_level
                             if (!label) return null
-                            const levelConfig = LEVEL_CONFIG[difficulty ?? 2] || LEVEL_CONFIG[2]
                             const time = new Date(item.searched_at).toLocaleTimeString('ko-KR', {
                               hour: '2-digit',
                               minute: '2-digit',
@@ -409,16 +389,13 @@ export default function SearchPage() {
                               >
                                 <div className="flex items-center justify-between">
                                   <div className="flex items-center gap-2 min-w-0">
-                                    {isExpr && (
+                                    {isExpr ? (
                                       <Headphones className="h-3.5 w-3.5 text-indigo-500 flex-shrink-0" />
+                                    ) : (
+                                      <BookOpen className="h-3.5 w-3.5 text-sky-500 flex-shrink-0" />
                                     )}
-                                    <span className="font-semibold text-sm text-foreground">
+                                    <span className="font-semibold text-sm text-foreground truncate">
                                       {label}
-                                    </span>
-                                    <span
-                                      className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-xs font-medium ${levelConfig.color}`}
-                                    >
-                                      Lv.{difficulty}
                                     </span>
                                     <span className="text-xs text-muted-foreground truncate">
                                       {meanings?.[0]}

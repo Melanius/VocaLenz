@@ -1,40 +1,29 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { History, ChevronDown, Loader2, X } from 'lucide-react'
+import { History, ChevronDown, Loader2, X, BookOpen, Headphones } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useAuthContext } from '@/components/providers/auth-provider'
 import { useSearchContext } from '@/contexts/search-context'
-import type { Word } from '@/types/database'
+import type { Word, Expression, SearchMode } from '@/types/database'
 
-const LEVEL_CONFIG: Record<number, { label: string; color: string }> = {
-  1: { label: 'Essential', color: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300' },
-  2: { label: 'Core', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300' },
-  3: { label: 'Advanced', color: 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300' },
-  4: { label: 'Killer', color: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300' },
-}
-
-interface DbHistoryItem {
-  id: string
-  user_id: string
-  word_id: string
-  searched_at: string
-  word: Word | null
-}
+type UnifiedHistoryItem =
+  | { type: 'word'; id: string; searched_at: string; word: Word | null }
+  | { type: 'expression'; id: string; searched_at: string; expression: Expression | null }
 
 interface GroupedHistory {
   label: string
-  items: DbHistoryItem[]
+  items: UnifiedHistoryItem[]
 }
 
-function groupByDate(items: DbHistoryItem[]): GroupedHistory[] {
+function groupByDate(items: UnifiedHistoryItem[]): GroupedHistory[] {
   const now = new Date()
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
   const yesterday = new Date(today.getTime() - 86400000)
   const weekAgo = new Date(today.getTime() - 7 * 86400000)
 
-  const groups: Record<string, DbHistoryItem[]> = {
+  const groups: Record<string, UnifiedHistoryItem[]> = {
     '오늘': [],
     '어제': [],
     '이번 주': [],
@@ -68,7 +57,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
   const { user } = useAuthContext()
   const { addToHistory, updateHistoryItem } = useSearchContext()
 
-  const [dbHistory, setDbHistory] = useState<DbHistoryItem[]>([])
+  const [dbHistory, setDbHistory] = useState<UnifiedHistoryItem[]>([])
   const [loading, setLoading] = useState(false)
   const [page, setPage] = useState(1)
   const [hasMore, setHasMore] = useState(false)
@@ -77,13 +66,27 @@ export function Sidebar({ open, onClose }: SidebarProps) {
   const fetchHistory = useCallback(async (pageNum: number, append = false) => {
     setLoading(true)
     try {
-      const res = await fetch(`/api/history?page=${pageNum}&limit=20`)
-      if (res.ok) {
-        const data = await res.json()
-        setDbHistory((prev) => append ? [...prev, ...data.items] : data.items)
-        setHasMore(data.hasMore)
-        setLoaded(true)
-      }
+      const [wordRes, exprRes] = await Promise.all([
+        fetch(`/api/history?page=${pageNum}&limit=20&type=word`),
+        fetch(`/api/history?page=${pageNum}&limit=20&type=expression`),
+      ])
+      const wordData = wordRes.ok ? await wordRes.json() : { items: [], hasMore: false }
+      const exprData = exprRes.ok ? await exprRes.json() : { items: [], hasMore: false }
+
+      const wordItems: UnifiedHistoryItem[] = (wordData.items || []).map(
+        (i: { id: string; searched_at: string; word: Word | null }) => ({ ...i, type: 'word' as const })
+      )
+      const exprItems: UnifiedHistoryItem[] = (exprData.items || []).map(
+        (i: { id: string; searched_at: string; expression: Expression | null }) => ({ ...i, type: 'expression' as const })
+      )
+
+      const merged = [...wordItems, ...exprItems].sort(
+        (a, b) => new Date(b.searched_at).getTime() - new Date(a.searched_at).getTime()
+      )
+
+      setDbHistory((prev) => append ? [...prev, ...merged] : merged)
+      setHasMore(wordData.hasMore || exprData.hasMore)
+      setLoaded(true)
     } catch {
       // silent
     } finally {
@@ -103,13 +106,13 @@ export function Sidebar({ open, onClose }: SidebarProps) {
     fetchHistory(nextPage, true)
   }
 
-  const handleSearchWord = async (word: string) => {
+  const handleSearchWord = async (word: string, mode: SearchMode) => {
     const itemId = addToHistory(word, { type: 'loading', message: '검색 중...' })
     try {
       const response = await fetch('/api/words/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ input: word }),
+        body: JSON.stringify({ input: word, mode }),
       })
       const data = await response.json()
       if (!response.ok) {
@@ -184,9 +187,11 @@ export function Sidebar({ open, onClose }: SidebarProps) {
                   </h3>
                   <div className="space-y-0.5">
                     {group.items.map((item) => {
-                      const word = item.word
-                      if (!word) return null
-                      const levelConfig = LEVEL_CONFIG[word.difficulty_level] || LEVEL_CONFIG[2]
+                      const isExpr = item.type === 'expression'
+                      const label = isExpr ? item.expression?.expression : item.word?.word
+                      const meanings = isExpr ? item.expression?.meanings : item.word?.meanings
+                      if (!label) return null
+                      const mode: SearchMode = isExpr ? 'expression' : 'word'
                       const time = new Date(item.searched_at).toLocaleTimeString('ko-KR', {
                         hour: '2-digit',
                         minute: '2-digit',
@@ -195,26 +200,26 @@ export function Sidebar({ open, onClose }: SidebarProps) {
                       return (
                         <button
                           key={item.id}
-                          onClick={() => handleSearchWord(word.word)}
+                          onClick={() => handleSearchWord(label, mode)}
                           className="w-full text-left rounded-lg px-2 py-2 hover:bg-accent/50 transition-colors"
                         >
                           <div className="flex items-center justify-between gap-1">
                             <div className="flex items-center gap-1.5 min-w-0">
+                              {isExpr ? (
+                                <Headphones className="h-3 w-3 text-indigo-500 flex-shrink-0" />
+                              ) : (
+                                <BookOpen className="h-3 w-3 text-sky-500 flex-shrink-0" />
+                              )}
                               <span className="font-semibold text-xs text-foreground truncate">
-                                {word.word}
-                              </span>
-                              <span
-                                className={`inline-flex items-center rounded px-1 py-0.5 text-[10px] font-medium leading-none ${levelConfig.color}`}
-                              >
-                                Lv.{word.difficulty_level}
+                                {label}
                               </span>
                             </div>
                             <span className="text-[10px] text-muted-foreground flex-shrink-0">
                               {time}
                             </span>
                           </div>
-                          <p className="text-[11px] text-muted-foreground truncate mt-0.5">
-                            {word.meanings[0]}
+                          <p className="text-[11px] text-muted-foreground truncate mt-0.5 pl-[18px]">
+                            {meanings?.[0]}
                           </p>
                         </button>
                       )

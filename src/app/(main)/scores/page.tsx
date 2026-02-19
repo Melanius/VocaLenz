@@ -40,7 +40,7 @@ const LINE_COLORS: Record<string, string> = {
 }
 
 export default function ScoresPage() {
-  const { user, loading: authLoading } = useAuthContext()
+  const { user, loading: authLoading, profile } = useAuthContext()
   const [scores, setScores] = useState<UserScore[]>([])
   const [loading, setLoading] = useState(false)
   const [chartMode, setChartMode] = useState<ChartMode>('total')
@@ -366,6 +366,8 @@ export default function ScoresPage() {
             <ScoreCoach
               hasScores={scores.length > 0}
               onGoToList={() => setActiveTab('list')}
+              initialTargetScore={profile?.target_score}
+              initialTargetDate={profile?.study_start_date}
             />
           </TabsContent>
         </Tabs>

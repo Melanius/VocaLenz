@@ -25,6 +25,8 @@ interface GoalContext {
 interface ScoreCoachProps {
   hasScores: boolean
   onGoToList: () => void
+  initialTargetScore?: number | null
+  initialTargetDate?: string | null
 }
 
 const STUDY_HOURS_OPTIONS = [
@@ -56,13 +58,13 @@ const PROXY_OPTIONS = [
   { value: 'TOEIC 600 미만', label: 'TOEIC 600점 미만' },
 ]
 
-export function ScoreCoach({ hasScores, onGoToList }: ScoreCoachProps) {
+export function ScoreCoach({ hasScores, onGoToList, initialTargetScore, initialTargetDate }: ScoreCoachProps) {
   const [phase, setPhase] = useState<'goal' | 'chat'>('goal')
   const [goalContext, setGoalContext] = useState<GoalContext | null>(null)
 
-  // 목표 폼 상태
-  const [targetScore, setTargetScore] = useState('')
-  const [targetDate, setTargetDate] = useState('')
+  // 목표 폼 상태 (프로필 값으로 초기화)
+  const [targetScore, setTargetScore] = useState(initialTargetScore != null ? String(initialTargetScore) : '')
+  const [targetDate, setTargetDate] = useState(initialTargetDate || '')
   const [studyHours, setStudyHours] = useState('')
   const [weakAreas, setWeakAreas] = useState<string[]>([])
   const [proxyLevel, setProxyLevel] = useState('')
@@ -100,6 +102,18 @@ export function ScoreCoach({ hasScores, onGoToList }: ScoreCoachProps) {
       studyHours: studyHours || null,
       weakAreas,
       proxyLevel: proxyLevel || null,
+    }
+
+    // 프로필에 목표 점수/날짜 저장 (silent)
+    if (targetScore || targetDate) {
+      const profileUpdates: Record<string, unknown> = {}
+      if (targetScore) profileUpdates.target_score = parseInt(targetScore)
+      if (targetDate) profileUpdates.study_start_date = targetDate
+      fetch('/api/users/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(profileUpdates),
+      }).catch(() => {})
     }
 
     setGoalContext(goal)

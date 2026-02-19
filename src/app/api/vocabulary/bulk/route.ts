@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
     }
 
     const { words, sessionId, uploadType = 'word' } = await request.json() as {
-      words: string[]
+      words: (string | { word: string; memo?: string })[]
       sessionId?: string
       uploadType?: 'word' | 'expression'
     }
@@ -63,7 +63,10 @@ export async function POST(request: NextRequest) {
         let failed = 0
 
         for (let i = 0; i < wordsToProcess.length; i++) {
-          const word = wordsToProcess[i].trim().toLowerCase()
+          const entry = wordsToProcess[i]
+          const rawWord = typeof entry === 'string' ? entry : entry.word
+          const memo = typeof entry === 'string' ? undefined : (entry.memo || undefined)
+          const word = rawWord.trim().toLowerCase()
 
           try {
             if (isExpression) {
@@ -90,7 +93,7 @@ export async function POST(request: NextRequest) {
                 } else {
                   await supabaseAdmin
                     .from('user_expression_vocabulary')
-                    .insert({ user_id: user.id, expression_id: existingExpr.id })
+                    .insert({ user_id: user.id, expression_id: existingExpr.id, ...(memo ? { memo } : {}) })
                   added++
                   controller.enqueue(encoder.encode(
                     JSON.stringify({ type: 'progress', current: i + 1, total, word, status: 'added' }) + '\n'
@@ -137,7 +140,7 @@ export async function POST(request: NextRequest) {
                   if (insertError || !newExpr) throw new Error('구문 저장 실패')
                   await supabaseAdmin
                     .from('user_expression_vocabulary')
-                    .insert({ user_id: user.id, expression_id: newExpr.id })
+                    .insert({ user_id: user.id, expression_id: newExpr.id, ...(memo ? { memo } : {}) })
                   added++
                   controller.enqueue(encoder.encode(
                     JSON.stringify({ type: 'progress', current: i + 1, total, word, status: 'added' }) + '\n'
@@ -173,7 +176,7 @@ export async function POST(request: NextRequest) {
                 } else {
                   await supabaseAdmin
                     .from('user_vocabulary')
-                    .insert({ user_id: user.id, word_id: existingWord.id })
+                    .insert({ user_id: user.id, word_id: existingWord.id, ...(memo ? { memo } : {}) })
                   added++
                   controller.enqueue(encoder.encode(
                     JSON.stringify({ type: 'progress', current: i + 1, total, word, status: 'added' }) + '\n'
@@ -223,7 +226,7 @@ export async function POST(request: NextRequest) {
                   if (insertError || !newWord) throw new Error('단어 저장 실패')
                   await supabaseAdmin
                     .from('user_vocabulary')
-                    .insert({ user_id: user.id, word_id: newWord.id })
+                    .insert({ user_id: user.id, word_id: newWord.id, ...(memo ? { memo } : {}) })
                   added++
                   controller.enqueue(encoder.encode(
                     JSON.stringify({ type: 'progress', current: i + 1, total, word, status: 'added' }) + '\n'

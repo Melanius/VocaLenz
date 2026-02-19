@@ -68,7 +68,7 @@ export default function VocabularyPage() {
   // 업로드 상태
   const [uploadOpen, setUploadOpen] = useState(false)
   const [uploadTarget, setUploadTarget] = useState<'word' | 'expression'>('word')
-  const [parsedWords, setParsedWords] = useState<string[]>([])
+  const [parsedWords, setParsedWords] = useState<{ word: string; memo?: string }[]>([])
   const [filteredOutCount, setFilteredOutCount] = useState(0)
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState<BulkProgress[]>([])
@@ -287,28 +287,32 @@ export default function VocabularyPage() {
       const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as unknown as unknown[][]
 
       const englishRegex = /^[a-zA-Z\s\-]+$/
-      const allWords: string[] = []
+      const wordMap = new Map<string, string | undefined>()
       let nonEnglish = 0
 
       for (const row of rows) {
         const cell = String(row[0] || '').trim()
         if (!cell) continue
         if (englishRegex.test(cell)) {
-          allWords.push(cell.toLowerCase())
+          const wordKey = cell.toLowerCase()
+          if (!wordMap.has(wordKey)) {
+            const memoCell = row[1] != null ? String(row[1]).trim() : undefined
+            wordMap.set(wordKey, memoCell || undefined)
+          }
         } else {
           nonEnglish++
         }
       }
 
-      if (allWords.length === 0) {
+      if (wordMap.size === 0) {
         toast({ title: '오류', description: '영단어를 찾을 수 없습니다. A열에 영단어를 넣어주세요.', variant: 'destructive' })
         return
       }
 
-      const uniqueWords = [...new Set(allWords)]
-      const limited = uniqueWords.slice(0, 500)
-      if (uniqueWords.length > 500) {
-        toast({ title: '안내', description: `500개를 초과하여 앞 500개만 처리합니다. (전체 ${uniqueWords.length}개)` })
+      const allItems = Array.from(wordMap.entries()).map(([word, memo]) => ({ word, memo }))
+      const limited = allItems.slice(0, 500)
+      if (allItems.length > 500) {
+        toast({ title: '안내', description: `500개를 초과하여 앞 500개만 처리합니다. (전체 ${allItems.length}개)` })
       }
 
       setParsedWords(limited)
@@ -846,8 +850,10 @@ export default function VocabularyPage() {
               </div>
               <div className="max-h-48 overflow-y-auto border rounded-md p-3">
                 <div className="flex flex-wrap gap-2">
-                  {parsedWords.map((w, i) => (
-                    <span key={i} className="px-2 py-1 bg-muted rounded text-sm font-mono">{w}</span>
+                  {parsedWords.map((item, i) => (
+                    <span key={i} className="px-2 py-1 bg-muted rounded text-sm font-mono">
+                      {item.word}{item.memo ? <span className="text-amber-600 dark:text-amber-400"> ({item.memo})</span> : null}
+                    </span>
                   ))}
                 </div>
               </div>
@@ -864,7 +870,7 @@ export default function VocabularyPage() {
             // 파일 선택
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                Excel 또는 CSV 파일의 A열에 영단어/구문을 넣어주세요. (최대 500개)
+                A열: 영단어/구문, B열: 메모 (선택). 최대 500개.
               </p>
               <div className="border-2 border-dashed rounded-lg p-8 text-center">
                 <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />

@@ -2,12 +2,38 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useAuthContext } from '@/components/providers/auth-provider'
-import type { DisplayPreferences, WordCardField } from '@/types/database'
+import type { DisplayPreferences, WordCardField, ExpressionCardField } from '@/types/database'
 
 const STORAGE_KEY = 'vocalenz_display_preferences'
 const STORAGE_VERSION_KEY = 'vocalenz_prefs_version'
 const CURRENT_PREFS_VERSION = 2  // bump to force fieldOrder reset
 const SYNC_EVENT = 'vocalenz_preferences_sync'
+
+const DEFAULT_EXPR_VISIBLE_FIELDS: ExpressionCardField[] = [
+  'image_text',
+  'meanings',
+  'description',
+  'context',
+  'pronunciation_tip',
+  'teps_point',
+  'listening_parts',
+  'paraphrasing',
+  'comparisons',
+  'example',
+]
+
+const DEFAULT_EXPR_FIELD_ORDER: ExpressionCardField[] = [
+  'image_text',
+  'meanings',
+  'description',
+  'context',
+  'pronunciation_tip',
+  'teps_point',
+  'listening_parts',
+  'paraphrasing',
+  'comparisons',
+  'example',
+]
 
 const DEFAULT_PREFERENCES: DisplayPreferences = {
   visibleFields: [
@@ -33,6 +59,8 @@ const DEFAULT_PREFERENCES: DisplayPreferences = {
   ],
   searchMode: 1,
   autoSaveToVocabulary: true,
+  exprVisibleFields: DEFAULT_EXPR_VISIBLE_FIELDS,
+  exprFieldOrder: DEFAULT_EXPR_FIELD_ORDER,
 }
 
 // 이전 저장 데이터 마이그레이션
@@ -49,6 +77,13 @@ function migratePreferences(prefs: DisplayPreferences): DisplayPreferences {
       migrated.fieldOrder = [...DEFAULT_PREFERENCES.fieldOrder]
       localStorage.setItem(STORAGE_VERSION_KEY, String(CURRENT_PREFS_VERSION))
     }
+  }
+  // 청해 구문 필드가 없으면 기본값으로 초기화
+  if (!migrated.exprVisibleFields) {
+    migrated.exprVisibleFields = [...DEFAULT_EXPR_VISIBLE_FIELDS]
+  }
+  if (!migrated.exprFieldOrder) {
+    migrated.exprFieldOrder = [...DEFAULT_EXPR_FIELD_ORDER]
   }
   return migrated
 }

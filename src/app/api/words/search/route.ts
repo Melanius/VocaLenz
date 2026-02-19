@@ -224,6 +224,7 @@ export async function POST(request: NextRequest) {
           .insert({
             expression: canonicalForm,
             exam_type: 'TEPS',
+            image_text: exprData.image_text || null,
             meanings: exprData.meanings,
             description: exprData.description,
             teps_point: exprData.teps_point,
@@ -370,6 +371,7 @@ function transformExpression(record: Record<string, unknown>): Expression {
     id: record.id as string,
     expression: record.expression as string,
     exam_type: record.exam_type as string,
+    image_text: (record.image_text as string | null) ?? null,
     meanings: (record.meanings as string[]) || [],
     description: record.description as string | null,
     teps_point: record.teps_point as string | null,

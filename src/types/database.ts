@@ -27,6 +27,8 @@ export interface DisplayPreferences {
   fieldOrder: WordCardField[]       // 필드 표시 순서
   searchMode: 1 | 2 | 3 | 4        // 동시 검색 단어 수
   autoSaveToVocabulary?: boolean    // 검색한 단어 자동 단어장 저장
+  exprVisibleFields?: ExpressionCardField[]  // 청해 구문 카드 표시 필드
+  exprFieldOrder?: ExpressionCardField[]     // 청해 구문 카드 필드 순서
 }
 
 export interface Word {
@@ -172,6 +174,7 @@ export interface Expression {
   id: string
   expression: string
   exam_type: string
+  image_text: string | null           // 연상 이미지
   meanings: string[]
   description: string | null
   teps_point: string | null
@@ -201,6 +204,7 @@ export interface UserExpression {
 
 export interface ExpressionGenerationResponse {
   expression: string
+  image_text: string
   meanings: string[]
   description: string
   teps_point: string
@@ -216,11 +220,13 @@ export interface ExpressionGenerationResponse {
 
 // 표현 카드 표시 필드
 export type ExpressionCardField =
+  | 'image_text'
   | 'meanings'
   | 'description'
-  | 'teps_point'
   | 'context'
   | 'pronunciation_tip'
+  | 'teps_point'
+  | 'listening_parts'
   | 'paraphrasing'
   | 'comparisons'
   | 'example'

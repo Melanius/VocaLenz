@@ -15,10 +15,12 @@ const EXPRESSION_GENERATOR_SYSTEM_PROMPT = `당신은 TEPS 청해 시험 전문 
 8. paraphrasing은 같은 뜻을 다르게 표현한 것 (시험에서 바꿔 말하기로 출제되는 형태)
 9. teps_point는 TEPS 청해에서의 출제 경향, 오답 보기 패턴, 주의점
 10. 각 텍스트 필드는 최대 500자 이내
+11. image_text는 이 표현의 뜻을 직관적으로 연상할 수 있는 시각적 장면이나 이미지를 한국어로 묘사 (50자 이내, 예: 손을 활짝 펴며 "어서 오세요!" 하는 안내원)
 
 응답 형식 (JSON만):
 {
   "expression": "표현",
+  "image_text": "연상 이미지 묘사 (50자 이내)",
   "meanings": ["의역 뜻1", "뜻2"],
   "description": "뉘앙스 설명 (격식/비격식, 사용 상황 포함)",
   "teps_point": "TEPS 청해 출제 포인트 (한국어)",
@@ -63,6 +65,7 @@ export async function generateExpressionData(
 
       return {
         ...parsed,
+        image_text: parsed.image_text || '',
         meanings: parsed.meanings || [],
         listening_parts: parsed.listening_parts || [],
         paraphrasing: parsed.paraphrasing || [],

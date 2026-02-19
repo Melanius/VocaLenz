@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { BookOpen, Headphones, Star, Loader2, Upload, Search, Calendar, X, StickyNote } from 'lucide-react'
+import { BookOpen, Headphones, Star, Loader2, Upload, Search, Calendar, X, StickyNote, Settings } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -24,6 +24,7 @@ import { WordCard } from '@/components/search/word-card'
 import { ExpressionCard } from '@/components/search/expression-card'
 import { VocabularyFlipCard } from '@/components/vocabulary/vocabulary-flip-card'
 import { ExpressionFlipCard } from '@/components/vocabulary/expression-flip-card'
+import { CardCustomizer } from '@/components/search/card-customizer'
 import { getRandomPhrase, type LoadingPhrase } from '@/lib/loading-phrases'
 import type { UserVocabulary, UserExpression, Word, Expression } from '@/types/database'
 
@@ -62,6 +63,7 @@ export default function VocabularyPage() {
   const [detailLoading, setDetailLoading] = useState(false)
   const [flippedCards, setFlippedCards] = useState<Set<string>>(new Set())
   const [memoFilter, setMemoFilter] = useState('')
+  const [customizerOpen, setCustomizerOpen] = useState(false)
 
   // 업로드 상태
   const [uploadOpen, setUploadOpen] = useState(false)
@@ -415,7 +417,7 @@ export default function VocabularyPage() {
   return (
     <div className="flex-1 overflow-y-auto p-4 md:p-6 pb-24">
       <div className="max-w-4xl mx-auto space-y-6">
-        {/* Header: 좌측 제목+카운트, 우측 Upload 아이콘 버튼 */}
+        {/* Header: 좌측 제목+카운트, 우측 설정+Upload 아이콘 버튼 */}
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold">내 단어장</h1>
@@ -423,20 +425,39 @@ export default function VocabularyPage() {
               {vocabTab === 'words' ? `Voca 리스트 ${count}/2000` : `Lenz 픽 ${exprCount}/2000`}
             </p>
           </div>
-          <Button
-            variant="outline"
-            size="icon"
-            className="h-10 w-10 rounded-full"
-            onClick={() => {
-              resetUpload()
-              setUploadTarget(vocabTab === 'words' ? 'word' : 'expression')
-              setUploadOpen(true)
-            }}
-            aria-label="일괄 추가"
-          >
-            <Upload className="h-4 w-4" />
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-10 w-10 rounded-full"
+              onClick={() => setCustomizerOpen(true)}
+              aria-label="카드 표시 설정"
+            >
+              <Settings className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-10 w-10 rounded-full"
+              onClick={() => {
+                resetUpload()
+                setUploadTarget(vocabTab === 'words' ? 'word' : 'expression')
+                setUploadOpen(true)
+              }}
+              aria-label="일괄 추가"
+            >
+              <Upload className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
+
+        {/* 카드 표시 설정 (controlled) */}
+        <CardCustomizer
+          open={customizerOpen}
+          onOpenChange={setCustomizerOpen}
+          initialTab={vocabTab === 'words' ? 'word' : 'expression'}
+          hideTopSettings
+        />
 
         {/* Voca 리스트 / Lenz 픽 탭 토글 */}
         <div className="inline-flex items-center rounded-xl bg-muted p-0.5">

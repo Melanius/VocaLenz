@@ -8,42 +8,10 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
-import { Checkbox } from '@/components/ui/checkbox'
-import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from '@dnd-kit/core'
-import {
-  arrayMove,
-  SortableContext,
-  sortableKeyboardCoordinates,
-  useSortable,
-  verticalListSortingStrategy,
-} from '@dnd-kit/sortable'
-import { CSS } from '@dnd-kit/utilities'
 import { useAuthContext } from '@/components/providers/auth-provider'
-import { useDisplayPreferences } from '@/hooks/use-display-preferences'
 import { useTheme } from '@/components/providers/theme-provider'
 import { toast } from '@/hooks/use-toast'
-import type { WordCardField, SeasonTheme } from '@/types/database'
-
-const FIELD_LABELS: Record<WordCardField, string> = {
-  meanings: '한글 뜻',
-  description: '한국어 설명',
-  description_en: '영어 설명',
-  image_text: '연상 이미지',
-  teps_point: 'TEPS 포인트',
-  synonyms: '유의어',
-  antonyms: '반의어',
-  paraphrasing: '패러프레이징',
-  comparisons: '비교 표현',
-  example: '예문',
-}
+import type { SeasonTheme } from '@/types/database'
 
 const SEASON_THEMES: { value: SeasonTheme; label: string; sub: string; icon: React.ElementType; colors: [string, string, string] }[] = [
   { value: 'spring', label: 'Blossom Blink', sub: '봄', icon: Flower2, colors: ['#E08E9D', '#F7D1D7', '#FFF9FA'] },
@@ -54,7 +22,6 @@ const SEASON_THEMES: { value: SeasonTheme; label: string; sub: string; icon: Rea
 
 export default function SettingsPage() {
   const { user, profile, loading: authLoading, refreshProfile } = useAuthContext()
-  const { preferences, updatePreferences } = useDisplayPreferences()
   const { season, setSeason } = useTheme()
   const router = useRouter()
 
@@ -67,11 +34,6 @@ export default function SettingsPage() {
   const [phone, setPhone] = useState('')
   const [profileSaving, setProfileSaving] = useState(false)
 
-  // 표시 설정
-  const [localVisible, setLocalVisible] = useState<WordCardField[]>(preferences.visibleFields)
-  const [localOrder, setLocalOrder] = useState<WordCardField[]>(preferences.fieldOrder)
-  const [displaySaving, setDisplaySaving] = useState(false)
-
   // 프로필 데이터 로드
   useEffect(() => {
     if (profile) {
@@ -83,31 +45,6 @@ export default function SettingsPage() {
       setPhone(profile.phone || '')
     }
   }, [profile])
-
-  // 표시 설정 동기화
-  useEffect(() => {
-    setLocalVisible(preferences.visibleFields)
-    setLocalOrder(preferences.fieldOrder)
-  }, [preferences.visibleFields, preferences.fieldOrder])
-
-  const sensors = useSensors(
-    useSensor(PointerSensor),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
-  )
-
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event
-    if (!over || active.id === over.id) return
-    const oldIndex = localOrder.indexOf(active.id as WordCardField)
-    const newIndex = localOrder.indexOf(over.id as WordCardField)
-    setLocalOrder(arrayMove(localOrder, oldIndex, newIndex))
-  }
-
-  const handleFieldToggle = (field: WordCardField) => {
-    setLocalVisible((prev) =>
-      prev.includes(field) ? prev.filter((f) => f !== field) : [...prev, field]
-    )
-  }
 
   const handleSaveProfile = async () => {
     setProfileSaving(true)
@@ -137,16 +74,8 @@ export default function SettingsPage() {
     }
   }
 
-  const handleSaveDisplay = () => {
-    setDisplaySaving(true)
-    updatePreferences({ visibleFields: localVisible, fieldOrder: localOrder })
-    toast({ title: '표시 설정이 저장되었습니다.' })
-    setTimeout(() => setDisplaySaving(false), 300)
-  }
-
   const handleSeasonChange = useCallback(async (newSeason: SeasonTheme) => {
     setSeason(newSeason)
-    // DB에도 저장
     try {
       await fetch('/api/users/profile', {
         method: 'PUT',
@@ -310,99 +239,7 @@ export default function SettingsPage() {
             </div>
           </CardContent>
         </Card>
-
-        {/* 단어 카드 표시 설정 */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">단어 카드 표시 설정</CardTitle>
-            <p className="text-xs text-muted-foreground">
-              검색 결과와 단어장 상세에 모두 적용됩니다
-            </p>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleDragEnd}
-            >
-              <SortableContext items={localOrder} strategy={verticalListSortingStrategy}>
-                <div className="space-y-1">
-                  {localOrder.map((field) => (
-                    <SortableFieldItem
-                      key={field}
-                      field={field}
-                      label={FIELD_LABELS[field]}
-                      checked={localVisible.includes(field)}
-                      onToggle={() => handleFieldToggle(field)}
-                    />
-                  ))}
-                </div>
-              </SortableContext>
-            </DndContext>
-
-            <Button onClick={handleSaveDisplay} disabled={displaySaving} className="w-full">
-              {displaySaving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
-              표시 설정 저장
-            </Button>
-          </CardContent>
-        </Card>
       </div>
-    </div>
-  )
-}
-
-function SortableFieldItem({
-  field,
-  label,
-  checked,
-  onToggle,
-}: {
-  field: WordCardField
-  label: string
-  checked: boolean
-  onToggle: () => void
-}) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: field })
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  }
-
-  return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className={`flex items-center gap-3 px-3 py-2 rounded-lg border bg-card ${
-        isDragging ? 'opacity-50 shadow-lg' : ''
-      }`}
-    >
-      <button
-        className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground"
-        {...attributes}
-        {...listeners}
-        aria-label={`${label} 순서 변경`}
-      >
-        ⠿
-      </button>
-      <Checkbox
-        id={`settings-field-${field}`}
-        checked={checked}
-        onCheckedChange={onToggle}
-      />
-      <Label
-        htmlFor={`settings-field-${field}`}
-        className="text-sm cursor-pointer flex-1"
-      >
-        {label}
-      </Label>
     </div>
   )
 }

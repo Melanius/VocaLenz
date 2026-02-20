@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { BookOpen, Headphones, Star, Loader2, Upload, Search, Calendar, X, StickyNote, Settings } from 'lucide-react'
+import { BookOpen, Headphones, Star, Loader2, Upload, Search, Calendar, X, StickyNote, Settings, AlertCircle, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -69,7 +69,8 @@ export default function VocabularyPage() {
   const [uploadOpen, setUploadOpen] = useState(false)
   const [uploadTarget, setUploadTarget] = useState<'word' | 'expression'>('word')
   const [parsedWords, setParsedWords] = useState<{ word: string; memo?: string }[]>([])
-  const [filteredOutCount, setFilteredOutCount] = useState(0)
+  const [filteredOutItems, setFilteredOutItems] = useState<string[]>([])
+  const [showExcluded, setShowExcluded] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState<BulkProgress[]>([])
   const [uploadResult, setUploadResult] = useState<BulkComplete | null>(null)
@@ -286,9 +287,9 @@ export default function VocabularyPage() {
       const sheet = workbook.Sheets[workbook.SheetNames[0]]
       const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as unknown as unknown[][]
 
-      const englishRegex = /^[a-zA-Z\s\-]+$/
+      const englishRegex = /^[a-zA-Z\s\-,.!?']+$/
       const wordMap = new Map<string, string | undefined>()
-      let nonEnglish = 0
+      const excluded: string[] = []
 
       for (const row of rows) {
         const cell = String(row[0] || '').trim()
@@ -300,7 +301,7 @@ export default function VocabularyPage() {
             wordMap.set(wordKey, memoCell || undefined)
           }
         } else {
-          nonEnglish++
+          excluded.push(cell)
         }
       }
 
@@ -316,7 +317,8 @@ export default function VocabularyPage() {
       }
 
       setParsedWords(limited)
-      setFilteredOutCount(nonEnglish)
+      setFilteredOutItems(excluded)
+      setShowExcluded(false)
       setUploadResult(null)
       setUploadProgress([])
     } catch {
@@ -412,7 +414,8 @@ export default function VocabularyPage() {
 
   const resetUpload = () => {
     setParsedWords([])
-    setFilteredOutCount(0)
+    setFilteredOutItems([])
+    setShowExcluded(false)
     setUploadProgress([])
     setUploadResult(null)
     setUploading(false)
@@ -836,10 +839,38 @@ export default function VocabularyPage() {
           ) : parsedWords.length > 0 ? (
             // 파싱 결과 확인
             <div className="space-y-4">
-              <div className="text-sm text-muted-foreground">
+              <div className="text-sm text-muted-foreground space-y-2">
                 <p>{parsedWords.length}개 영단어/구문을 찾았습니다.</p>
-                {filteredOutCount > 0 && (
-                  <p className="text-orange-500">{filteredOutCount}개 비영어 항목은 제외되었습니다.</p>
+                {filteredOutItems.length > 0 && (
+                  <div className="rounded-lg border border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-950/30 overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => setShowExcluded((v) => !v)}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors"
+                    >
+                      <AlertCircle className="h-3.5 w-3.5 text-orange-500 shrink-0" />
+                      <span className="flex-1 text-orange-600 dark:text-orange-400 text-xs font-medium">
+                        {filteredOutItems.length}개 항목이 제외되었습니다
+                      </span>
+                      <ChevronDown
+                        className={`h-3.5 w-3.5 text-orange-400 shrink-0 transition-transform duration-200 ${showExcluded ? 'rotate-180' : ''}`}
+                      />
+                    </button>
+                    {showExcluded && (
+                      <div className="px-3 pb-3 pt-1 border-t border-orange-200 dark:border-orange-800">
+                        <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
+                          {filteredOutItems.map((item, i) => (
+                            <span
+                              key={i}
+                              className="px-2 py-0.5 rounded-md bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-300 text-xs font-mono"
+                            >
+                              {item}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 )}
                 {(uploadTarget === 'word' ? 2000 - count : 2000 - exprCount) < parsedWords.length && (
                   <p className="text-orange-500">

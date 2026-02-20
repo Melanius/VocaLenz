@@ -292,7 +292,8 @@ export default function VocabularyPage() {
       const excluded: string[] = []
 
       for (const row of rows) {
-        const cell = String(row[0] || '').trim()
+        // Excel/Word 스마트 따옴표(U+2018, U+2019)를 ASCII 아포스트로피로 정규화
+        const cell = String(row[0] || '').trim().replace(/[\u2018\u2019]/g, "'")
         if (!cell) continue
         if (englishRegex.test(cell)) {
           const wordKey = cell.toLowerCase()

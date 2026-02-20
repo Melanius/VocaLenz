@@ -153,6 +153,9 @@ export default function SearchPage() {
 
   const urlSearchDoneRef = useRef(false)
 
+  // 사이드바에서 이벤트로 검색 트리거받을 때 사용할 ref (stale closure 방지)
+  const handleSearchWordRef = useRef<(word: string, modeOverride?: SearchMode) => void>(() => {})
+
   // URL 파라미터로 검색 트리거 (history 페이지 등에서 이동 시)
   useEffect(() => {
     if (urlSearchDoneRef.current) return
@@ -204,6 +207,9 @@ export default function SearchPage() {
 
       updateHistoryItem(itemId, data.result)
 
+      // 사이드바 실시간 갱신 트리거
+      window.dispatchEvent(new CustomEvent('vocalenz:search-complete'))
+
       // 자동 단어장 저장
       if (preferences.autoSaveToVocabulary && user) {
         if (
@@ -225,6 +231,21 @@ export default function SearchPage() {
       })
     }
   }
+
+  // ref를 항상 최신 handleSearchWord로 유지 (이벤트 리스너의 stale closure 방지)
+  useEffect(() => {
+    handleSearchWordRef.current = handleSearchWord
+  })
+
+  // 사이드바에서 vocalenz:trigger-search 이벤트 수신 시 검색 실행
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { word, mode } = (e as CustomEvent<{ word: string; mode: SearchMode }>).detail
+      handleSearchWordRef.current(word, mode)
+    }
+    window.addEventListener('vocalenz:trigger-search', handler)
+    return () => window.removeEventListener('vocalenz:trigger-search', handler)
+  }, [])
 
   // 최근 검색 단어/표현 (word/expression 타입, 최신 5개)
   const recentWords = history

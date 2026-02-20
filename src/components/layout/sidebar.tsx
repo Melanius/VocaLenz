@@ -1,11 +1,11 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useRouter, usePathname } from 'next/navigation'
 import { History, ChevronDown, Loader2, X, BookOpen, Headphones } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useAuthContext } from '@/components/providers/auth-provider'
-import { useSearchContext } from '@/contexts/search-context'
 import type { Word, Expression, SearchMode } from '@/types/database'
 
 type UnifiedHistoryItem =
@@ -55,7 +55,8 @@ interface SidebarProps {
 
 export function Sidebar({ open, onClose }: SidebarProps) {
   const { user } = useAuthContext()
-  const { addToHistory, updateHistoryItem } = useSearchContext()
+  const router = useRouter()
+  const pathname = usePathname()
 
   const [dbHistory, setDbHistory] = useState<UnifiedHistoryItem[]>([])
   const [loading, setLoading] = useState(false)
@@ -100,34 +101,31 @@ export function Sidebar({ open, onClose }: SidebarProps) {
     }
   }, [user, loaded, fetchHistory])
 
+  // 새 검색 완료 시 이력 실시간 갱신
+  useEffect(() => {
+    const handleSearchComplete = () => {
+      setPage(1)
+      fetchHistory(1)
+    }
+    window.addEventListener('vocalenz:search-complete', handleSearchComplete)
+    return () => window.removeEventListener('vocalenz:search-complete', handleSearchComplete)
+  }, [fetchHistory])
+
   const loadMore = () => {
     const nextPage = page + 1
     setPage(nextPage)
     fetchHistory(nextPage, true)
   }
 
-  const handleSearchWord = async (word: string, mode: SearchMode) => {
-    const itemId = addToHistory(word, { type: 'loading', message: '검색 중...' })
-    try {
-      const response = await fetch('/api/words/search', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ input: word, mode }),
-      })
-      const data = await response.json()
-      if (!response.ok) {
-        updateHistoryItem(itemId, {
-          type: 'error',
-          message: data.error || '검색 중 오류가 발생했습니다.',
-        })
-        return
-      }
-      updateHistoryItem(itemId, data.result)
-    } catch {
-      updateHistoryItem(itemId, {
-        type: 'error',
-        message: '네트워크 오류가 발생했습니다.',
-      })
+  const handleSearchWord = (word: string, mode: SearchMode) => {
+    if (pathname === '/') {
+      // 검색 페이지에 있을 때: 이벤트로 page.tsx의 handleSearchWord 호출
+      window.dispatchEvent(
+        new CustomEvent('vocalenz:trigger-search', { detail: { word, mode } })
+      )
+    } else {
+      // 다른 탭에 있을 때: URL params로 검색 페이지 이동 후 자동 검색
+      router.push(`/?q=${encodeURIComponent(word)}&mode=${mode}`)
     }
   }
 

@@ -310,6 +310,34 @@
 
 ---
 
+### ✅ Phase 21: 사이드바 검색 이력 버그 3종 + Excel 따옴표 수정 (완료)
+**완료 일시:** 2026-02-20 15:17 (KST)
+**커밋:** `72bcb60`, `89a4562`
+- 사이드바 이력 실시간 갱신, 세션 오류, 타 탭 클릭 무반응 3종 버그 수정
+- Excel 스마트 따옴표(U+2018/U+2019) → ASCII 정규화로 구문 업로드 수정
+
+### ✅ Phase 22: Lenz 픽 업로드 버그 수정 + 재시도 UI + 삭제 확인 (완료)
+**완료 일시:** 2026-02-21 10:54 (KST)
+**커밋:** `d49e5d1`, `df8dcef`
+- `user_expression_vocabulary` → `user_expressions` 테이블명 버그 수정
+- 업로드 60초 스탈 타임아웃 + 안내 UI
+- 게이트키퍼 거절 단어 재시도 UI (철자 수정 / 강제 등록 선택)
+- 단어/구문 삭제 확인 Dialog 추가
+- ExpressionFlipCard 좌측 파란 테두리 제거
+
+### ✅ Phase 23: 단어장 UX 개선 8종 (완료)
+**완료 일시:** 2026-02-21 14:26 (KST)
+**커밋:** `c70bb20`
+- 복습 → 퀴즈오답/오답 전면 리네임
+- MultiSearchInput 검색 후 사이드바 실시간 갱신
+- 검색 이력 삭제 (데스크톱 hover X버튼 / 모바일 롱프레스)
+- 플립 카드 뒷면 단순화 (뜻만 text-lg font-semibold)
+- 섞기(Shuffle) 버튼 (Fisher-Yates 시드 기반)
+- 메모 검색 placeholder 정리, 날짜 필터 달력 아이콘 제거
+- 탭 선택 UI 가시성 개선 (bg-primary/15)
+
+---
+
 ### ✅ Phase 7: 데이터 수집 시스템 (완료)
 **완료 일시:** 2026-02-16 03:30 (KST)
 
@@ -2231,6 +2259,274 @@ Step 8.1 → 8.2 → 8.3 → 8.4 → `pnpm build` 검증 → Step 8.5 (수동 QA
 **수정 파일:** `src/app/(main)/quiz/page.tsx`, `src/app/api/quiz/route.ts`
 
 **수정 파일 전체:** `src/app/api/words/search/route.ts`, `src/components/search/search-results.tsx`, `src/contexts/search-context.tsx`, `src/components/search/multi-search-input.tsx`, `src/components/search/card-customizer.tsx`, `src/components/onboarding/onboarding-modal.tsx`
+
+---
+
+## ✅ Phase 16: UX 개선 - 메모·이력·D-day·업로드 (완료)
+**완료 일시:** 2026-02-20
+**커밋:** `8260004`
+
+### Step 16.1: D-day 뱃지 개선 ✅
+- 모바일 헤더에도 D-day 뱃지 표시
+- 사각형 디자인으로 변경 (기존 pill → rect)
+
+**수정 파일:** `src/components/layout/header.tsx`
+
+### Step 16.2: Bulk 업로드 한도 대폭 확대 ✅
+- 단어 업로드 한도: 50개 → **500개**
+- 단어장 전체 용량: 100개 → **2,000개** (Voca 리스트 / Lenz 픽 각각)
+- 잔여 용량 체크 로직 업데이트
+
+**수정 파일:** `src/app/api/vocabulary/bulk/route.ts`, `src/app/(main)/vocabulary/page.tsx`
+
+### Step 16.3: 검색 이력 UX 개선 ✅
+- 이력 클릭 시 스크롤 우선 → 검색 결과 영역으로 자연스럽게 이동
+- 표현(청해 구문) 이력: 모바일 바텀 시트에서도 `ExpressionCard` 표시
+- `/history` 페이지에 `/?q=...&mode=...` 형식의 '검색' 링크 버튼 추가
+
+**수정 파일:** `src/app/(main)/history/page.tsx`, `src/app/(main)/page.tsx`
+
+### Step 16.4: 단어장 메모 기능 ✅
+- 플립카드 뒷면에 메모 입력 필드 추가 (onBlur / Enter 저장)
+- 플립카드 앞면에 메모 미리보기 표시 (StickyNote 아이콘)
+- 메모 텍스트로 단어장 필터링 기능 추가 (검색 필드)
+- `user_vocabulary.memo` / `user_expression_vocabulary.memo` PATCH API 연동
+
+**신규/수정 파일:**
+- `src/components/vocabulary/vocabulary-flip-card.tsx`
+- `src/components/vocabulary/expression-flip-card.tsx`
+- `src/hooks/use-vocabulary.ts`
+- `src/hooks/use-expression-vocabulary.ts`
+- `src/app/api/vocabulary/route.ts`
+- `src/app/api/vocabulary/expressions/route.ts`
+- `src/app/(main)/vocabulary/page.tsx`
+
+---
+
+## ✅ Phase 17: 청해 구문 카드 고도화 (완료)
+**완료 일시:** 2026-02-20
+**커밋:** `95b74e8`
+
+### Step 17.1: image_text 데이터 레이어 (청해 구문) ✅
+- `expressions` 테이블에 `image_text TEXT` 컬럼 추가 (DB 마이그레이션 필요)
+- `expression-generator.ts` Rule 11: image_text (연상 이미지, 50자 이내) 생성 추가
+- `/api/words/search` route: expressions insert 시 `image_text` 포함
+- `types/database.ts`: `Expression.image_text: string | null`, `ExpressionGenerationResponse.image_text` 추가
+
+**수정 파일:** `src/lib/expression-generator.ts`, `src/app/api/words/search/route.ts`, `src/types/database.ts`
+
+### Step 17.2: ExpressionCardField 및 DisplayPreferences 확장 ✅
+- `ExpressionCardField` 타입에 `image_text`, `listening_parts` 추가 (총 10개 필드)
+- `DisplayPreferences`에 `exprVisibleFields?: ExpressionCardField[]`, `exprFieldOrder?: ExpressionCardField[]` 추가
+- `use-display-preferences.ts`: 기본값 상수 및 마이그레이션 로직 추가
+
+**수정 파일:** `src/types/database.ts`, `src/hooks/use-display-preferences.ts`
+
+### Step 17.3: ExpressionCard preferences 기반 렌더링 ✅
+- `useDisplayPreferences()` 훅으로 표시 필드/순서 제어
+- `fieldOrder.map(field => renderField(field))` 패턴 도입
+- `image_text`: Lightbulb 아이콘 + amber 스타일 박스로 최상단 표시
+
+**수정 파일:** `src/components/search/expression-card.tsx`
+
+### Step 17.4: CardCustomizer 탭 분리 + 단어장 설정 버튼 이동 ✅
+- `CardCustomizer` 컴포넌트: 단어 탭 / 청해구문 탭으로 분리
+  - `controlled open` 지원: `open`, `onOpenChange`, `initialTab`, `hideTopSettings` props
+  - 청해구문 탭 독립 DnD context + EXPR_FIELD_LABELS
+- `vocabulary/page.tsx`: 헤더에 Settings 아이콘 버튼 추가, CardCustomizer 직접 제어
+- `settings/page.tsx`: '단어 카드 표시 설정' Card 제거 (단어장 페이지로 이동)
+
+**수정 파일:** `src/components/search/card-customizer.tsx`, `src/app/(main)/vocabulary/page.tsx`, `src/app/(main)/settings/page.tsx`
+
+---
+
+## ✅ Phase 18: 검색 이력 통합 UX + 뱃지 개선 (완료)
+**완료 일시:** 2026-02-20
+**커밋:** `9310717`
+
+### Step 18.1: 데스크톱 사이드바 - 단어+청해구문 통합 이력 ✅
+- 기존: 단어 이력만 표시
+- 변경: 단어 + 청해 구문 이력 병렬 fetch → `searched_at` 기준 합산 정렬
+- `UnifiedHistoryItem` discriminated union 타입 도입
+- 아이콘: 단어=`BookOpen`, 청해구문=`Headphones`
+- Lv 뱃지 제거
+
+**수정 파일:** `src/components/layout/sidebar.tsx`
+
+### Step 18.2: 모바일 바텀 시트 X 버튼 중복 수정 ✅
+- `SheetContent` 내장 X 버튼 + 헤더 커스텀 X 버튼 중복 → 커스텀 버튼 제거
+- 미사용 `X` import, `LEVEL_CONFIG` 상수 제거
+
+**수정 파일:** `src/app/(main)/page.tsx`
+
+### Step 18.3: '표현' → '청해' 뱃지 통일 ✅
+- `ExpressionCard`: `'표현'` 뱃지 → `'청해'`
+- `ExpressionFlipCard` 앞면/뒷면: `'표현'` → `'청해'`
+
+**수정 파일:** `src/components/search/expression-card.tsx`, `src/components/vocabulary/expression-flip-card.tsx`
+
+---
+
+## ✅ Phase 19: TEPS 코치 프로필 동기화 + 업로드 메모 지원 (완료)
+**완료 일시:** 2026-02-20
+**커밋:** `7d6ac86`
+
+### Step 19.1: TEPS 코치 ↔ 프로필 동기화 ✅
+- `ScoreCoach` 컴포넌트에 `initialTargetScore`, `initialTargetDate` props 추가
+- `scores/page.tsx`에서 `profile?.target_score`, `profile?.study_start_date`를 전달
+- 코치 탭 진입 시 프로필에 저장된 목표 점수(target_score) / 목표 달성일(study_start_date) 자동 입력
+- "분석 시작" 클릭 시 `/api/users/profile` PUT으로 프로필에 자동 저장 (silent)
+
+**수정 파일:** `src/components/scores/score-coach.tsx`, `src/app/(main)/scores/page.tsx`
+
+### Step 19.2: 일괄 업로드 B열 메모 지원 ✅
+- 파일 파싱: A열=단어, B열=메모 (선택)
+- `parsedWords` 타입: `string[]` → `{ word: string; memo?: string }[]`
+- Map 기반 중복 제거 (word 기준)
+- 미리보기 칩: 메모 있으면 amber 색상으로 `(메모내용)` 함께 표시
+- API: `user_vocabulary` / `user_expression_vocabulary` insert 시 memo 포함
+- 이미 단어장에 있는 단어는 기존대로 skip (변경 없음)
+
+**수정 파일:** `src/app/(main)/vocabulary/page.tsx`, `src/app/api/vocabulary/bulk/route.ts`
+
+---
+
+## ✅ Phase 20: 업로드 제외 항목 표시 UX + 특수문자 허용 (완료)
+**완료 일시:** 2026-02-20
+**커밋:** `47f46b7`
+
+### Step 20.1: 제외 항목 인라인 토글 패널 ✅
+- `filteredOutCount: number` → `filteredOutItems: string[]` 상태 변경
+- `showExcluded: boolean` 상태 추가 (패널 토글)
+- 파일 파싱 결과 화면에 인라인 collapsible 패널 추가
+  - 평소: "N개 항목이 제외되었습니다" + AlertCircle 아이콘 (orange 테마)
+  - 클릭 시: 제외된 항목을 mono 칩으로 목록 표시 (max-h-32 스크롤)
+  - ChevronDown 아이콘이 펼침/접힘 상태에 따라 회전 애니메이션
+  - 다크모드 완전 대응 (orange-950/30 배경, orange-300 텍스트 등)
+- `resetUpload` 시 `filteredOutItems`, `showExcluded` 초기화
+
+### Step 20.2: 영어 정규식 특수문자 허용 ✅
+- 변경 전: `/^[a-zA-Z\s\-]+$/`
+- 변경 후: `/^[a-zA-Z\s\-,.!?']+$/`
+- 허용 추가 문자: `,` `.` `!` `?` `'`
+- 구문 예시: `It's a great day!`, `Hello, world.`, `What?` 등 정상 업로드 가능
+
+**수정 파일:** `src/app/(main)/vocabulary/page.tsx`
+
+---
+
+## ✅ Phase 21: 사이드바 검색 이력 버그 3종 수정 + Excel 스마트 따옴표 수정 (완료)
+**완료 일시:** 2026-02-20 15:17 (KST)
+**커밋:** `72bcb60`, `89a4562`
+
+### Step 21.1: 데스크톱 사이드바 검색 이력 버그 3종 수정 ✅
+**버그1 - 실시간 이력 미반영:**
+- `page.tsx` 검색 완료 시 `vocalenz:search-complete` 커스텀 이벤트 dispatch
+- `sidebar.tsx`에서 이벤트 수신 시 `fetchHistory(1)` 재호출 → 즉시 갱신
+
+**버그2 - "세션 정보가 필요합니다" 오류:**
+- `sidebar.tsx`의 `handleSearchWord`가 직접 API를 호출하는 구조 제거
+- `vocalenz:trigger-search` 이벤트 dispatch → `page.tsx`의 `handleSearchWord`가 sessionId 포함 처리 (sessionId 누락 문제 원천 해결)
+
+**버그3 - 다른 탭에서 이력 클릭 시 무반응:**
+- `pathname === '/'` → 이벤트 dispatch (`page.tsx`가 처리)
+- `pathname !== '/'` → `router.push('/?q=word&mode=mode')` → `page.tsx` 마운트 후 URL params 읽어 자동 검색
+
+**수정 파일:** `src/app/(main)/page.tsx`, `src/components/layout/sidebar.tsx`
+
+### Step 21.2: Excel 스마트 따옴표(U+2018/U+2019) 정규화 ✅
+- **문제:** Excel/Word에서 `you're` 입력 시 ASCII 아포스트로피(`'`, U+0027)가 스마트 따옴표(`'`, U+2019)로 자동 변환되어 영문 정규식 불통과
+- **수정:** 셀 파싱 시 `.replace(/[\u2018\u2019]/g, "'")` 추가 → `you're`, `it's`, `don't` 등 정상 업로드
+- **수정 파일:** `src/app/(main)/vocabulary/page.tsx`
+
+---
+
+## ✅ Phase 22: Lenz 픽 업로드 버그 수정 + 재시도 UI + 삭제 확인 (완료)
+**완료 일시:** 2026-02-21 10:54 (KST)
+**커밋:** `d49e5d1`, `df8dcef`
+
+### Step 22.1: Lenz 픽 업로드 테이블명 버그 수정 ✅
+- **원인:** `bulk/route.ts`에서 `user_expression_vocabulary`(잘못된 테이블명)를 사용 → 실제 테이블 `user_expressions`으로 4곳 수정
+- Lenz 픽 업로드 후 즉시 단어장에 반영 안 되던 문제 완전 해결
+- **수정 파일:** `src/app/api/vocabulary/bulk/route.ts`
+
+### Step 22.2: 업로드 60초 스탈 타임아웃 + UI ✅
+- `Promise.race()` 방식으로 60초 내 응답 없으면 `STALL_TIMEOUT` 예외 발생
+- `reader.cancel()` 후 `uploadStalled` 상태 전환
+- 스탈 화면: `AlertCircle` 아이콘 + "업로드가 멈춘 것 같아요" + 닫기/다시시도 버튼
+- `complete` NDJSON 이벤트 수신 시 `refresh()` / `refreshExpr()` 즉시 호출 → 단어장 실시간 갱신
+- **수정 파일:** `src/app/(main)/vocabulary/page.tsx`
+
+### Step 22.3: 게이트키퍼 거절 단어 재시도 UI ✅
+- 업로드 완료 후 `gkStatus`가 있는 실패 항목을 `RetryItem` 배열로 분리
+- 재시도 카드: 체크박스 토글(선택/해제) + 철자 수정(`correction` 있으면 삭선 표시)
+- "선택한 N개 등록" 버튼 → `handleBulkUpload(retryWords, skipGkFor)` 재호출
+- `skipGatekeeperFor` API 파라미터 추가: 해당 단어는 게이트키퍼 우회하여 강제 등록
+- **수정 파일:** `src/app/(main)/vocabulary/page.tsx`, `src/app/api/vocabulary/bulk/route.ts`
+
+### Step 22.4: 단어/구문 삭제 확인 다이얼로그 ✅
+- 삭제 버튼 클릭 시 즉시 삭제 대신 `setPendingDelete(item)` → 확인 Dialog 표시
+- Dialog: 단어명 Bold 표시 + "이 작업은 되돌릴 수 없습니다" 경고 + 취소/삭제 버튼
+- 단어(Voca 리스트)와 구문(Lenz 픽) 각각 별도 Dialog 상태 관리
+- **수정 파일:** `src/app/(main)/vocabulary/page.tsx`
+
+### Step 22.5: ExpressionFlipCard 좌측 파란 테두리 제거 ✅
+- `border-l-4 border-l-sky-500` 클래스 제거 → Voca 리스트 카드와 동일한 디자인으로 통일
+- **수정 파일:** `src/components/vocabulary/expression-flip-card.tsx`
+
+---
+
+## ✅ Phase 23: 단어장 UX 개선 8종 (완료)
+**완료 일시:** 2026-02-21 14:26 (KST)
+**커밋:** `c70bb20`
+
+### Step 23.1: 복습 → 퀴즈오답 전면 리네임 ✅
+- 필터 버튼: `복습필요` → `퀴즈오답`
+- 카드 버튼: `복습` → `오답` (Voca 리스트 · Lenz 픽 양쪽)
+- 카드 뱃지(복습 중 표시): `복습` → `오답`
+- 토스트 메시지: `복습 표시/해제` → `퀴즈 오답 표시/오답 해제`
+- **수정 파일:** `src/app/(main)/vocabulary/page.tsx`, `src/components/vocabulary/vocabulary-flip-card.tsx`, `src/components/vocabulary/expression-flip-card.tsx`
+
+### Step 23.2: MultiSearchInput 검색 후 사이드바 실시간 갱신 ✅
+- `await Promise.all(searchPromises)` 완료 후 `vocalenz:search-complete` 이벤트 dispatch 추가
+- 기존에는 `handleSearchWord`(page.tsx)를 통한 검색만 이벤트 발송, MultiSearchInput 직접 검색 시 사이드바 미갱신 문제 해결
+- **수정 파일:** `src/components/search/multi-search-input.tsx`
+
+### Step 23.3: 검색 이력 삭제 기능 ✅
+- **API:** `src/app/api/history/route.ts`에 `DELETE` 핸들러 추가 (`?id=&type=word|expression`)
+- **데스크톱 사이드바:** 이력 아이템 hover 시 X 버튼 표시 (`group-hover/hist:opacity-100`)
+- **모바일 바텀 시트:** 500ms 롱프레스 → 즉시 optimistic 삭제 (`onTouchStart` + setTimeout)
+- Optimistic UI: 로컬 state에서 먼저 제거 후 API 호출
+- **수정 파일:** `src/app/api/history/route.ts`, `src/components/layout/sidebar.tsx`, `src/app/(main)/page.tsx`
+
+### Step 23.4: 플립 카드 뒷면 단순화 ✅
+- description(한국어 설명) · example_sentence(예문) 제거 → 상세 Dialog에서만 확인
+- 뜻 텍스트 크기: `text-base font-medium` → `text-lg font-semibold`로 크게 표시
+- **수정 파일:** `src/components/vocabulary/vocabulary-flip-card.tsx`, `src/components/vocabulary/expression-flip-card.tsx`
+
+### Step 23.5: 섞기(Shuffle) 버튼 ✅
+- Fisher-Yates 알고리즘 + 시드 기반 (`seededShuffle` 유틸, LCG 방식)
+- `shuffleSeed` state: `0` = 정렬 유지, `Date.now()` = 셔플 활성화
+- 버튼 토글: 활성화 시 Default 스타일, 비활성화 시 Outline 스타일
+- `filtered` / `filteredExpressions` useMemo에 shuffleSeed 의존성 추가
+- **수정 파일:** `src/app/(main)/vocabulary/page.tsx`
+
+### Step 23.6: 메모 검색 placeholder 정리 ✅
+- `"메모로 검색 (예: test-4)"` → `"메모로 검색"` (불필요한 예시 제거)
+- **수정 파일:** `src/app/(main)/vocabulary/page.tsx`
+
+### Step 23.7: 날짜 필터 버튼 달력 아이콘 제거 ✅
+- 날짜 필터 버튼에서 `<Calendar>` Lucide 아이콘 제거 → 텍스트/날짜 범위만 표시
+- `Calendar` import도 제거
+- **수정 파일:** `src/app/(main)/vocabulary/page.tsx`
+
+### Step 23.8: 탭 선택 UI 가시성 개선 ✅
+- **문제:** 선택된 탭의 `bg-background` 클래스가 페이지 배경과 동일하여 거의 보이지 않음
+- **수정:** 3곳 모두 `bg-primary/15 text-primary font-semibold shadow-sm`으로 변경
+  - Voca 리스트 / Lenz 픽 탭 토글 (`vocabulary/page.tsx`)
+  - 업로드 목적지 토글 (`vocabulary/page.tsx` 내 Dialog)
+  - 단어 / 청해구문 검색 타입 토글 (`SearchTypeToggle`, `page.tsx`)
+- **수정 파일:** `src/app/(main)/vocabulary/page.tsx`, `src/app/(main)/page.tsx`
 
 ---
 

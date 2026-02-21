@@ -37,6 +37,18 @@ export function useVocabulary() {
 
   useEffect(() => {
     fetchVocabulary()
+
+    const handleVisible = () => {
+      if (!document.hidden) fetchVocabulary()
+    }
+    const handleSearchComplete = () => fetchVocabulary()
+
+    document.addEventListener('visibilitychange', handleVisible)
+    window.addEventListener('vocalenz:search-complete', handleSearchComplete)
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisible)
+      window.removeEventListener('vocalenz:search-complete', handleSearchComplete)
+    }
   }, [fetchVocabulary])
 
   const isInVocabulary = useCallback(

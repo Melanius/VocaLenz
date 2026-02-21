@@ -37,6 +37,18 @@ export function useExpressionVocabulary() {
 
   useEffect(() => {
     fetchExpressions()
+
+    const handleVisible = () => {
+      if (!document.hidden) fetchExpressions()
+    }
+    const handleSearchComplete = () => fetchExpressions()
+
+    document.addEventListener('visibilitychange', handleVisible)
+    window.addEventListener('vocalenz:search-complete', handleSearchComplete)
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisible)
+      window.removeEventListener('vocalenz:search-complete', handleSearchComplete)
+    }
   }, [fetchExpressions])
 
   const isInExpressionVocabulary = useCallback(

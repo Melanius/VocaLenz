@@ -222,7 +222,7 @@ async function handleExpressionQuiz({
 
   if (sources.includes('unmemorized')) {
     const { data } = await supabaseAdmin
-      .from('user_expression_vocabulary')
+      .from('user_expressions')
       .select('expression:expressions(id, expression, meanings)')
       .eq('user_id', user.id)
       .eq('is_memorized', false)
@@ -235,7 +235,7 @@ async function handleExpressionQuiz({
 
   if (sources.includes('memorized')) {
     const { data } = await supabaseAdmin
-      .from('user_expression_vocabulary')
+      .from('user_expressions')
       .select('expression:expressions(id, expression, meanings)')
       .eq('user_id', user.id)
       .eq('is_memorized', true)

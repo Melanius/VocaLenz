@@ -208,9 +208,9 @@ export function Sidebar({ open, onClose }: SidebarProps) {
                         <div key={item.id} className="relative group/hist">
                           <button
                             onClick={() => handleSearchWord(label, mode)}
-                            className="w-full text-left rounded-lg px-2 py-2 pr-7 hover:bg-accent/50 transition-colors"
+                            className="w-full text-left rounded-lg px-2 py-2 pr-7 hover:bg-accent/50 transition-colors overflow-hidden"
                           >
-                            <div className="flex items-center justify-between gap-1">
+                            <div className="flex items-center justify-between gap-1 min-w-0">
                               <div className="flex items-center gap-1.5 min-w-0">
                                 {isExpr ? (
                                   <Headphones className="h-3 w-3 text-indigo-500 flex-shrink-0" />
@@ -221,7 +221,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
                                   {label}
                                 </span>
                               </div>
-                              <span className="text-[10px] text-muted-foreground flex-shrink-0">
+                              <span className="text-[10px] text-muted-foreground flex-shrink-0 pl-1">
                                 {time}
                               </span>
                             </div>

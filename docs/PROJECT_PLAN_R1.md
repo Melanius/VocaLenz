@@ -336,6 +336,30 @@
 - 메모 검색 placeholder 정리, 날짜 필터 달력 아이콘 제거
 - 탭 선택 UI 가시성 개선 (bg-primary/15)
 
+### ✅ Phase 27: 플립카드 발음 듣기 + 세로폭 축소 (완료)
+**완료 일시:** 2026-02-22 (KST)
+**커밋:** `7aaa815`
+- Voca/Lenz 플립카드 뒷면에 Volume2 TTS 발음 버튼 추가
+- 카드 세로폭 6종 축소 (minHeight 300→250px, p-5→p-4 등)
+- 메모 2행 → 1행 통합, 저장 완료 시 Check 아이콘 1.5초 피드백
+
+### ✅ Phase 28: 버그 수정 2종 (완료)
+**완료 일시:** 2026-02-22 (KST)
+- `search-results.tsx`: 변환 배너 모바일 레이아웃 1행→2행 ('원본 검색' 버튼 항상 접근 가능)
+- `sidebar.tsx`: 긴 구문명 시 X 삭제 버튼 숨김 버그 수정
+
+### ✅ Phase 29: 청해 구문 퀴즈 테이블명 버그 수정 (완료)
+**완료 일시:** 2026-02-22 (KST)
+- `api/quiz/route.ts`: `user_expression_vocabulary` → `user_expressions` 수정
+- Lenz픽 구문이 있어도 퀴즈 생성 실패하던 근본 원인 해결
+
+### ✅ Phase 30: 단어장 자동 갱신 + 로그인 개선 + 비밀번호 재설정 + PWA 아이콘 (완료)
+**완료 일시:** 2026-02-22 (KST)
+- 단어장 훅 `visibilitychange` + `vocalenz:search-complete` 리스너 → 자동저장 즉시 반영
+- 로그인: 암호 저장/자동 로그인 체크박스, 비밀번호 보기 토글, autocomplete, 에러 한글화
+- 비밀번호 재설정: `auth/forgot-password`, `auth/reset-password` 신규 페이지
+- PWA 아이콘: 1.3MB→279KB 최적화, icon-192.png(44KB) 신규, manifest maskable purpose 추가
+
 ---
 
 ### ✅ Phase 7: 데이터 수집 시스템 (완료)
@@ -2620,6 +2644,143 @@ Step 8.1 → 8.2 → 8.3 → 8.4 → `pnpm build` 검증 → Step 8.5 (수동 QA
 - `manifest.ts`: `/icons/icon-512.png` (512×512, 192×192) 아이콘 항목 추가 (SVG 아이콘 유지)
 - **신규 파일:** `public/icons/icon-512.png`
 - **수정 파일:** `src/app/apple-icon.tsx`, `src/app/manifest.ts`
+
+---
+
+## ✅ Phase 26: Level 변경 제안 시스템 + 메모 저장 버튼 + 검색창 폭 (완료)
+**완료 일시:** 2026-02-21 (KST)
+**커밋:** `04ba129`
+
+### Step 26.1: 메모 저장 버튼 추가 ✅
+- Voca/Lenz 플립카드 뒷면 메모 입력란 우측에 `SendHorizontal` 아이콘 버튼 추가
+- `localSavedMemo` state 도입 → 저장된 값과 동일하면 버튼 비활성화
+- `saveMemo()` 내부에서 `setLocalSavedMemo(memoValue)` 호출로 로컬 상태 동기화
+- **수정 파일:** `vocabulary-flip-card.tsx`, `expression-flip-card.tsx`
+
+### Step 26.2: 메모 검색창 가로폭 축소 ✅
+- `flex-1`(전체 너비) → `w-44`(고정 176px)로 변경
+- 셔플 버튼과 함께 한 행에서 적절한 비율로 배치
+- **수정 파일:** `vocabulary/page.tsx`
+
+### Step 26.3: Level 변경 제안 시스템 ✅
+**DB:** `level_change_requests` 테이블 (Supabase SQL 마이그레이션 적용)
+- `user_id`, `word_id|expression_id`, `current_level`, `requested_level`, `status(pending/approved/rejected)`, `admin_reason`, `notified` 컬럼
+- RLS: 본인 행만 SELECT 가능
+
+**API (4개 신규 + 1개 수정):**
+- `POST /api/level-requests`: 사용자 레벨 변경 제안 생성 (중복 pending 시 409)
+- `GET /api/level-requests/notifications`: 미열람 처리 결과 조회 + `notified=true` 자동 처리
+- `GET /api/admin/level-requests`: 제안 목록 (페이징, status 필터, word/expression/user 이름 포함)
+- `PATCH /api/admin/level-requests/[id]`: 승인(단어 레벨 업데이트) 또는 반려(사유 저장)
+- `PATCH /api/words/level`: 관리자 전용으로 변경 (`requireAdmin()` 적용)
+
+**플립카드 UI:**
+- 레벨 팝오버: 직접 수정 → 제안 다이얼로그로 변경
+- `handleLevelSelect()`: popover 닫고 `proposedLevel` state 세팅
+- `handleSubmitLevelRequest()`: `POST /api/level-requests` 호출, 409/실패 토스트
+- 다이얼로그: 현재 레벨 → 제안 레벨 시각화 (ArrowRight)
+
+**단어장 페이지:**
+- `useEffect` 추가: 페이지 로드 시 `/api/level-requests/notifications` 폴링
+- 승인/반려 결과를 토스트로 표시
+
+**관리자 페이지:**
+- `LevelRequestsTab` 컴포넌트 추가 (4번째 탭)
+- 상태 필터(대기중/승인/반려/전체), 개별 승인/반려 버튼
+- 반려 시 Dialog에서 사유 입력
+
+---
+
+## ✅ Phase 27: 플립카드 발음 듣기 + 세로폭 축소 (완료)
+**완료 일시:** 2026-02-22 (KST)
+**커밋:** `7aaa815`
+
+### Step 27.1: Volume2 TTS 발음 버튼 추가 ✅
+- `vocabulary-flip-card.tsx`, `expression-flip-card.tsx` 뒷면 헤더에 `Volume2` 버튼 추가
+- `usePronunciation` 훅 연결 (`speak(word)` / `speak(expression)`)
+- 버튼 클릭 시 `e.stopPropagation()` → 카드 flip 이벤트 차단
+- 기존 word-card/expression-card에만 있던 TTS 기능을 플립카드로 확장
+
+### Step 27.2: 플립카드 세로폭 축소 6종 ✅
+- `minHeight`: 300→250px
+- 패딩: `p-5`→`p-4`
+- 뜻 목록: `text-lg`→`text-sm`, `space-y-2`→`space-y-1.5`, `max-h-[56px] overflow-y-auto` (2개 기본 표시)
+- 번호 뱃지: `h-5 w-5`→`h-4 w-4`
+- 구분선: `my-2.5`→`my-1.5`
+- 액션바: `mt-3 pt-2.5`→`mt-2 pt-1.5`
+
+### Step 27.3: 메모 영역 1행 통합 + 저장 피드백 ✅
+- 기존 2행(라벨 행 + 입력 행) → 1행(`🗒️ 아이콘 + input + 저장 버튼`)으로 통합
+- `isSaved` state: 저장 완료 1.5초간 버튼 아이콘 `SendHorizontal`→`Check`(green) 변경
+- `localSavedMemo` state로 변경 여부 감지, 미변경 시 버튼 비활성화
+
+---
+
+## ✅ Phase 28: 버그 수정 2종 (완료)
+**완료 일시:** 2026-02-22 (KST)
+
+### Step 28.1: search-results.tsx 변환 배너 모바일 버그 수정 ✅
+- **증상:** 긴 구문("you're not the only one who was fooled") 검색 시 변환 배너 텍스트 잘림 + '원본 검색' 버튼 모바일에서 접근 불가
+- **원인:** `flex justify-between` + `truncate`로 버튼이 화면 밖으로 밀려남
+- **수정:** 1행→2행 레이아웃 (1행: 아이콘+텍스트 `break-words`, 2행: '원본 검색' 버튼 `justify-end`)
+- **수정 파일:** `src/components/search/search-results.tsx`
+
+### Step 28.2: sidebar.tsx X 삭제 버튼 숨김 버그 수정 ✅
+- **증상:** 사이드바 검색 이력에서 긴 구문명 시 절대 위치의 X 버튼이 텍스트에 가려짐
+- **수정:** 히스토리 아이템 `<button>`에 `overflow-hidden` 추가, 외부 flex에 `min-w-0` 추가, 시간 span에 `pl-1` 추가
+- **수정 파일:** `src/components/layout/sidebar.tsx`
+
+---
+
+## ✅ Phase 29: 청해 구문 퀴즈 테이블명 버그 수정 (완료)
+**완료 일시:** 2026-02-22 (KST)
+
+### 버그 내용 ✅
+- **증상:** Lenz픽에 구문 40개가 있음에도 청해 구문 퀴즈 시작 시 "선택한 범위에 청해 구문이 4개 이상 필요합니다" 오류
+- **원인:** `api/quiz/route.ts`의 `handleExpressionQuiz`에서 `user_expression_vocabulary` 테이블 조회 (실제 DB 테이블명은 `user_expressions`)
+- Supabase는 존재하지 않는 테이블 조회 시 에러 반환 → `data || []`로 처리 → 0개 → 4개 미만 오류
+- 히스토리 소스는 `user_expression_history`로 정상이었음 (별개 테이블)
+
+### 수정 내용 ✅
+- `user_expression_vocabulary` → `user_expressions` (unmemorized, memorized 소스 2곳)
+- **수정 파일:** `src/app/api/quiz/route.ts` (lines 225, 238)
+
+---
+
+## ✅ Phase 30: 단어장 자동 갱신 + 로그인 개선 + 비밀번호 재설정 + PWA 아이콘 (완료)
+**완료 일시:** 2026-02-22 (KST)
+
+### Step 30.1: 단어장 자동 갱신 (Q2) ✅
+- **증상:** 검색 후 자동저장된 단어가 단어장 페이지에 즉시 반영되지 않음 (Next.js 클라이언트 라우팅 캐시로 re-mount 미발생)
+- **수정:** `use-vocabulary.ts`, `use-expression-vocabulary.ts` 두 훅에 이벤트 리스너 추가
+  - `visibilitychange`: 앱/탭으로 돌아올 때 자동 refetch
+  - `vocalenz:search-complete`: 검색 완료 이벤트 수신 시 즉시 refetch
+
+### Step 30.2: 로그인 페이지 개선 (Q3) ✅
+- **암호 저장** 체크박스: 이메일을 `localStorage`에 저장, 다음 방문 시 자동 채움 (`vocalenz_saved_email`)
+- **자동 로그인** 체크박스: `getSession()` 결과 유효 세션 있으면 홈 자동 이동 (`vocalenz_auto_login`)
+- 이미 로그인된 상태로 로그인 페이지 접근 시 무조건 홈 리다이렉트
+- 비밀번호 **👁 보기/숨기기** 토글 버튼
+- `autocomplete="email"` / `autocomplete="current-password"` → OS 키체인/브라우저 credential manager 연동
+- 영어 에러 메시지 → 한국어 번역 함수 (`translateError`)
+- 이메일/비밀번호 입력 필드에 `Mail`, `Lock` 아이콘 추가
+- **수정 파일:** `src/app/auth/login/page.tsx`
+
+### Step 30.3: 비밀번호 재설정 (Q4) ✅
+**플로우:** 로그인 → "비밀번호 찾기" → 이메일 입력 → 발송 → 이메일 링크 클릭 → `/auth/callback?next=/auth/reset-password` → 새 비밀번호 입력
+
+- `auth/forgot-password/page.tsx` (신규): 이메일 입력 → `resetPasswordForEmail()` 호출 → 발송 완료 화면
+- `auth/reset-password/page.tsx` (신규): `getSession()` 유효성 확인 → 새 비밀번호 + 확인 입력 → `updateUser()` → 완료 후 홈 이동
+- 비밀번호 불일치 실시간 표시
+- 기존 `/auth/callback` 라우트 재활용 (code 교환 처리)
+- **⚠️ Supabase 대시보드 설정 필요:** Authentication → URL Configuration에 `https://vocalenz.vercel.app/auth/reset-password` Redirect URL 추가
+
+### Step 30.4: PWA 아이콘 최적화 (Q5) ✅
+- Python Pillow로 부엉이 로고 정방형 처리 (비율 유지 + 흰 배경 중앙 배치)
+- `public/icons/icon-512.png`: 1,299KB → **279KB** (78% 절감)
+- `public/icons/icon-192.png`: **44KB** 신규 생성 (기존에는 512px 파일을 192 슬롯에도 사용)
+- `manifest.ts`: 192/512 분리, `purpose: 'maskable'` 항목 추가 (Android 적응형 아이콘)
+- **⚠️ 적용 방법:** Vercel 재배포 후, 기존 PWA 홈화면에서 삭제 → Safari에서 재설치
 
 ---
 

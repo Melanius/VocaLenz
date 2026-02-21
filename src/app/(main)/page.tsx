@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useEffect, useState, useCallback } from 'react'
-import { History, ChevronDown, Loader2, BookOpen, Headphones } from 'lucide-react'
+import { History, ChevronDown, Loader2, BookOpen, Headphones, Trash2 } from 'lucide-react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
@@ -87,6 +87,7 @@ export default function SearchPage() {
   const [dbHistoryHasMore, setDbHistoryHasMore] = useState(false)
   const [dbHistoryLoaded, setDbHistoryLoaded] = useState(false)
   const longPressRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [pendingDeleteItem, setPendingDeleteItem] = useState<UnifiedHistoryItem | null>(null)
 
   // session_start 이벤트 (최초 1회)
   useEffect(() => {
@@ -153,7 +154,7 @@ export default function SearchPage() {
   const startLongPress = (item: UnifiedHistoryItem) => {
     longPressRef.current = setTimeout(() => {
       longPressRef.current = null
-      deleteDbHistoryItem(item)
+      setPendingDeleteItem(item)
     }, 500)
   }
 
@@ -421,10 +422,8 @@ export default function SearchPage() {
                             const label = isExpr ? item.expression?.expression : item.word?.word
                             const meanings = isExpr ? item.expression?.meanings : item.word?.meanings
                             if (!label) return null
-                            const time = new Date(item.searched_at).toLocaleTimeString('ko-KR', {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })
+                            const d = new Date(item.searched_at)
+                            const time = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
                             const mode: SearchMode = isExpr ? 'expression' : 'word'
 
                             return (
@@ -434,10 +433,10 @@ export default function SearchPage() {
                                 onTouchStart={() => startLongPress(item)}
                                 onTouchEnd={cancelLongPress}
                                 onTouchMove={cancelLongPress}
-                                className="w-full text-left rounded-lg px-3 py-2.5 hover:bg-accent/50 transition-colors select-none"
+                                className="w-full text-left rounded-lg px-3 py-2 hover:bg-accent/50 transition-colors select-none"
                               >
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center gap-2 min-w-0">
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="flex items-center gap-1.5 min-w-0">
                                     {isExpr ? (
                                       <Headphones className="h-3.5 w-3.5 text-indigo-500 flex-shrink-0" />
                                     ) : (
@@ -446,14 +445,16 @@ export default function SearchPage() {
                                     <span className="font-semibold text-sm text-foreground truncate">
                                       {label}
                                     </span>
-                                    <span className="text-xs text-muted-foreground truncate">
-                                      {meanings?.[0]}
-                                    </span>
                                   </div>
-                                  <span className="text-xs text-muted-foreground flex-shrink-0 ml-2">
+                                  <span className="text-xs text-muted-foreground flex-shrink-0 tabular-nums">
                                     {time}
                                   </span>
                                 </div>
+                                {meanings?.[0] && (
+                                  <p className="text-xs text-muted-foreground truncate mt-0.5 pl-5">
+                                    {meanings[0]}
+                                  </p>
+                                )}
                               </button>
                             )
                           })}
@@ -487,6 +488,46 @@ export default function SearchPage() {
                 )}
               </div>
             </ScrollArea>
+
+            {/* 꾹 누름 삭제 확인 */}
+            {pendingDeleteItem && (
+              <div className="border-t bg-background px-4 py-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Trash2 className="h-4 w-4 text-destructive flex-shrink-0" />
+                    <p className="text-sm text-foreground truncate">
+                      <span className="font-semibold">
+                        {pendingDeleteItem.type === 'expression'
+                          ? pendingDeleteItem.expression?.expression
+                          : pendingDeleteItem.word?.word}
+                      </span>
+                      {' '}이력을 삭제할까요?
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 text-xs"
+                      onClick={() => setPendingDeleteItem(null)}
+                    >
+                      취소
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      className="h-8 text-xs"
+                      onClick={() => {
+                        deleteDbHistoryItem(pendingDeleteItem)
+                        setPendingDeleteItem(null)
+                      }}
+                    >
+                      삭제
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </SheetContent>
       </Sheet>

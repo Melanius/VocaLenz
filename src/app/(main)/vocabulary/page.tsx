@@ -614,7 +614,9 @@ export default function VocabularyPage() {
             }`}
           >
             <BookOpen className="h-3.5 w-3.5 shrink-0" />
-            Voca 리스트 ({count})
+            {memoFilterLower
+              ? `Voca (${filtered.length}/${count})`
+              : `Voca 리스트 (${count})`}
           </button>
           <button
             type="button"
@@ -626,32 +628,46 @@ export default function VocabularyPage() {
             }`}
           >
             <Headphones className="h-3.5 w-3.5 shrink-0" />
-            Lenz 픽 ({exprCount})
+            {memoFilterLower
+              ? `Lenz (${filteredExpressions.length}/${exprCount})`
+              : `Lenz 픽 (${exprCount})`}
           </button>
         </div>
 
-        {/* 메모 검색 필터 */}
-        <div className="relative flex items-center gap-2">
-          <StickyNote className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-amber-500 pointer-events-none" />
-          <input
-            type="text"
-            value={memoFilter}
-            onChange={(e) => setMemoFilter(e.target.value)}
-            placeholder="메모로 검색"
-            className="pl-8 pr-8 py-1.5 text-sm rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-amber-400 w-52"
-          />
-          {memoFilter && (
-            <button
-              onClick={() => setMemoFilter('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              aria-label="메모 필터 지우기"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          )}
+        {/* 메모 검색 + 셔플 한 행 */}
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1 min-w-0">
+            <StickyNote className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-amber-500 pointer-events-none" />
+            <input
+              type="text"
+              value={memoFilter}
+              onChange={(e) => setMemoFilter(e.target.value)}
+              placeholder="메모로 검색"
+              className="pl-8 pr-8 py-1.5 text-sm rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-amber-400 w-full"
+            />
+            {memoFilter && (
+              <button
+                onClick={() => setMemoFilter('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                aria-label="메모 필터 지우기"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+          <Button
+            variant={shuffleSeed !== 0 ? 'default' : 'outline'}
+            size="icon"
+            className="h-9 w-9 flex-shrink-0"
+            onClick={() => setShuffleSeed(shuffleSeed !== 0 ? 0 : Date.now())}
+            title="섞기"
+            aria-label="섞기"
+          >
+            <Shuffle className="h-4 w-4" />
+          </Button>
         </div>
 
-        {/* 필터 버튼 별도 행 */}
+        {/* 필터 버튼 행 */}
         <div className="flex items-center gap-2 flex-wrap">
           {(['all', 'not-memorized', 'memorized', 'needs-review'] as FilterType[]).map((f) => (
             <Button
@@ -663,16 +679,6 @@ export default function VocabularyPage() {
               {f === 'all' ? '전체' : f === 'not-memorized' ? '미암기' : f === 'memorized' ? '암기완료' : '퀴즈오답'}
             </Button>
           ))}
-
-          <Button
-            variant={shuffleSeed !== 0 ? 'default' : 'outline'}
-            size="sm"
-            className="gap-1.5 ml-auto"
-            onClick={() => setShuffleSeed(shuffleSeed !== 0 ? 0 : Date.now())}
-          >
-            <Shuffle className="h-3.5 w-3.5" />
-            섞기
-          </Button>
 
           {/* 날짜 필터 */}
           <Popover open={datePopoverOpen} onOpenChange={setDatePopoverOpen}>

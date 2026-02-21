@@ -61,3 +61,37 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 })
   }
 }
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const supabase = await createServerSupabaseClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) {
+      return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
+    }
+
+    const { searchParams } = new URL(request.url)
+    const id = searchParams.get('id')
+    const type = searchParams.get('type') || 'word'
+
+    if (!id) {
+      return NextResponse.json({ error: 'id가 필요합니다.' }, { status: 400 })
+    }
+
+    const table = type === 'expression' ? 'user_expression_history' : 'user_word_history'
+    const { error } = await supabaseAdmin
+      .from(table)
+      .delete()
+      .eq('id', id)
+      .eq('user_id', user.id)
+
+    if (error) {
+      return NextResponse.json({ error: '삭제에 실패했습니다.' }, { status: 500 })
+    }
+
+    return NextResponse.json({ success: true })
+  } catch {
+    return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 })
+  }
+}

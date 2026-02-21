@@ -84,6 +84,7 @@ export function MultiSearchInput({ onSearchStart, autoFocus = false, compact = f
     })
 
     await Promise.all(searchPromises)
+    window.dispatchEvent(new CustomEvent('vocalenz:search-complete'))
     setQueries(Array(4).fill(''))
     setIsSearching(false)
   }

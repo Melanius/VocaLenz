@@ -117,6 +117,15 @@ export function Sidebar({ open, onClose }: SidebarProps) {
     fetchHistory(nextPage, true)
   }
 
+  const deleteHistoryItem = async (item: UnifiedHistoryItem) => {
+    setDbHistory((prev) => prev.filter((h) => h.id !== item.id))
+    try {
+      await fetch(`/api/history?id=${item.id}&type=${item.type}`, { method: 'DELETE' })
+    } catch {
+      // silent
+    }
+  }
+
   const handleSearchWord = (word: string, mode: SearchMode) => {
     if (pathname === '/') {
       // 검색 페이지에 있을 때: 이벤트로 page.tsx의 handleSearchWord 호출
@@ -196,30 +205,38 @@ export function Sidebar({ open, onClose }: SidebarProps) {
                       })
 
                       return (
-                        <button
-                          key={item.id}
-                          onClick={() => handleSearchWord(label, mode)}
-                          className="w-full text-left rounded-lg px-2 py-2 hover:bg-accent/50 transition-colors"
-                        >
-                          <div className="flex items-center justify-between gap-1">
-                            <div className="flex items-center gap-1.5 min-w-0">
-                              {isExpr ? (
-                                <Headphones className="h-3 w-3 text-indigo-500 flex-shrink-0" />
-                              ) : (
-                                <BookOpen className="h-3 w-3 text-sky-500 flex-shrink-0" />
-                              )}
-                              <span className="font-semibold text-xs text-foreground truncate">
-                                {label}
+                        <div key={item.id} className="relative group/hist">
+                          <button
+                            onClick={() => handleSearchWord(label, mode)}
+                            className="w-full text-left rounded-lg px-2 py-2 pr-7 hover:bg-accent/50 transition-colors"
+                          >
+                            <div className="flex items-center justify-between gap-1">
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                {isExpr ? (
+                                  <Headphones className="h-3 w-3 text-indigo-500 flex-shrink-0" />
+                                ) : (
+                                  <BookOpen className="h-3 w-3 text-sky-500 flex-shrink-0" />
+                                )}
+                                <span className="font-semibold text-xs text-foreground truncate">
+                                  {label}
+                                </span>
+                              </div>
+                              <span className="text-[10px] text-muted-foreground flex-shrink-0">
+                                {time}
                               </span>
                             </div>
-                            <span className="text-[10px] text-muted-foreground flex-shrink-0">
-                              {time}
-                            </span>
-                          </div>
-                          <p className="text-[11px] text-muted-foreground truncate mt-0.5 pl-[18px]">
-                            {meanings?.[0]}
-                          </p>
-                        </button>
+                            <p className="text-[11px] text-muted-foreground truncate mt-0.5 pl-[18px]">
+                              {meanings?.[0]}
+                            </p>
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); deleteHistoryItem(item) }}
+                            className="absolute right-1 top-1/2 -translate-y-1/2 p-1 rounded-md opacity-0 group-hover/hist:opacity-100 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-opacity"
+                            aria-label="이력 삭제"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
                       )
                     })}
                   </div>

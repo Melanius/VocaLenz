@@ -86,6 +86,7 @@ export default function SearchPage() {
   const [dbHistoryPage, setDbHistoryPage] = useState(1)
   const [dbHistoryHasMore, setDbHistoryHasMore] = useState(false)
   const [dbHistoryLoaded, setDbHistoryLoaded] = useState(false)
+  const longPressRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // session_start 이벤트 (최초 1회)
   useEffect(() => {
@@ -138,6 +139,29 @@ export default function SearchPage() {
     const nextPage = dbHistoryPage + 1
     setDbHistoryPage(nextPage)
     fetchDbHistory(nextPage, true)
+  }
+
+  const deleteDbHistoryItem = async (item: UnifiedHistoryItem) => {
+    setDbHistory((prev) => prev.filter((h) => h.id !== item.id))
+    try {
+      await fetch(`/api/history?id=${item.id}&type=${item.type}`, { method: 'DELETE' })
+    } catch {
+      // silent
+    }
+  }
+
+  const startLongPress = (item: UnifiedHistoryItem) => {
+    longPressRef.current = setTimeout(() => {
+      longPressRef.current = null
+      deleteDbHistoryItem(item)
+    }, 500)
+  }
+
+  const cancelLongPress = () => {
+    if (longPressRef.current) {
+      clearTimeout(longPressRef.current)
+      longPressRef.current = null
+    }
   }
 
   // 새 결과 추가 시 자동 스크롤
@@ -406,7 +430,10 @@ export default function SearchPage() {
                               <button
                                 key={item.id}
                                 onClick={() => handleSearchWord(label, mode)}
-                                className="w-full text-left rounded-lg px-3 py-2.5 hover:bg-accent/50 transition-colors"
+                                onTouchStart={() => startLongPress(item)}
+                                onTouchEnd={cancelLongPress}
+                                onTouchMove={cancelLongPress}
+                                className="w-full text-left rounded-lg px-3 py-2.5 hover:bg-accent/50 transition-colors select-none"
                               >
                                 <div className="flex items-center justify-between">
                                   <div className="flex items-center gap-2 min-w-0">
@@ -495,7 +522,7 @@ function SearchTypeToggle({
           compact ? 'px-2.5 py-1' : 'px-3 py-1.5'
         } ${
           value === 'word'
-            ? 'bg-background text-foreground shadow-sm'
+            ? 'bg-primary/15 text-primary font-semibold shadow-sm'
             : 'text-muted-foreground hover:text-foreground'
         }`}
       >
@@ -518,7 +545,7 @@ function SearchTypeToggle({
           compact ? 'px-2.5 py-1' : 'px-3 py-1.5'
         } ${
           value === 'expression'
-            ? 'bg-background text-foreground shadow-sm'
+            ? 'bg-primary/15 text-primary font-semibold shadow-sm'
             : 'text-muted-foreground hover:text-foreground'
         }`}
       >

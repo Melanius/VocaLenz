@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { BookOpen, Headphones, Star, Loader2, Upload, Search, Calendar, X, StickyNote, Settings, AlertCircle, ChevronDown } from 'lucide-react'
+import { BookOpen, Headphones, Star, Loader2, Upload, Search, Shuffle, X, StickyNote, Settings, AlertCircle, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -55,6 +55,17 @@ interface RetryItem {
 
 type VocabTab = 'words' | 'expressions'
 
+function seededShuffle<T>(arr: T[], seed: number): T[] {
+  const result = [...arr]
+  let s = seed
+  for (let i = result.length - 1; i > 0; i--) {
+    s = (s * 1664525 + 1013904223) & 0x7fffffff
+    const j = s % (i + 1)
+    ;[result[i], result[j]] = [result[j], result[i]]
+  }
+  return result
+}
+
 export default function VocabularyPage() {
   const router = useRouter()
   const { user, loading: authLoading } = useAuthContext()
@@ -87,6 +98,7 @@ export default function VocabularyPage() {
   const [uploadTotal, setUploadTotal] = useState(0)
   const [pendingDelete, setPendingDelete] = useState<UserVocabulary | null>(null)
   const [pendingExprDelete, setPendingExprDelete] = useState<UserExpression | null>(null)
+  const [shuffleSeed, setShuffleSeed] = useState(0)
 
   const toggleFlip = (id: string) => {
     setFlippedCards((prev) => {
@@ -105,28 +117,7 @@ export default function VocabularyPage() {
   const memoFilterLower = memoFilter.trim().toLowerCase()
 
   const filtered = useMemo(() => {
-    return vocabularyItems.filter((item) => {
-      // 상태 필터
-      if (filter === 'memorized' && !item.is_memorized) return false
-      if (filter === 'not-memorized' && item.is_memorized) return false
-      if (filter === 'needs-review' && !item.needs_review) return false
-
-      // 날짜 필터
-      if (hasDateFilter && item.added_at) {
-        const addedDate = item.added_at.slice(0, 10) // YYYY-MM-DD
-        if (dateFrom && addedDate < dateFrom) return false
-        if (dateTo && addedDate > dateTo) return false
-      }
-
-      // 메모 필터
-      if (memoFilterLower && !(item.memo || '').toLowerCase().includes(memoFilterLower)) return false
-
-      return true
-    })
-  }, [vocabularyItems, filter, dateFrom, dateTo, hasDateFilter, memoFilterLower])
-
-  const filteredExpressions = useMemo(() => {
-    return expressionItems.filter((item) => {
+    const items = vocabularyItems.filter((item) => {
       if (filter === 'memorized' && !item.is_memorized) return false
       if (filter === 'not-memorized' && item.is_memorized) return false
       if (filter === 'needs-review' && !item.needs_review) return false
@@ -138,7 +129,24 @@ export default function VocabularyPage() {
       if (memoFilterLower && !(item.memo || '').toLowerCase().includes(memoFilterLower)) return false
       return true
     })
-  }, [expressionItems, filter, dateFrom, dateTo, hasDateFilter, memoFilterLower])
+    return shuffleSeed ? seededShuffle(items, shuffleSeed) : items
+  }, [vocabularyItems, filter, dateFrom, dateTo, hasDateFilter, memoFilterLower, shuffleSeed])
+
+  const filteredExpressions = useMemo(() => {
+    const items = expressionItems.filter((item) => {
+      if (filter === 'memorized' && !item.is_memorized) return false
+      if (filter === 'not-memorized' && item.is_memorized) return false
+      if (filter === 'needs-review' && !item.needs_review) return false
+      if (hasDateFilter && item.added_at) {
+        const addedDate = item.added_at.slice(0, 10)
+        if (dateFrom && addedDate < dateFrom) return false
+        if (dateTo && addedDate > dateTo) return false
+      }
+      if (memoFilterLower && !(item.memo || '').toLowerCase().includes(memoFilterLower)) return false
+      return true
+    })
+    return shuffleSeed ? seededShuffle(items, shuffleSeed) : items
+  }, [expressionItems, filter, dateFrom, dateTo, hasDateFilter, memoFilterLower, shuffleSeed])
 
   const clearDateFilter = () => {
     setDateFrom('')
@@ -234,10 +242,10 @@ export default function VocabularyPage() {
       if (res.ok) {
         refresh()
         toast({
-          title: item.needs_review ? '복습 해제' : '복습 표시',
+          title: item.needs_review ? '오답 해제' : '퀴즈 오답 표시',
           description: item.needs_review
-            ? '복습 표시를 해제했습니다.'
-            : '복습 필요로 표시했습니다.',
+            ? '오답 표시를 해제했습니다.'
+            : '퀴즈 오답으로 표시했습니다.',
         })
       }
     } catch {
@@ -287,10 +295,10 @@ export default function VocabularyPage() {
       if (res.ok) {
         refreshExpr()
         toast({
-          title: item.needs_review ? '복습 해제' : '복습 표시',
+          title: item.needs_review ? '오답 해제' : '퀴즈 오답 표시',
           description: item.needs_review
-            ? '복습 표시를 해제했습니다.'
-            : '복습 필요로 표시했습니다.',
+            ? '오답 표시를 해제했습니다.'
+            : '퀴즈 오답으로 표시했습니다.',
         })
       }
     } catch {
@@ -572,7 +580,7 @@ export default function VocabularyPage() {
             onClick={() => setVocabTab('words')}
             className={`flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-sm font-medium transition-all ${
               vocabTab === 'words'
-                ? 'bg-background text-foreground shadow-sm'
+                ? 'bg-primary/15 text-primary font-semibold shadow-sm'
                 : 'text-muted-foreground hover:text-foreground'
             }`}
           >
@@ -584,7 +592,7 @@ export default function VocabularyPage() {
             onClick={() => setVocabTab('expressions')}
             className={`flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-sm font-medium transition-all ${
               vocabTab === 'expressions'
-                ? 'bg-background text-foreground shadow-sm'
+                ? 'bg-primary/15 text-primary font-semibold shadow-sm'
                 : 'text-muted-foreground hover:text-foreground'
             }`}
           >
@@ -600,7 +608,7 @@ export default function VocabularyPage() {
             type="text"
             value={memoFilter}
             onChange={(e) => setMemoFilter(e.target.value)}
-            placeholder="메모로 검색 (예: test-4)"
+            placeholder="메모로 검색"
             className="pl-8 pr-8 py-1.5 text-sm rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-amber-400 w-52"
           />
           {memoFilter && (
@@ -623,9 +631,19 @@ export default function VocabularyPage() {
               size="sm"
               onClick={() => setFilter(f)}
             >
-              {f === 'all' ? '전체' : f === 'not-memorized' ? '미암기' : f === 'memorized' ? '암기완료' : '복습필요'}
+              {f === 'all' ? '전체' : f === 'not-memorized' ? '미암기' : f === 'memorized' ? '암기완료' : '퀴즈오답'}
             </Button>
           ))}
+
+          <Button
+            variant={shuffleSeed !== 0 ? 'default' : 'outline'}
+            size="sm"
+            className="gap-1.5 ml-auto"
+            onClick={() => setShuffleSeed(shuffleSeed !== 0 ? 0 : Date.now())}
+          >
+            <Shuffle className="h-3.5 w-3.5" />
+            섞기
+          </Button>
 
           {/* 날짜 필터 */}
           <Popover open={datePopoverOpen} onOpenChange={setDatePopoverOpen}>
@@ -635,7 +653,6 @@ export default function VocabularyPage() {
                 size="sm"
                 className="gap-1.5"
               >
-                <Calendar className="h-3.5 w-3.5" />
                 {hasDateFilter
                   ? dateFrom && dateTo
                     ? `${dateFrom} ~ ${dateTo}`
@@ -854,7 +871,7 @@ export default function VocabularyPage() {
                 onClick={() => setUploadTarget('word')}
                 className={`flex items-center justify-center gap-1.5 flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-all ${
                   uploadTarget === 'word'
-                    ? 'bg-background text-foreground shadow-sm'
+                    ? 'bg-primary/15 text-primary font-semibold shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
@@ -866,7 +883,7 @@ export default function VocabularyPage() {
                 onClick={() => setUploadTarget('expression')}
                 className={`flex items-center justify-center gap-1.5 flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-all ${
                   uploadTarget === 'expression'
-                    ? 'bg-background text-foreground shadow-sm'
+                    ? 'bg-primary/15 text-primary font-semibold shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
                 }`}
               >

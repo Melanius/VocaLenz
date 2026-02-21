@@ -64,7 +64,7 @@ export function VocabularyFlipCard({
       {/* 복습 배지 - 양면 모두 보임 */}
       {item.needs_review && (
         <span className="absolute -top-1.5 -right-1.5 z-10 inline-flex items-center rounded-full bg-orange-500 px-2.5 py-0.5 text-xs font-semibold text-white animate-pulse shadow-md">
-          복습
+          오답
         </span>
       )}
 
@@ -126,32 +126,15 @@ export function VocabularyFlipCard({
           <hr className="my-2.5 border-dashed border-border" />
 
           {/* 뜻 목록 */}
-          <div className="flex-1 space-y-1.5 overflow-y-auto">
+          <div className="flex-1 space-y-2 overflow-y-auto">
             {word.meanings.map((m, i) => (
               <div key={i} className="flex items-baseline gap-2">
                 <span className="flex-shrink-0 flex items-center justify-center h-5 w-5 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 text-xs font-bold">
                   {i + 1}
                 </span>
-                <p className="text-base font-medium text-foreground leading-relaxed">{m}</p>
+                <p className="text-lg font-semibold text-foreground leading-snug">{m}</p>
               </div>
             ))}
-            {word.description && (
-              <p className="text-sm leading-relaxed text-muted-foreground mt-2">
-                {word.description}
-              </p>
-            )}
-            {word.example_sentence && (
-              <div className="mt-2.5 border-l-2 border-indigo-300 dark:border-indigo-700 pl-3 space-y-0.5">
-                <p className="text-sm leading-relaxed text-foreground">
-                  {word.example_sentence}
-                </p>
-                {word.example_translation && (
-                  <p className="text-xs leading-relaxed text-muted-foreground">
-                    {word.example_translation}
-                  </p>
-                )}
-              </div>
-            )}
           </div>
 
           {/* 하단 액션 바 */}
@@ -184,7 +167,7 @@ export function VocabularyFlipCard({
               onClick={() => onToggleReview(item)}
             >
               <RotateCcw className="h-3.5 w-3.5 mr-1" />
-              복습
+              오답
             </Button>
             <Button
               variant="ghost"

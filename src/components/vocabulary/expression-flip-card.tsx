@@ -63,7 +63,7 @@ export function ExpressionFlipCard({
     <div className="flip-card relative">
       {item.needs_review && (
         <span className="absolute -top-1.5 -right-1.5 z-10 inline-flex items-center rounded-full bg-orange-500 px-2.5 py-0.5 text-xs font-semibold text-white animate-pulse shadow-md">
-          복습
+          오답
         </span>
       )}
 
@@ -124,32 +124,15 @@ export function ExpressionFlipCard({
 
           <hr className="my-2.5 border-dashed border-border" />
 
-          <div className="flex-1 space-y-1.5 overflow-y-auto">
+          <div className="flex-1 space-y-2 overflow-y-auto">
             {expr.meanings.map((m, i) => (
               <div key={i} className="flex items-baseline gap-2">
                 <span className="flex-shrink-0 flex items-center justify-center h-5 w-5 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 text-xs font-bold">
                   {i + 1}
                 </span>
-                <p className="text-base font-medium text-foreground leading-relaxed">{m}</p>
+                <p className="text-lg font-semibold text-foreground leading-snug">{m}</p>
               </div>
             ))}
-            {expr.description && (
-              <p className="text-sm leading-relaxed text-muted-foreground mt-2">
-                {expr.description}
-              </p>
-            )}
-            {expr.example_sentence && (
-              <div className="mt-2.5 border-l-2 border-indigo-300 dark:border-indigo-700 pl-3 space-y-0.5">
-                <p className="text-sm leading-relaxed text-foreground whitespace-pre-line">
-                  {expr.example_sentence}
-                </p>
-                {expr.example_translation && (
-                  <p className="text-xs leading-relaxed text-muted-foreground whitespace-pre-line">
-                    {expr.example_translation}
-                  </p>
-                )}
-              </div>
-            )}
           </div>
 
           <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-border" onClick={(e) => e.stopPropagation()}>
@@ -181,7 +164,7 @@ export function ExpressionFlipCard({
               onClick={() => onToggleReview(item)}
             >
               <RotateCcw className="h-3.5 w-3.5 mr-1" />
-              복습
+              오답
             </Button>
             <Button
               variant="ghost"

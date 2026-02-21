@@ -75,6 +75,7 @@ export default function VocabularyPage() {
   const [uploadProgress, setUploadProgress] = useState<BulkProgress[]>([])
   const [uploadResult, setUploadResult] = useState<BulkComplete | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [uploadStalled, setUploadStalled] = useState(false)
 
   const toggleFlip = (id: string) => {
     setFlippedCards((prev) => {
@@ -345,6 +346,7 @@ export default function VocabularyPage() {
     setUploading(true)
     setUploadProgress([])
     setUploadResult(null)
+    setUploadStalled(false)
 
     try {
       const res = await fetch('/api/vocabulary/bulk', {
@@ -368,9 +370,29 @@ export default function VocabularyPage() {
         return
       }
 
+      const readWithTimeout = () =>
+        Promise.race<ReadableStreamReadResult<Uint8Array>>([
+          reader.read(),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('STALL_TIMEOUT')), 60000)
+          ),
+        ])
+
       let buffer = ''
+      let refreshed = false
+
       while (true) {
-        const { done, value } = await reader.read()
+        const result = await readWithTimeout().catch((e: Error) => {
+          if (e.message === 'STALL_TIMEOUT') {
+            setUploadStalled(true)
+            reader.cancel().catch(() => {})
+            return null
+          }
+          throw e
+        })
+        if (result === null) return
+
+        const { done, value } = result
         if (done) break
 
         buffer += decoder.decode(value, { stream: true })
@@ -385,6 +407,11 @@ export default function VocabularyPage() {
               setUploadProgress((prev) => [...prev, data])
             } else if (data.type === 'complete') {
               setUploadResult(data)
+              if (!refreshed) {
+                refreshed = true
+                if (uploadTarget === 'word') refresh()
+                else refreshExpr()
+              }
             }
           } catch {
             // skip invalid JSON
@@ -398,14 +425,16 @@ export default function VocabularyPage() {
           const data = JSON.parse(buffer)
           if (data.type === 'complete') {
             setUploadResult(data)
+            if (!refreshed) {
+              refreshed = true
+              if (uploadTarget === 'word') refresh()
+              else refreshExpr()
+            }
           }
         } catch {
           // skip
         }
       }
-
-      if (uploadTarget === 'word') refresh()
-      else refreshExpr()
     } catch {
       toast({ title: '오류', description: '업로드에 실패했습니다.', variant: 'destructive' })
     } finally {
@@ -420,6 +449,7 @@ export default function VocabularyPage() {
     setUploadProgress([])
     setUploadResult(null)
     setUploading(false)
+    setUploadStalled(false)
   }
 
   return (
@@ -793,6 +823,30 @@ export default function VocabularyPage() {
               <Button className="w-full" onClick={() => { setUploadOpen(false); resetUpload() }}>
                 확인
               </Button>
+            </div>
+          ) : uploadStalled ? (
+            // 스트림 스탈 UI
+            <div className="space-y-4">
+              <div className="text-center space-y-3">
+                <AlertCircle className="h-10 w-10 mx-auto text-orange-500" />
+                <h3 className="text-base font-semibold">업로드가 멈춘 것 같아요</h3>
+                <p className="text-sm text-muted-foreground">
+                  1분 이상 응답이 없어 자동으로 중단했습니다.<br />
+                  이미 처리된 항목은 단어장에 저장되었을 수 있어요.
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => { setUploadOpen(false); resetUpload() }}
+                >
+                  닫기
+                </Button>
+                <Button className="flex-1" onClick={handleBulkUpload}>
+                  다시 시도
+                </Button>
+              </div>
             </div>
           ) : uploading ? (
             // 진행 중

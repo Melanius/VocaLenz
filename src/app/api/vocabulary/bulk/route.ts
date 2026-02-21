@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
 
     const isExpression = uploadType === 'expression'
     const listName = isExpression ? 'Lenz 픽' : 'Voca 리스트'
-    const vocabTable = isExpression ? 'user_expression_vocabulary' : 'user_vocabulary'
+    const vocabTable = isExpression ? 'user_expressions' : 'user_vocabulary'
 
     // 잔여 용량 체크
     const { count: currentCount } = await supabaseAdmin
@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
 
               if (existingExpr) {
                 const { data: existingVocab } = await supabaseAdmin
-                  .from('user_expression_vocabulary')
+                  .from('user_expressions')
                   .select('id')
                   .eq('user_id', user.id)
                   .eq('expression_id', existingExpr.id)
@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
                   ))
                 } else {
                   await supabaseAdmin
-                    .from('user_expression_vocabulary')
+                    .from('user_expressions')
                     .insert({ user_id: user.id, expression_id: existingExpr.id, ...(memo ? { memo } : {}) })
                   added++
                   controller.enqueue(encoder.encode(
@@ -139,7 +139,7 @@ export async function POST(request: NextRequest) {
                     .single()
                   if (insertError || !newExpr) throw new Error('구문 저장 실패')
                   await supabaseAdmin
-                    .from('user_expression_vocabulary')
+                    .from('user_expressions')
                     .insert({ user_id: user.id, expression_id: newExpr.id, ...(memo ? { memo } : {}) })
                   added++
                   controller.enqueue(encoder.encode(

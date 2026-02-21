@@ -20,10 +20,11 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    const { words, sessionId, uploadType = 'word' } = await request.json() as {
+    const { words, sessionId, uploadType = 'word', skipGatekeeperFor = [] } = await request.json() as {
       words: (string | { word: string; memo?: string })[]
       sessionId?: string
       uploadType?: 'word' | 'expression'
+      skipGatekeeperFor?: string[]
     }
 
     if (!words || !Array.isArray(words) || words.length === 0) {
@@ -36,6 +37,7 @@ export async function POST(request: NextRequest) {
     const isExpression = uploadType === 'expression'
     const listName = isExpression ? 'Lenz 픽' : 'Voca 리스트'
     const vocabTable = isExpression ? 'user_expressions' : 'user_vocabulary'
+    const skipGkSet = new Set<string>(skipGatekeeperFor)
 
     // 잔여 용량 체크
     const { count: currentCount } = await supabaseAdmin
@@ -104,18 +106,20 @@ export async function POST(request: NextRequest) {
                   JSON.stringify({ type: 'progress', current: i + 1, total, word, status: 'generating' }) + '\n'
                 ))
                 try {
-                  const gkResult = await evaluateWithGatekeeper(word)
-                  if (gkResult.status !== 'WORD' && gkResult.status !== 'PHRASE') {
-                    failed++
-                    controller.enqueue(encoder.encode(
-                      JSON.stringify({
-                        type: 'progress', current: i + 1, total, word, status: 'failed',
-                        error: gkResult.reason || '유효하지 않은 입력',
-                        correction: gkResult.correction,
-                        gkStatus: gkResult.status,
-                      }) + '\n'
-                    ))
-                    continue
+                  if (!skipGkSet.has(word)) {
+                    const gkResult = await evaluateWithGatekeeper(word)
+                    if (gkResult.status !== 'WORD' && gkResult.status !== 'PHRASE') {
+                      failed++
+                      controller.enqueue(encoder.encode(
+                        JSON.stringify({
+                          type: 'progress', current: i + 1, total, word, status: 'failed',
+                          error: gkResult.reason || '유효하지 않은 입력',
+                          correction: gkResult.correction,
+                          gkStatus: gkResult.status,
+                        }) + '\n'
+                      ))
+                      continue
+                    }
                   }
                   const exprData = await generateExpressionData(word)
                   const { data: newExpr, error: insertError } = await supabaseAdmin
@@ -187,18 +191,20 @@ export async function POST(request: NextRequest) {
                   JSON.stringify({ type: 'progress', current: i + 1, total, word, status: 'generating' }) + '\n'
                 ))
                 try {
-                  const gkResult = await evaluateWithGatekeeper(word)
-                  if (gkResult.status !== 'WORD' && gkResult.status !== 'PHRASE') {
-                    failed++
-                    controller.enqueue(encoder.encode(
-                      JSON.stringify({
-                        type: 'progress', current: i + 1, total, word, status: 'failed',
-                        error: gkResult.reason || '유효하지 않은 단어',
-                        correction: gkResult.correction,
-                        gkStatus: gkResult.status,
-                      }) + '\n'
-                    ))
-                    continue
+                  if (!skipGkSet.has(word)) {
+                    const gkResult = await evaluateWithGatekeeper(word)
+                    if (gkResult.status !== 'WORD' && gkResult.status !== 'PHRASE') {
+                      failed++
+                      controller.enqueue(encoder.encode(
+                        JSON.stringify({
+                          type: 'progress', current: i + 1, total, word, status: 'failed',
+                          error: gkResult.reason || '유효하지 않은 단어',
+                          correction: gkResult.correction,
+                          gkStatus: gkResult.status,
+                        }) + '\n'
+                      ))
+                      continue
+                    }
                   }
                   const wordData = await generateWordData(word)
                   const { data: newWord, error: insertError } = await supabaseAdmin

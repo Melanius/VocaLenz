@@ -55,7 +55,7 @@ export function ExpressionFlipCard({
   if (!expr) return null
   const levelConfig = LEVEL_CONFIG[expr.difficulty_level] || LEVEL_CONFIG[2]
 
-  const cardBase = `rounded-xl border border-t-[3px] ${levelConfig.stripe} border-l-4 border-l-sky-500 bg-card shadow-sm cursor-pointer flex flex-col`
+  const cardBase = `rounded-xl border border-t-[3px] ${levelConfig.stripe} bg-card shadow-sm cursor-pointer flex flex-col`
   const reviewRing = item.needs_review ? 'ring-2 ring-orange-400/50' : ''
   const memorizedDim = item.is_memorized ? 'opacity-60' : ''
 

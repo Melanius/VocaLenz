@@ -46,6 +46,13 @@ interface BulkComplete {
   failed: number
 }
 
+interface RetryItem {
+  originalWord: string
+  retryWord: string
+  type: 'correction' | 'force'
+  selected: boolean
+}
+
 type VocabTab = 'words' | 'expressions'
 
 export default function VocabularyPage() {
@@ -76,6 +83,10 @@ export default function VocabularyPage() {
   const [uploadResult, setUploadResult] = useState<BulkComplete | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [uploadStalled, setUploadStalled] = useState(false)
+  const [retryItems, setRetryItems] = useState<RetryItem[]>([])
+  const [uploadTotal, setUploadTotal] = useState(0)
+  const [pendingDelete, setPendingDelete] = useState<UserVocabulary | null>(null)
+  const [pendingExprDelete, setPendingExprDelete] = useState<UserExpression | null>(null)
 
   const toggleFlip = (id: string) => {
     setFlippedCards((prev) => {
@@ -160,7 +171,12 @@ export default function VocabularyPage() {
     )
   }
 
-  const handleDelete = async (item: UserVocabulary) => {
+  const handleDelete = (item: UserVocabulary) => {
+    setPendingDelete(item)
+  }
+
+  const executeDelete = async (item: UserVocabulary) => {
+    setPendingDelete(null)
     try {
       const res = await fetch('/api/vocabulary', {
         method: 'DELETE',
@@ -230,7 +246,12 @@ export default function VocabularyPage() {
   }
 
   // --- Expression handlers ---
-  const handleExprDelete = async (item: UserExpression) => {
+  const handleExprDelete = (item: UserExpression) => {
+    setPendingExprDelete(item)
+  }
+
+  const executeExprDelete = async (item: UserExpression) => {
+    setPendingExprDelete(null)
     try {
       const res = await fetch('/api/vocabulary/expressions', {
         method: 'DELETE',
@@ -275,6 +296,22 @@ export default function VocabularyPage() {
     } catch {
       toast({ title: '오류', description: '수정에 실패했습니다.', variant: 'destructive' })
     }
+  }
+
+  const toggleRetryItem = (idx: number) => {
+    setRetryItems((prev) =>
+      prev.map((item, i) => (i === idx ? { ...item, selected: !item.selected } : item))
+    )
+  }
+
+  const handleRetrySelected = () => {
+    const selected = retryItems.filter((r) => r.selected)
+    if (selected.length === 0) return
+    const retryWords = selected.map((r) => ({ word: r.retryWord }))
+    const forceWords = selected.filter((r) => r.type === 'force').map((r) => r.retryWord)
+    setRetryItems([])
+    setUploadResult(null)
+    handleBulkUpload(retryWords, forceWords)
   }
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -331,8 +368,12 @@ export default function VocabularyPage() {
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
-  const handleBulkUpload = async () => {
-    if (parsedWords.length === 0) return
+  const handleBulkUpload = async (
+    overrideWords?: { word: string; memo?: string }[],
+    skipGkFor?: string[]
+  ) => {
+    const words = overrideWords ?? parsedWords
+    if (words.length === 0) return
 
     const currentCount = uploadTarget === 'word' ? count : exprCount
     const remaining = 2000 - currentCount
@@ -342,17 +383,22 @@ export default function VocabularyPage() {
       return
     }
 
-    const wordsToUpload = parsedWords.slice(0, remaining)
+    const wordsToUpload = words.slice(0, remaining)
     setUploading(true)
     setUploadProgress([])
     setUploadResult(null)
     setUploadStalled(false)
+    setUploadTotal(wordsToUpload.length)
 
     try {
       const res = await fetch('/api/vocabulary/bulk', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ words: wordsToUpload, uploadType: uploadTarget }),
+        body: JSON.stringify({
+          words: wordsToUpload,
+          uploadType: uploadTarget,
+          ...(skipGkFor?.length ? { skipGatekeeperFor: skipGkFor } : {}),
+        }),
       })
 
       if (!res.ok) {
@@ -380,6 +426,7 @@ export default function VocabularyPage() {
 
       let buffer = ''
       let refreshed = false
+      const localFailed: BulkProgress[] = []
 
       while (true) {
         const result = await readWithTimeout().catch((e: Error) => {
@@ -405,8 +452,18 @@ export default function VocabularyPage() {
             const data = JSON.parse(line)
             if (data.type === 'progress') {
               setUploadProgress((prev) => [...prev, data])
+              if (data.status === 'failed') localFailed.push(data)
             } else if (data.type === 'complete') {
               setUploadResult(data)
+              const retries = localFailed
+                .filter((p) => p.gkStatus)
+                .map((p) => ({
+                  originalWord: p.word,
+                  retryWord: p.correction || p.word,
+                  type: (p.correction ? 'correction' : 'force') as 'correction' | 'force',
+                  selected: true,
+                }))
+              setRetryItems(retries)
               if (!refreshed) {
                 refreshed = true
                 if (uploadTarget === 'word') refresh()
@@ -425,6 +482,15 @@ export default function VocabularyPage() {
           const data = JSON.parse(buffer)
           if (data.type === 'complete') {
             setUploadResult(data)
+            const retries = localFailed
+              .filter((p) => p.gkStatus)
+              .map((p) => ({
+                originalWord: p.word,
+                retryWord: p.correction || p.word,
+                type: (p.correction ? 'correction' : 'force') as 'correction' | 'force',
+                selected: true,
+              }))
+            setRetryItems(retries)
             if (!refreshed) {
               refreshed = true
               if (uploadTarget === 'word') refresh()
@@ -450,6 +516,8 @@ export default function VocabularyPage() {
     setUploadResult(null)
     setUploading(false)
     setUploadStalled(false)
+    setRetryItems([])
+    setUploadTotal(0)
   }
 
   return (
@@ -820,8 +888,68 @@ export default function VocabularyPage() {
                   {uploadResult.failed > 0 && <p>실패: {uploadResult.failed}개</p>}
                 </div>
               </div>
-              <Button className="w-full" onClick={() => { setUploadOpen(false); resetUpload() }}>
-                확인
+
+              {retryItems.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground px-0.5">
+                    재시도 가능한 항목 ({retryItems.length}개) — 클릭하여 선택/해제
+                  </p>
+                  <div className="space-y-1.5 max-h-52 overflow-y-auto">
+                    {retryItems.map((item, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => toggleRetryItem(idx)}
+                        className={`w-full text-left rounded-lg border px-3 py-2.5 transition-all ${
+                          item.selected
+                            ? 'border-primary bg-primary/5 ring-1 ring-primary/20'
+                            : 'border-border bg-muted/30 opacity-50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <div className={`shrink-0 h-4 w-4 rounded-full border-2 flex items-center justify-center transition-colors ${
+                            item.selected ? 'border-primary bg-primary' : 'border-muted-foreground/40'
+                          }`}>
+                            {item.selected && (
+                              <svg className="h-2.5 w-2.5 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                              </svg>
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            {item.type === 'correction' ? (
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="text-xs font-mono text-muted-foreground line-through">{item.originalWord}</span>
+                                <span className="text-xs text-muted-foreground">→</span>
+                                <span className="text-xs font-mono font-semibold text-foreground">{item.retryWord}</span>
+                              </div>
+                            ) : (
+                              <span className="text-xs font-mono font-semibold text-foreground">{item.originalWord}</span>
+                            )}
+                            <p className="text-[11px] text-muted-foreground mt-0.5">
+                              {item.type === 'correction' ? '철자 수정 후 등록' : '그대로 등록'}
+                            </p>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                  <Button
+                    className="w-full"
+                    onClick={handleRetrySelected}
+                    disabled={retryItems.every((r) => !r.selected)}
+                  >
+                    선택한 {retryItems.filter((r) => r.selected).length}개 등록
+                  </Button>
+                </div>
+              )}
+
+              <Button
+                variant={retryItems.length > 0 ? 'outline' : 'default'}
+                className="w-full"
+                onClick={() => { setUploadOpen(false); resetUpload() }}
+              >
+                완료
               </Button>
             </div>
           ) : uploadStalled ? (
@@ -843,7 +971,7 @@ export default function VocabularyPage() {
                 >
                   닫기
                 </Button>
-                <Button className="flex-1" onClick={handleBulkUpload}>
+                <Button className="flex-1" onClick={() => handleBulkUpload()}>
                   다시 시도
                 </Button>
               </div>
@@ -854,7 +982,7 @@ export default function VocabularyPage() {
               <div className="text-center">
                 <Loader2 className="h-8 w-8 mx-auto animate-spin text-primary mb-2" />
                 <p className="text-sm text-muted-foreground">
-                  {parsedWords.length}개 항목을 {uploadTarget === 'word' ? 'Voca 리스트' : 'Lenz 픽'}에 추가하고 있어요.
+                  {uploadTotal}개 항목을 {uploadTarget === 'word' ? 'Voca 리스트' : 'Lenz 픽'}에 추가하고 있어요.
                 </p>
               </div>
               {uploadProgress.length > 0 && (
@@ -862,7 +990,7 @@ export default function VocabularyPage() {
                   <div className="h-2 bg-muted rounded-full overflow-hidden">
                     <div
                       className="h-full bg-primary rounded-full transition-all duration-300"
-                      style={{ width: `${(uploadProgress.length / parsedWords.length) * 100}%` }}
+                      style={{ width: `${uploadTotal > 0 ? (uploadProgress.length / uploadTotal) * 100 : 0}%` }}
                     />
                   </div>
                   <div className="max-h-48 overflow-y-auto space-y-1">
@@ -947,7 +1075,7 @@ export default function VocabularyPage() {
                 <Button variant="outline" className="flex-1" onClick={resetUpload}>
                   다시 선택
                 </Button>
-                <Button className="flex-1" onClick={handleBulkUpload}>
+                <Button className="flex-1" onClick={() => handleBulkUpload()}>
                   {uploadTarget === 'word' ? 'Voca 리스트에 추가' : 'Lenz 픽에 추가'}
                 </Button>
               </div>
@@ -975,6 +1103,58 @@ export default function VocabularyPage() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* 단어 삭제 확인 */}
+      <Dialog open={pendingDelete !== null} onOpenChange={(open) => { if (!open) setPendingDelete(null) }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>단어 삭제</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            <span className="font-medium text-foreground">&ldquo;{pendingDelete?.word?.word}&rdquo;</span>을(를){' '}
+            Voca 리스트에서 삭제할까요?<br />
+            이 작업은 되돌릴 수 없습니다.
+          </p>
+          <div className="flex gap-2 mt-2">
+            <Button variant="outline" className="flex-1" onClick={() => setPendingDelete(null)}>
+              취소
+            </Button>
+            <Button
+              variant="destructive"
+              className="flex-1"
+              onClick={() => pendingDelete && executeDelete(pendingDelete)}
+            >
+              삭제
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 청해구문 삭제 확인 */}
+      <Dialog open={pendingExprDelete !== null} onOpenChange={(open) => { if (!open) setPendingExprDelete(null) }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>구문 삭제</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            <span className="font-medium text-foreground">&ldquo;{pendingExprDelete?.expression?.expression}&rdquo;</span>을(를){' '}
+            Lenz 픽에서 삭제할까요?<br />
+            이 작업은 되돌릴 수 없습니다.
+          </p>
+          <div className="flex gap-2 mt-2">
+            <Button variant="outline" className="flex-1" onClick={() => setPendingExprDelete(null)}>
+              취소
+            </Button>
+            <Button
+              variant="destructive"
+              className="flex-1"
+              onClick={() => pendingExprDelete && executeExprDelete(pendingExprDelete)}
+            >
+              삭제
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

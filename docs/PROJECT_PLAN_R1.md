@@ -2530,6 +2530,99 @@ Step 8.1 → 8.2 → 8.3 → 8.4 → `pnpm build` 검증 → Step 8.5 (수동 QA
 
 ---
 
+## ✅ Phase 24: 5개 신기능 구현 (완료)
+**완료 일시:** 2026-02-21 15:58 (KST)
+**커밋:** `2df57db`
+
+### Step 24.1: 메모 저장 버튼 + 성공 피드백 ✅
+- 플립 카드 뒷면 메모 입력 후 `onBlur` / `Enter` 시 즉시 저장 (기존 로직 유지)
+- 저장 성공 시 1.5초 동안 `Check` 아이콘 + "저장됨" 문구 표시 → 자동 사라짐
+- `isSaved` state + `savedTimerRef`(timeout 관리)로 구현, 중복 저장 방지
+- **수정 파일:** `src/components/vocabulary/vocabulary-flip-card.tsx`, `src/components/vocabulary/expression-flip-card.tsx`
+
+### Step 24.2: CSV 샘플 다운로드 + 헤더 스마트 스킵 ✅
+- 업로드 Dialog에 "샘플 CSV" 다운로드 버튼 추가 (단어/구문 모드에 따라 파일 다름)
+- 샘플 CSV 내용:
+  - 단어 모드: `abandon,포기하다`, `ambiguous,모호한`, ...
+  - 구문 모드: `break out of,~에서 벗어나다`, `hand in,제출하다`, ...
+- 첫 번째 행이 헤더(영문+콤마로 구성되고 숫자 없음)인 경우 자동 스킵
+- **수정 파일:** `src/app/(main)/vocabulary/page.tsx`
+
+### Step 24.3: Voca + Lenz 합산 5000개 제한 ✅
+- 단어 추가 API, 구문 추가 API, 벌크 업로드 API에 합산 개수 체크 추가
+- `user_vocabulary` + `user_expressions` 합산 ≥ 5000 → 429 응답
+- 벌크 업로드 시 잔여 용량(`5000 - count - exprCount`) 초과 항목 자동 잘라냄
+- vocabulary/page.tsx 상단에 합산 카운터 표시: `단어장 합산 {count+exprCount}/5000` (4000 이상 시 주황색 경고)
+- **수정 파일:** `src/app/api/vocabulary/add/route.ts`, `src/app/api/vocabulary/expressions/add/route.ts`, `src/app/api/vocabulary/bulk/route.ts`, `src/app/(main)/vocabulary/page.tsx`
+
+### Step 24.4: 단어/표현 Level 사용자 수정 + 관리자 추적 ✅
+- 플립 카드 뒷면 Level 뱃지를 클릭하면 Popover 드롭다운 표시 (Lv.1~4 선택)
+- 선택 즉시 Optimistic UI 업데이트 → `PATCH /api/words/level` 비동기 호출
+- API 실패 시 이전 레벨로 롤백
+- `PATCH /api/words/level` 신규 API:
+  - `wordId` 또는 `expressionId` + `newLevel` 파라미터
+  - `words` / `expressions` 테이블 `difficulty_level` 업데이트
+  - `access_logs`에 `level_change` 이벤트 기록 (관리자 추적용)
+- `event-logger.ts`의 `LogEventParams.sessionId`를 optional로 변경
+- **신규 파일:** `src/app/api/words/level/route.ts`
+- **수정 파일:** `src/components/vocabulary/vocabulary-flip-card.tsx`, `src/components/vocabulary/expression-flip-card.tsx`, `src/lib/event-logger.ts`
+
+### Step 24.5: 청해 구문 변환 감지 + 원본 복원 버튼 ✅
+- Gatekeeper가 `PHRASE` 상태로 `canonical_form`을 반환하여 원형 변환 시, 변환 여부 감지
+- 검색 결과 상단에 변환 알림 배너 표시: `'입력값' → 'canonical_form'으로 변환했습니다` + [원본 검색] 버튼
+- [원본 검색] 버튼 클릭 시 `bypassNormalization: true`로 API 재호출 → 변환 없이 원본 그대로 처리
+- `expression` 모드에서만 `wasTransformed` 활성화, `bypassNormalization=true`면 스킵
+- **수정 파일:** `src/app/api/words/search/route.ts`, `src/components/search/search-results.tsx`, `src/app/(main)/page.tsx`
+
+---
+
+## ✅ Phase 25: 6개 UX 개선 (완료)
+**완료 일시:** 2026-02-21 19:35 (KST)
+**커밋:** `8c6a8c2`
+
+### Step 25.1: 카드 뒷면 한글 뜻 표시 복구 ✅
+- **원인:** `flip-card-inner`의 `minHeight: 200px` 제약으로 Level 팝오버 헤더 추가 후 `meanings` 영역(flex-1)이 거의 0이 되는 문제
+- **수정:** `minHeight: 200px` → `300px` (Voca/Lenz 플립 카드 모두 적용)
+- **수정 파일:** `src/components/vocabulary/vocabulary-flip-card.tsx`, `src/components/vocabulary/expression-flip-card.tsx`
+
+### Step 25.2: 모바일 검색이력 시간 짤림 버그 수정 ✅
+- **원인:** 단어 + 뜻 + 시간이 단일 flex row에서 경쟁하여 시간이 잘림
+- **수정:** 시간 형식 24H(`HH:MM`)로 변경, 레이아웃 2행 분리
+  - 1행: 아이콘 + 단어명 + 시간(우측 고정, tabular-nums)
+  - 2행: 뜻 텍스트 (pl-5로 아이콘 폭 보정, truncate)
+- **수정 파일:** `src/app/(main)/page.tsx`
+
+### Step 25.3: 꾹 누름 삭제 → 확인 다이얼로그 ✅
+- **기존:** 500ms 롱프레스 후 즉시 삭제 (`deleteDbHistoryItem` 직접 호출)
+- **수정:** `pendingDeleteItem` state 추가 → 롱프레스 시 state 세팅 → 시트 하단에 확인 배너 표시
+- 확인 배너: 삭제 대상 단어명 + "취소" / "삭제" 버튼
+- 취소 시 `pendingDeleteItem = null`, 삭제 시 `deleteDbHistoryItem` 호출 후 null
+- **수정 파일:** `src/app/(main)/page.tsx`
+
+### Step 25.4: 모바일 필터 레이아웃 개선 ✅
+- **기존:** 메모 검색(w-52 고정폭) 별도 행 / 필터+셔플+날짜 한 행
+- **수정:**
+  - 1행: 메모 검색(flex-1, 가변폭) + 셔플 아이콘 전용 버튼(`size="icon"`, 텍스트 제거)
+  - 2행: 전체/미암기/암기완료/퀴즈오답/날짜 필터 버튼
+- **수정 파일:** `src/app/(main)/vocabulary/page.tsx`
+
+### Step 25.5: 메모 검색 결과 수 표시 ✅
+- 메모 필터 활성화 시 탭 버튼 카운터에 `필터된 수/전체 수` 형식으로 표시
+  - 예: `Voca (12/150)`, `Lenz (3/42)`
+- 비활성화 시 기존대로 전체 수만 표시: `Voca 리스트 (150)`, `Lenz 픽 (42)`
+- `memoFilterLower` 값으로 활성 여부 판단
+- **수정 파일:** `src/app/(main)/vocabulary/page.tsx`
+
+### Step 25.6: PWA 홈화면 아이콘 변경 ✅
+- 기존 파란 배경 "V" 텍스트 → 부엉이 로고(`home_img.png`) 적용
+- `home_img.png` (888×1067 RGBA PNG) → `public/icons/icon-512.png` 복사
+- `apple-icon.tsx`: `fs.readFileSync` + base64 데이터 URL로 PNG 렌더링 (`ImageResponse`)
+- `manifest.ts`: `/icons/icon-512.png` (512×512, 192×192) 아이콘 항목 추가 (SVG 아이콘 유지)
+- **신규 파일:** `public/icons/icon-512.png`
+- **수정 파일:** `src/app/apple-icon.tsx`, `src/app/manifest.ts`
+
+---
+
 ## 개발 완료 후 운영 체크리스트
 
 | 항목 | 내용 | 상태 |

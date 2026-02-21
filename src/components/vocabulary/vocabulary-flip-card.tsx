@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { Check, CheckCircle2, Eye, RotateCcw, Trash2, StickyNote, ChevronDown, ArrowRight, Loader2, SendHorizontal } from 'lucide-react'
+import { Check, CheckCircle2, Eye, RotateCcw, Trash2, StickyNote, ChevronDown, ArrowRight, Loader2, SendHorizontal, Volume2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Popover,
@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/dialog'
 import { formatAddedDate } from '@/lib/date-utils'
 import { useToast } from '@/hooks/use-toast'
+import { usePronunciation } from '@/hooks/use-pronunciation'
 import type { UserVocabulary } from '@/types/database'
 
 const LEVEL_CONFIG: Record<number, { label: string; badge: string; stripe: string }> = {
@@ -72,6 +73,7 @@ export function VocabularyFlipCard({
   const [proposedLevel, setProposedLevel] = useState<number | null>(null)
   const [submittingRequest, setSubmittingRequest] = useState(false)
   const { toast } = useToast()
+  const { speak } = usePronunciation()
 
   const word = item.word
   if (!word) return null
@@ -137,11 +139,11 @@ export function VocabularyFlipCard({
 
         <div
           className={`flip-card-inner ${isFlipped ? 'flipped' : ''}`}
-          style={{ minHeight: '300px' }}
+          style={{ minHeight: '250px' }}
         >
           {/* 앞면 */}
           <div
-            className={`flip-card-front p-5 ${cardBase} ${memorizedDim} ${reviewRing}`}
+            className={`flip-card-front p-4 ${cardBase} ${memorizedDim} ${reviewRing}`}
             onClick={onFlip}
           >
             <div className="flex items-center justify-between gap-2">
@@ -153,7 +155,7 @@ export function VocabularyFlipCard({
               </span>
             </div>
 
-            <div className="flex-1 flex items-center justify-center py-6 relative">
+            <div className="flex-1 flex items-center justify-center py-5 relative">
               <h3 className="text-3xl font-extrabold tracking-tight text-center">{word.word}</h3>
               {item.is_memorized && (
                 <CheckCircle2 className="absolute right-0 bottom-1 h-10 w-10 text-green-500/20" />
@@ -174,18 +176,25 @@ export function VocabularyFlipCard({
 
           {/* 뒷면 */}
           <div
-            className={`flip-card-back p-5 ${cardBase} ${memorizedDim} ${reviewRing}`}
+            className={`flip-card-back p-4 ${cardBase} ${memorizedDim} ${reviewRing}`}
             onClick={onFlip}
           >
-            {/* 상단: 단어 + 발음 + 레벨 편집 */}
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex items-baseline gap-2 min-w-0">
-                <h3 className="text-xl font-bold">{word.word}</h3>
+            {/* 상단: 단어 + 발음 + 듣기 버튼 + 레벨 팝오버 */}
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <h3 className="text-xl font-bold flex-shrink-0">{word.word}</h3>
                 {word.pronunciation && (
-                  <span className="text-sm text-muted-foreground truncate">
+                  <span className="text-xs text-muted-foreground truncate">
                     {word.pronunciation}
                   </span>
                 )}
+                <button
+                  onClick={(e) => { e.stopPropagation(); speak(word.word) }}
+                  className="flex-shrink-0 text-muted-foreground hover:text-primary transition-colors"
+                  aria-label="발음 듣기"
+                >
+                  <Volume2 className="h-3.5 w-3.5" />
+                </button>
               </div>
               <div onClick={(e) => e.stopPropagation()} className="flex-shrink-0">
                 <Popover open={levelOpen} onOpenChange={setLevelOpen}>
@@ -215,20 +224,22 @@ export function VocabularyFlipCard({
               </div>
             </div>
 
-            <hr className="my-2.5 border-dashed border-border" />
+            <hr className="my-1.5 border-dashed border-border" />
 
-            <div className="flex-1 space-y-2 overflow-y-auto">
+            {/* 뜻 목록: 2개 기본 표시, 스크롤로 더 보기 */}
+            <div className="max-h-[56px] overflow-y-auto space-y-1.5">
               {word.meanings.map((m, i) => (
                 <div key={i} className="flex items-baseline gap-2">
-                  <span className="flex-shrink-0 flex items-center justify-center h-5 w-5 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 text-xs font-bold">
+                  <span className="flex-shrink-0 flex items-center justify-center h-4 w-4 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold">
                     {i + 1}
                   </span>
-                  <p className="text-lg font-semibold text-foreground leading-snug">{m}</p>
+                  <p className="text-sm font-semibold text-foreground leading-snug">{m}</p>
                 </div>
               ))}
             </div>
 
-            <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-border" onClick={(e) => e.stopPropagation()}>
+            {/* 액션 버튼 바 */}
+            <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-border" onClick={(e) => e.stopPropagation()}>
               <Button variant="outline" size="sm" className="h-8 px-2.5 text-xs" onClick={() => onDetail(item)}>
                 <Eye className="h-3.5 w-3.5 mr-1" />
                 상세
@@ -270,39 +281,35 @@ export function VocabularyFlipCard({
               </Button>
             </div>
 
-            {/* 메모 입력 */}
-            <div className="mt-2 pt-2 border-t border-dashed border-border" onClick={(e) => e.stopPropagation()}>
-              <div className="flex items-center gap-1.5 mb-1">
-                <StickyNote className="h-3 w-3 text-amber-500" />
-                <span className="text-xs text-muted-foreground font-medium">메모</span>
-                {isSaved && (
-                  <span className="flex items-center gap-0.5 text-xs text-green-600 dark:text-green-400 ml-auto">
-                    <Check className="h-3 w-3" />
-                    저장됨
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center gap-1">
+            {/* 메모 입력 (한 줄) */}
+            <div className="mt-1.5 pt-1.5 border-t border-dashed border-border" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center gap-1.5">
+                <StickyNote className="h-3 w-3 text-amber-500 flex-shrink-0" />
                 <input
                   type="text"
                   value={memoValue}
                   onChange={(e) => setMemoValue(e.target.value)}
                   onBlur={saveMemo}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.currentTarget.blur()
-                    }
+                    if (e.key === 'Enter') e.currentTarget.blur()
                   }}
-                  placeholder="메모를 입력하세요 (예: test-4 청해)"
-                  className="flex-1 text-xs px-2.5 py-1.5 rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-amber-400"
+                  placeholder="메모"
+                  className="flex-1 min-w-0 text-xs px-2 py-1 rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-amber-400"
                 />
                 <button
                   onClick={saveMemo}
                   disabled={memoValue === localSavedMemo}
-                  className="flex-shrink-0 h-7 w-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  className={`flex-shrink-0 h-6 w-6 flex items-center justify-center rounded-md transition-colors ${
+                    isSaved
+                      ? 'text-green-500'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-30 disabled:cursor-not-allowed'
+                  }`}
                   aria-label="메모 저장"
                 >
-                  <SendHorizontal className="h-3.5 w-3.5" />
+                  {isSaved
+                    ? <Check className="h-3.5 w-3.5" />
+                    : <SendHorizontal className="h-3.5 w-3.5" />
+                  }
                 </button>
               </div>
             </div>

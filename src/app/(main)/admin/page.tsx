@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Search, Trash2, Save, Loader2, Users, BookOpen,
-  BarChart3, CheckCircle2, ChevronLeft, ChevronRight,
+  BarChart3, CheckCircle2, ChevronLeft, ChevronRight, ArrowRight,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -439,6 +439,229 @@ function ReportsTab() {
   )
 }
 
+// --- Level Change Requests ---
+const LEVEL_BADGE: Record<number, string> = {
+  1: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300',
+  2: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300',
+  3: 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300',
+  4: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300',
+}
+const LEVEL_LABEL: Record<number, string> = { 1: 'Essential', 2: 'Core', 3: 'Advanced', 4: 'Killer' }
+
+interface LevelRequest {
+  id: string
+  status: 'pending' | 'approved' | 'rejected'
+  currentLevel: number
+  requestedLevel: number
+  adminReason: string | null
+  type: 'word' | 'expression'
+  name: string
+  actualCurrentLevel: number
+  requesterEmail: string
+  requesterName: string | null
+  createdAt: string
+  resolvedAt: string | null
+}
+
+function LevelRequestsTab() {
+  const [requests, setRequests] = useState<LevelRequest[]>([])
+  const [loading, setLoading] = useState(true)
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [statusFilter, setStatusFilter] = useState('pending')
+  const [rejectingId, setRejectingId] = useState<string | null>(null)
+  const [rejectReason, setRejectReason] = useState('')
+  const [processing, setProcessing] = useState(false)
+
+  const fetchRequests = useCallback(async (status: string, p: number) => {
+    setLoading(true)
+    try {
+      const res = await fetch(`/api/admin/level-requests?status=${status}&page=${p}`)
+      const data = await res.json()
+      setRequests(data.requests || [])
+      setTotalPages(data.totalPages || 1)
+    } catch {
+      toast({ title: '로드 실패', variant: 'destructive' })
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchRequests(statusFilter, page)
+  }, [page, statusFilter, fetchRequests])
+
+  const handleStatusFilter = (s: string) => {
+    setStatusFilter(s)
+    setPage(1)
+  }
+
+  const handleAction = async (id: string, action: 'approve' | 'reject', reason?: string) => {
+    setProcessing(true)
+    try {
+      const res = await fetch(`/api/admin/level-requests/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, reason }),
+      })
+      if (res.ok) {
+        toast({ title: action === 'approve' ? '승인 완료' : '반려 완료' })
+        setRejectingId(null)
+        setRejectReason('')
+        fetchRequests(statusFilter, page)
+      } else {
+        toast({ title: '처리 실패', variant: 'destructive' })
+      }
+    } catch {
+      toast({ title: '네트워크 오류', variant: 'destructive' })
+    } finally {
+      setProcessing(false)
+    }
+  }
+
+  const rejectingRequest = rejectingId ? requests.find((r) => r.id === rejectingId) : null
+
+  return (
+    <div className="space-y-4">
+      {/* 상태 필터 */}
+      <div className="flex gap-1.5 flex-wrap">
+        {(['pending', 'approved', 'rejected', 'all'] as const).map((s) => (
+          <Button
+            key={s}
+            variant={statusFilter === s ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => handleStatusFilter(s)}
+          >
+            {s === 'pending' ? '대기중' : s === 'approved' ? '승인' : s === 'rejected' ? '반려' : '전체'}
+          </Button>
+        ))}
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center py-12">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      ) : requests.length === 0 ? (
+        <p className="text-center text-sm text-muted-foreground py-8">제안 내역이 없습니다.</p>
+      ) : (
+        <div className="space-y-2">
+          {requests.map((r) => (
+            <Card key={r.id}>
+              <CardContent className="py-3 px-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1 space-y-1.5">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium text-sm">{r.name}</span>
+                      {r.type === 'expression' && (
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300 border-sky-200 dark:border-sky-800">
+                          청해
+                        </Badge>
+                      )}
+                      {r.status === 'pending' && <Badge variant="destructive" className="text-[10px]">대기중</Badge>}
+                      {r.status === 'approved' && <Badge className="text-[10px] bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">승인</Badge>}
+                      {r.status === 'rejected' && <Badge variant="secondary" className="text-[10px]">반려</Badge>}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold ${LEVEL_BADGE[r.currentLevel] || ''}`}>
+                        Lv.{r.currentLevel} {LEVEL_LABEL[r.currentLevel]}
+                      </span>
+                      <ArrowRight className="h-3 w-3 text-muted-foreground" />
+                      <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold ${LEVEL_BADGE[r.requestedLevel] || ''}`}>
+                        Lv.{r.requestedLevel} {LEVEL_LABEL[r.requestedLevel]}
+                      </span>
+                      {r.actualCurrentLevel !== r.currentLevel && (
+                        <span className="text-[10px] text-orange-500">(현재 실제: Lv.{r.actualCurrentLevel})</span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      {r.requesterName ? `${r.requesterName} · ` : ''}{r.requesterEmail}
+                      {' · '}{new Date(r.createdAt).toLocaleDateString('ko-KR')}
+                    </p>
+                    {r.adminReason && (
+                      <p className="text-[11px] text-muted-foreground italic">반려 사유: {r.adminReason}</p>
+                    )}
+                  </div>
+                  {r.status === 'pending' && (
+                    <div className="flex gap-1.5 flex-shrink-0">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 px-2.5 text-xs text-green-700 border-green-300 hover:bg-green-50 dark:text-green-400 dark:border-green-800 dark:hover:bg-green-900/30"
+                        onClick={() => handleAction(r.id, 'approve')}
+                        disabled={processing}
+                      >
+                        승인
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 px-2.5 text-xs"
+                        onClick={() => { setRejectingId(r.id); setRejectReason('') }}
+                        disabled={processing}
+                      >
+                        반려
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2 pt-2">
+          <Button variant="ghost" size="icon" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <span className="text-sm text-muted-foreground">{page} / {totalPages}</span>
+          <Button variant="ghost" size="icon" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
+
+      {/* 반려 다이얼로그 */}
+      <Dialog open={!!rejectingId} onOpenChange={(open) => { if (!open) setRejectingId(null) }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>반려 사유 입력</DialogTitle>
+          </DialogHeader>
+          {rejectingRequest && (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                <span className="font-semibold text-foreground">{rejectingRequest.name}</span>의 레벨 변경 제안을 반려합니다.
+              </p>
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">사유 (선택)</label>
+                <textarea
+                  value={rejectReason}
+                  onChange={(e) => setRejectReason(e.target.value)}
+                  placeholder="반려 사유를 입력하세요"
+                  rows={3}
+                  className="w-full text-sm px-3 py-2 rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none"
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setRejectingId(null)}>취소</Button>
+            <Button
+              variant="destructive"
+              onClick={() => rejectingId && handleAction(rejectingId, 'reject', rejectReason)}
+              disabled={processing}
+            >
+              {processing && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              반려
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
+
 // --- Main Admin Page ---
 export default function AdminPage() {
   const { user, profile, loading: authLoading } = useAuthContext()
@@ -463,10 +686,11 @@ export default function AdminPage() {
         <h1 className="text-2xl font-bold">관리자</h1>
 
         <Tabs defaultValue="dashboard">
-          <TabsList className="w-full grid grid-cols-3">
+          <TabsList className="w-full grid grid-cols-4">
             <TabsTrigger value="dashboard">대시보드</TabsTrigger>
             <TabsTrigger value="words">단어 관리</TabsTrigger>
             <TabsTrigger value="reports">신고 관리</TabsTrigger>
+            <TabsTrigger value="level-requests">Level 제안</TabsTrigger>
           </TabsList>
 
           <TabsContent value="dashboard">
@@ -479,6 +703,10 @@ export default function AdminPage() {
 
           <TabsContent value="reports">
             <ReportsTab />
+          </TabsContent>
+
+          <TabsContent value="level-requests">
+            <LevelRequestsTab />
           </TabsContent>
         </Tabs>
       </div>

@@ -100,6 +100,38 @@ export default function VocabularyPage() {
   const [pendingExprDelete, setPendingExprDelete] = useState<UserExpression | null>(null)
   const [shuffleSeed, setShuffleSeed] = useState(0)
 
+  // Level 변경 제안 알림 확인 (페이지 로드 시 1회)
+  useEffect(() => {
+    if (!user) return
+    fetch('/api/level-requests/notifications')
+      .then((r) => r.json())
+      .then((data) => {
+        if (!data.notifications?.length) return
+        data.notifications.forEach((n: {
+          status: 'approved' | 'rejected'
+          name: string
+          currentLevel: number
+          requestedLevel: number
+          adminReason?: string
+        }) => {
+          if (n.status === 'approved') {
+            toast({
+              title: 'Level 변경 승인',
+              description: `"${n.name}" Lv.${n.currentLevel} → Lv.${n.requestedLevel}로 변경되었습니다.`,
+            })
+          } else {
+            toast({
+              title: 'Level 변경 제안 반려',
+              description: n.adminReason
+                ? `"${n.name}": ${n.adminReason}`
+                : `"${n.name}"의 레벨 변경이 반려되었습니다.`,
+            })
+          }
+        })
+      })
+      .catch(() => {})
+  }, [user])
+
   const toggleFlip = (id: string) => {
     setFlippedCards((prev) => {
       const next = new Set(prev)
@@ -636,7 +668,7 @@ export default function VocabularyPage() {
 
         {/* 메모 검색 + 셔플 한 행 */}
         <div className="flex items-center gap-2">
-          <div className="relative flex-1 min-w-0">
+          <div className="relative w-44 min-w-0">
             <StickyNote className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-amber-500 pointer-events-none" />
             <input
               type="text"

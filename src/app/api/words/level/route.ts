@@ -1,18 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
+import { requireAdmin } from '@/lib/admin-auth'
 import { logEvent } from '@/lib/event-logger'
 
 const VALID_LEVELS = [1, 2, 3, 4]
 
+// 관리자 전용: 레벨 직접 수정 (일반 사용자는 /api/level-requests 통해 제안)
 export async function PATCH(request: NextRequest) {
-  try {
-    const supabase = await createServerSupabaseClient()
-    const { data: { user } } = await supabase.auth.getUser()
+  const auth = await requireAdmin()
+  if ('error' in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status })
+  }
+  const user = { id: auth.userId }
 
-    if (!user) {
-      return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
-    }
+  try {
 
     const { wordId, expressionId, newLevel } = await request.json()
 

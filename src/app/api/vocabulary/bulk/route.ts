@@ -6,7 +6,7 @@ import { generateExpressionData } from '@/lib/expression-generator'
 import { evaluateWithGatekeeper } from '@/lib/gatekeeper'
 import { logEvent } from '@/lib/event-logger'
 
-const MAX_VOCABULARY_SIZE = 2000
+const MAX_COMBINED_SIZE = 5000
 
 export async function POST(request: NextRequest) {
   try {
@@ -36,18 +36,17 @@ export async function POST(request: NextRequest) {
 
     const isExpression = uploadType === 'expression'
     const listName = isExpression ? 'Lenz 픽' : 'Voca 리스트'
-    const vocabTable = isExpression ? 'user_expressions' : 'user_vocabulary'
     const skipGkSet = new Set<string>(skipGatekeeperFor)
 
-    // 잔여 용량 체크
-    const { count: currentCount } = await supabaseAdmin
-      .from(vocabTable)
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', user.id)
-
-    const remaining = MAX_VOCABULARY_SIZE - (currentCount || 0)
+    // 합산 잔여 용량 체크
+    const [{ count: vocabCount }, { count: exprCount }] = await Promise.all([
+      supabaseAdmin.from('user_vocabulary').select('*', { count: 'exact', head: true }).eq('user_id', user.id),
+      supabaseAdmin.from('user_expressions').select('*', { count: 'exact', head: true }).eq('user_id', user.id),
+    ])
+    const combined = (vocabCount || 0) + (exprCount || 0)
+    const remaining = MAX_COMBINED_SIZE - combined
     if (remaining <= 0) {
-      return new Response(JSON.stringify({ error: `${listName}가 가득 찼습니다. (최대 2000개)` }), {
+      return new Response(JSON.stringify({ error: `${listName}가 가득 찼습니다. (합산 최대 ${MAX_COMBINED_SIZE}개)` }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' },
       })

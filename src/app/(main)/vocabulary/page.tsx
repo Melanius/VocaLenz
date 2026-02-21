@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { BookOpen, Headphones, Star, Loader2, Upload, Search, Shuffle, X, StickyNote, Settings, AlertCircle, ChevronDown } from 'lucide-react'
+import { BookOpen, Headphones, Star, Loader2, Upload, Search, Shuffle, X, StickyNote, Settings, AlertCircle, ChevronDown, Download } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -336,11 +336,18 @@ export default function VocabularyPage() {
       const englishRegex = /^[a-zA-Z\s\-,.!?']+$/
       const wordMap = new Map<string, string | undefined>()
       const excluded: string[] = []
+      let isFirstNonEmpty = true
 
       for (const row of rows) {
         // Excel/Word 스마트 따옴표(U+2018, U+2019)를 ASCII 아포스트로피로 정규화
         const cell = String(row[0] || '').trim().replace(/[\u2018\u2019]/g, "'")
         if (!cell) continue
+        // 첫 번째 비어있지 않은 행이 한국어/특수문자인 경우 헤더로 간주하여 무시
+        if (isFirstNonEmpty && !englishRegex.test(cell)) {
+          isFirstNonEmpty = false
+          continue
+        }
+        isFirstNonEmpty = false
         if (englishRegex.test(cell)) {
           const wordKey = cell.toLowerCase()
           if (!wordMap.has(wordKey)) {
@@ -383,11 +390,10 @@ export default function VocabularyPage() {
     const words = overrideWords ?? parsedWords
     if (words.length === 0) return
 
-    const currentCount = uploadTarget === 'word' ? count : exprCount
-    const remaining = 2000 - currentCount
+    const remaining = 5000 - count - exprCount
     const listName = uploadTarget === 'word' ? 'Voca 리스트' : 'Lenz 픽'
     if (remaining <= 0) {
-      toast({ title: '오류', description: `${listName}가 가득 찼습니다.`, variant: 'destructive' })
+      toast({ title: '오류', description: `단어장이 가득 찼습니다. (합산 최대 5000개)`, variant: 'destructive' })
       return
     }
 
@@ -528,6 +534,24 @@ export default function VocabularyPage() {
     setUploadTotal(0)
   }
 
+  const downloadCsvSample = () => {
+    const isExpr = uploadTarget === 'expression'
+    const header = '단어/구문,메모(선택)'
+    const samples = isExpr
+      ? ['pick up speed,test-5 청해', 'under the weather,test-4', 'beat around the bush,']
+      : ['abandon,test-4 파트1', 'benevolent,test-3', 'diligent,']
+    const csv = [header, ...samples].join('\n')
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = isExpr ? 'lenz_sample.csv' : 'voca_sample.csv'
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div className="flex-1 overflow-y-auto p-4 md:p-6 pb-24">
       <div className="max-w-4xl mx-auto space-y-6">
@@ -535,8 +559,13 @@ export default function VocabularyPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold">내 단어장</h1>
-            <p className="text-muted-foreground text-sm mt-1">
-              {vocabTab === 'words' ? `Voca 리스트 ${count}/2000` : `Lenz 픽 ${exprCount}/2000`}
+            <p className="text-sm mt-1">
+              <span className={count + exprCount >= 4000 ? 'text-orange-500 font-medium' : 'text-muted-foreground'}>
+                단어장 합산 {count + exprCount}/5000
+              </span>
+              <span className="text-muted-foreground">
+                {' '}· {vocabTab === 'words' ? `Voca ${count}` : `Lenz ${exprCount}`}
+              </span>
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -1072,10 +1101,9 @@ export default function VocabularyPage() {
                     )}
                   </div>
                 )}
-                {(uploadTarget === 'word' ? 2000 - count : 2000 - exprCount) < parsedWords.length && (
+                {(5000 - count - exprCount) < parsedWords.length && (
                   <p className="text-orange-500">
-                    {uploadTarget === 'word' ? 'Voca 리스트' : 'Lenz 픽'} 잔여 용량(
-                    {uploadTarget === 'word' ? 2000 - count : 2000 - exprCount}개)만큼만 추가됩니다.
+                    단어장 합산 잔여 용량({5000 - count - exprCount}개)만큼만 추가됩니다.
                   </p>
                 )}
               </div>
@@ -1100,9 +1128,19 @@ export default function VocabularyPage() {
           ) : (
             // 파일 선택
             <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                A열: 영단어/구문, B열: 메모 (선택). 최대 500개.
-              </p>
+              <div className="flex items-start justify-between gap-2">
+                <p className="text-sm text-muted-foreground">
+                  A열: 영단어/구문, B열: 메모 (선택). 최대 500개.
+                </p>
+                <button
+                  type="button"
+                  onClick={downloadCsvSample}
+                  className="flex items-center gap-1 text-xs text-primary hover:underline flex-shrink-0"
+                >
+                  <Download className="h-3 w-3" />
+                  샘플 양식
+                </button>
+              </div>
               <div className="border-2 border-dashed rounded-lg p-8 text-center">
                 <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
                 <p className="text-sm text-muted-foreground mb-3">파일을 선택하세요</p>
@@ -1118,6 +1156,9 @@ export default function VocabularyPage() {
                   파일 선택
                 </Button>
               </div>
+              <p className="text-xs text-muted-foreground text-center">
+                iOS Safari: 파일 앱에서 CSV를 선택하거나, PC에서 다운받아 업로드하세요.
+              </p>
             </div>
           )}
         </DialogContent>

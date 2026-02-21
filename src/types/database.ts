@@ -234,7 +234,7 @@ export type ExpressionCardField =
 // 검색 결과 통합 타입 (UI에서 사용)
 export type SearchResult =
   | { type: 'word'; data: Word }
-  | { type: 'expression'; data: Expression }
+  | { type: 'expression'; data: Expression; transformedFrom?: string }
   | { type: 'typo'; correction: string; original: string }
   | { type: 'korean'; suggestions: Word[]; original: string }
   | { type: 'invalid'; original: string }

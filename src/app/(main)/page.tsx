@@ -178,7 +178,7 @@ export default function SearchPage() {
   const urlSearchDoneRef = useRef(false)
 
   // 사이드바에서 이벤트로 검색 트리거받을 때 사용할 ref (stale closure 방지)
-  const handleSearchWordRef = useRef<(word: string, modeOverride?: SearchMode) => void>(() => {})
+  const handleSearchWordRef = useRef<(word: string, modeOverride?: SearchMode, bypassNormalization?: boolean) => void>(() => {})
 
   // URL 파라미터로 검색 트리거 (history 페이지 등에서 이동 시)
   useEffect(() => {
@@ -194,7 +194,7 @@ export default function SearchPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const handleSearchWord = async (word: string, modeOverride?: SearchMode) => {
+  const handleSearchWord = async (word: string, modeOverride?: SearchMode, bypassNormalization = false) => {
     setHistoryOpen(false)
 
     // 현재 세션 채팅에 이미 있으면 스크롤만 (새 검색 안 함)
@@ -216,7 +216,7 @@ export default function SearchPage() {
       const response = await fetch('/api/words/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ input: word, sessionId, mode }),
+        body: JSON.stringify({ input: word, sessionId, mode, ...(bypassNormalization ? { bypassNormalization: true } : {}) }),
       })
 
       const data = await response.json()
@@ -335,6 +335,7 @@ export default function SearchPage() {
                     query={item.query}
                     result={item.result}
                     onSearchWord={handleSearchWord}
+                    onBypassSearch={(w) => handleSearchWordRef.current(w, 'expression', true)}
                   />
                 </div>
               ))}

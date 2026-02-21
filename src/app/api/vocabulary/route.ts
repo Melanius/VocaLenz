@@ -3,7 +3,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { logEvent } from '@/lib/event-logger'
 
-const MAX_VOCABULARY_SIZE = 2000
+const MAX_COMBINED_SIZE = 5000
 
 export async function GET() {
   try {
@@ -45,15 +45,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '단어 ID가 필요합니다.' }, { status: 400 })
     }
 
-    // 개수 제한 체크
-    const { count } = await supabaseAdmin
-      .from('user_vocabulary')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', user.id)
+    // 합산 개수 제한 체크
+    const [{ count: vocabCount }, { count: exprCount }] = await Promise.all([
+      supabaseAdmin.from('user_vocabulary').select('*', { count: 'exact', head: true }).eq('user_id', user.id),
+      supabaseAdmin.from('user_expressions').select('*', { count: 'exact', head: true }).eq('user_id', user.id),
+    ])
+    const combined = (vocabCount || 0) + (exprCount || 0)
 
-    if (count !== null && count >= MAX_VOCABULARY_SIZE) {
+    if (combined >= MAX_COMBINED_SIZE) {
       return NextResponse.json(
-        { error: '단어장이 가득 찼습니다. (최대 2000개)' },
+        { error: `단어장이 가득 찼습니다. (합산 최대 ${MAX_COMBINED_SIZE}개)` },
         { status: 400 }
       )
     }

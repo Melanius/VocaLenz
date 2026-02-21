@@ -1,8 +1,13 @@
 'use client'
 
-import { useState } from 'react'
-import { Check, CheckCircle2, Eye, RotateCcw, Trash2, StickyNote } from 'lucide-react'
+import { useState, useRef } from 'react'
+import { Check, CheckCircle2, Eye, RotateCcw, Trash2, StickyNote, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
 import { formatAddedDate } from '@/lib/date-utils'
 import type { UserExpression } from '@/types/database'
 
@@ -51,13 +56,42 @@ export function ExpressionFlipCard({
   onMemoUpdate,
 }: Props) {
   const [memoValue, setMemoValue] = useState(item.memo || '')
+  const [isSaved, setIsSaved] = useState(false)
+  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [localLevel, setLocalLevel] = useState(item.expression?.difficulty_level ?? 2)
+  const [levelOpen, setLevelOpen] = useState(false)
+
   const expr = item.expression
   if (!expr) return null
-  const levelConfig = LEVEL_CONFIG[expr.difficulty_level] || LEVEL_CONFIG[2]
+  const levelConfig = LEVEL_CONFIG[localLevel] || LEVEL_CONFIG[2]
 
   const cardBase = `rounded-xl border border-t-[3px] ${levelConfig.stripe} bg-card shadow-sm cursor-pointer flex flex-col`
   const reviewRing = item.needs_review ? 'ring-2 ring-orange-400/50' : ''
   const memorizedDim = item.is_memorized ? 'opacity-60' : ''
+
+  const saveMemo = () => {
+    if (memoValue !== (item.memo || '')) {
+      onMemoUpdate(item.id, memoValue)
+      if (savedTimerRef.current) clearTimeout(savedTimerRef.current)
+      setIsSaved(true)
+      savedTimerRef.current = setTimeout(() => setIsSaved(false), 1500)
+    }
+  }
+
+  const handleLevelChange = async (newLevel: number) => {
+    setLevelOpen(false)
+    const oldLevel = localLevel
+    setLocalLevel(newLevel)
+    try {
+      await fetch('/api/words/level', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ expressionId: expr.id, newLevel }),
+      })
+    } catch {
+      setLocalLevel(oldLevel)
+    }
+  }
 
   return (
     <div className="flip-card relative">
@@ -82,7 +116,7 @@ export function ExpressionFlipCard({
                 청해
               </span>
               <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold ${levelConfig.badge}`}>
-                Lv.{expr.difficulty_level} {levelConfig.label}
+                Lv.{localLevel} {levelConfig.label}
               </span>
             </div>
             <span className="text-xs text-muted-foreground whitespace-nowrap">
@@ -97,7 +131,6 @@ export function ExpressionFlipCard({
             )}
           </div>
 
-          {/* 하단: 메모 or 힌트 */}
           {item.memo ? (
             <div className="flex items-center gap-1 min-w-0">
               <StickyNote className="h-3 w-3 text-amber-500 flex-shrink-0" />
@@ -115,11 +148,38 @@ export function ExpressionFlipCard({
           className={`flip-card-back p-5 ${cardBase} ${memorizedDim} ${reviewRing}`}
           onClick={onFlip}
         >
-          <div className="flex items-baseline gap-2">
-            <h3 className="text-lg font-bold">{expr.expression}</h3>
-            <span className="inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-semibold bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300">
-              표현
-            </span>
+          {/* 상단: 구문 + 청해 뱃지 + 레벨 편집 */}
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <h3 className="text-lg font-bold truncate">{expr.expression}</h3>
+              <span className="inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-semibold bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300 flex-shrink-0">
+                청해
+              </span>
+            </div>
+            <div onClick={(e) => e.stopPropagation()} className="flex-shrink-0">
+              <Popover open={levelOpen} onOpenChange={setLevelOpen}>
+                <PopoverTrigger asChild>
+                  <button className={`inline-flex items-center gap-0.5 rounded-md px-2 py-0.5 text-xs font-semibold ${levelConfig.badge} hover:opacity-80 transition-opacity`}>
+                    Lv.{localLevel}
+                    <ChevronDown className="h-2.5 w-2.5" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-36 p-1" side="bottom" align="end">
+                  {[1, 2, 3, 4].map((lv) => (
+                    <button
+                      key={lv}
+                      onClick={() => handleLevelChange(lv)}
+                      className={`w-full text-left flex items-center gap-2 px-2 py-1.5 rounded-md text-xs font-medium transition-colors hover:bg-accent ${lv === localLevel ? 'bg-accent' : ''}`}
+                    >
+                      <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold ${LEVEL_CONFIG[lv].badge}`}>
+                        Lv.{lv}
+                      </span>
+                      {LEVEL_CONFIG[lv].label}
+                    </button>
+                  ))}
+                </PopoverContent>
+              </Popover>
+            </div>
           </div>
 
           <hr className="my-2.5 border-dashed border-border" />
@@ -182,16 +242,18 @@ export function ExpressionFlipCard({
             <div className="flex items-center gap-1.5 mb-1">
               <StickyNote className="h-3 w-3 text-amber-500" />
               <span className="text-xs text-muted-foreground font-medium">메모</span>
+              {isSaved && (
+                <span className="flex items-center gap-0.5 text-xs text-green-600 dark:text-green-400 ml-auto">
+                  <Check className="h-3 w-3" />
+                  저장됨
+                </span>
+              )}
             </div>
             <input
               type="text"
               value={memoValue}
               onChange={(e) => setMemoValue(e.target.value)}
-              onBlur={() => {
-                if (memoValue !== (item.memo || '')) {
-                  onMemoUpdate(item.id, memoValue)
-                }
-              }}
+              onBlur={saveMemo}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.currentTarget.blur()

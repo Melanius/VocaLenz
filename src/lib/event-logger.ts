@@ -1,7 +1,7 @@
 import { supabaseAdmin } from '@/lib/supabase/admin'
 
 interface LogEventParams {
-  sessionId: string
+  sessionId?: string
   userId?: string | null
   page: string
   action: string

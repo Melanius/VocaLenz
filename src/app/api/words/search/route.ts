@@ -17,7 +17,7 @@ function normalizeInput(raw: string): string {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { input, sessionId, mode: requestedMode } = body
+    const { input, sessionId, mode: requestedMode, bypassNormalization = false } = body
     const mode: SearchMode = requestedMode === 'expression' ? 'expression' : 'word'
 
     if (!input || typeof input !== 'string') {
@@ -118,9 +118,11 @@ export async function POST(request: NextRequest) {
       case 'WORD':
       case 'PHRASE': {
         // canonical_form: PHRASE의 경우 원형 추출, WORD는 normalized 그대로
-        const canonicalForm = (gatekeeperResult.status === 'PHRASE' && gatekeeperResult.canonical_form)
+        // bypassNormalization=true이면 원형 변환 스킵 (사용자가 원본 그대로 검색 요청)
+        const canonicalForm = (!bypassNormalization && gatekeeperResult.status === 'PHRASE' && gatekeeperResult.canonical_form)
           ? gatekeeperResult.canonical_form.toLowerCase().trim()
           : normalized
+        const wasTransformed = mode === 'expression' && !bypassNormalization && canonicalForm !== normalized
 
         // canonical_form이 다를 경우, 모드에 해당하는 테이블에서 재조회
         if (canonicalForm !== normalized) {
@@ -153,7 +155,7 @@ export async function POST(request: NextRequest) {
               await supabaseAdmin.from('expressions').update({ search_count: (canonicalExpr.search_count || 0) + 1 }).eq('id', canonicalExpr.id)
               if (userId) await saveUserExpressionHistory(userId, canonicalExpr.id)
               return NextResponse.json({
-                result: { type: 'expression', data: transformExpression(canonicalExpr) } as SearchResult,
+                result: { type: 'expression', data: transformExpression(canonicalExpr), ...(wasTransformed ? { transformedFrom: normalized } : {}) } as SearchResult,
                 remaining: rateLimit.remaining - 1,
                 actualMode: 'expression',
               })
@@ -249,7 +251,7 @@ export async function POST(request: NextRequest) {
             await supabaseAdmin.from('expressions').update({ search_count: (existingExpr.search_count || 0) + 1 }).eq('id', existingExpr.id)
             if (userId) await saveUserExpressionHistory(userId, existingExpr.id)
             return NextResponse.json({
-              result: { type: 'expression', data: transformExpression(existingExpr) },
+              result: { type: 'expression', data: transformExpression(existingExpr), ...(wasTransformed ? { transformedFrom: normalized } : {}) },
               remaining: rateLimit.remaining - 1,
               actualMode: 'expression',
             })
@@ -259,7 +261,7 @@ export async function POST(request: NextRequest) {
 
         if (userId && savedExpr) await saveUserExpressionHistory(userId, savedExpr.id)
         return NextResponse.json({
-          result: { type: 'expression', data: transformExpression(savedExpr!) },
+          result: { type: 'expression', data: transformExpression(savedExpr!), ...(wasTransformed ? { transformedFrom: normalized } : {}) },
           remaining: rateLimit.remaining - 1,
           actualMode: 'expression',
         })

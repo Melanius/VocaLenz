@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Search, AlertTriangle, Globe, Ban, MinusCircle, Loader2, AlertCircle, Flag } from 'lucide-react'
+import { Search, AlertTriangle, Globe, Ban, MinusCircle, Loader2, AlertCircle, Flag, ArrowRightLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { WordCard } from './word-card'
@@ -15,9 +15,10 @@ interface SearchResultsProps {
   query: string
   result: SearchResult
   onSearchWord?: (word: string) => void
+  onBypassSearch?: (word: string) => void
 }
 
-export function SearchResults({ query, result, onSearchWord }: SearchResultsProps) {
+export function SearchResults({ query, result, onSearchWord, onBypassSearch }: SearchResultsProps) {
   return (
     <div className="space-y-3">
       {/* 사용자 검색 버블 */}
@@ -33,7 +34,7 @@ export function SearchResults({ query, result, onSearchWord }: SearchResultsProp
       {/* AI 응답 버블 */}
       <div className="flex justify-start">
         <div className="max-w-full w-full">
-          <ResultBubble result={result} onSearchWord={onSearchWord} />
+          <ResultBubble result={result} onSearchWord={onSearchWord} onBypassSearch={onBypassSearch} />
         </div>
       </div>
     </div>
@@ -43,9 +44,11 @@ export function SearchResults({ query, result, onSearchWord }: SearchResultsProp
 function ResultBubble({
   result,
   onSearchWord,
+  onBypassSearch,
 }: {
   result: SearchResult
   onSearchWord?: (word: string) => void
+  onBypassSearch?: (word: string) => void
 }) {
   switch (result.type) {
     case 'loading':
@@ -55,7 +58,32 @@ function ResultBubble({
       return <WordCard word={result.data} />
 
     case 'expression':
-      return <ExpressionCard expression={result.data} />
+      return (
+        <div className="space-y-2">
+          {result.transformedFrom && (
+            <div className="flex items-center justify-between gap-2 rounded-xl border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/30 px-3 py-2">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <ArrowRightLeft className="h-3.5 w-3.5 text-sky-500 flex-shrink-0" />
+                <p className="text-xs text-sky-700 dark:text-sky-300 truncate">
+                  <span className="font-mono">&lsquo;{result.transformedFrom}&rsquo;</span>
+                  {' → '}
+                  <span className="font-mono font-semibold">&lsquo;{result.data.expression}&rsquo;</span>
+                  <span>로 변환했습니다</span>
+                </p>
+              </div>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-6 px-2 text-xs text-sky-700 dark:text-sky-300 hover:bg-sky-100 dark:hover:bg-sky-900/50 flex-shrink-0"
+                onClick={() => onBypassSearch?.(result.transformedFrom!)}
+              >
+                원본 검색
+              </Button>
+            </div>
+          )}
+          <ExpressionCard expression={result.data} />
+        </div>
+      )
 
     case 'typo':
       return (

@@ -233,7 +233,7 @@ export default function SearchPage() {
       updateHistoryItem(itemId, data.result)
 
       // 자동 단어장 저장 (이벤트 발생 전에 먼저 완료해야 모든 useVocabulary 인스턴스가 정확한 상태를 가져감)
-      if (preferences.autoSaveToVocabulary && user) {
+      if (preferences.autoSaveToVocabulary !== false && user) {
         if (
           data.result.type === 'word' &&
           !isInVocabulary(data.result.data.id)

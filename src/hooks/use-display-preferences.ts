@@ -78,6 +78,10 @@ function migratePreferences(prefs: DisplayPreferences): DisplayPreferences {
       localStorage.setItem(STORAGE_VERSION_KEY, String(CURRENT_PREFS_VERSION))
     }
   }
+  // autoSaveToVocabulary가 undefined이면 기본값 true로 설정 (구 localStorage 마이그레이션)
+  if (migrated.autoSaveToVocabulary === undefined) {
+    migrated.autoSaveToVocabulary = true
+  }
   // 청해 구문 필드가 없으면 기본값으로 초기화
   if (!migrated.exprVisibleFields) {
     migrated.exprVisibleFields = [...DEFAULT_EXPR_VISIBLE_FIELDS]

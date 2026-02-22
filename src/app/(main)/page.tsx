@@ -232,23 +232,23 @@ export default function SearchPage() {
 
       updateHistoryItem(itemId, data.result)
 
-      // 사이드바 실시간 갱신 트리거
-      window.dispatchEvent(new CustomEvent('vocalenz:search-complete'))
-
-      // 자동 단어장 저장
+      // 자동 단어장 저장 (이벤트 발생 전에 먼저 완료해야 모든 useVocabulary 인스턴스가 정확한 상태를 가져감)
       if (preferences.autoSaveToVocabulary && user) {
         if (
           data.result.type === 'word' &&
           !isInVocabulary(data.result.data.id)
         ) {
-          addToVocabulary(data.result.data.id)
+          await addToVocabulary(data.result.data.id)
         } else if (
           data.result.type === 'expression' &&
           !isInExpressionVocabulary(data.result.data.id)
         ) {
-          addToExpressionVocabulary(data.result.data.id)
+          await addToExpressionVocabulary(data.result.data.id)
         }
       }
+
+      // 사이드바 실시간 갱신 트리거 (자동 단어장 저장 완료 후 발생)
+      window.dispatchEvent(new CustomEvent('vocalenz:search-complete'))
     } catch {
       updateHistoryItem(itemId, {
         type: 'error',

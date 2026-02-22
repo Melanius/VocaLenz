@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAuthContext } from '@/components/providers/auth-provider'
 import { getSessionId } from '@/lib/session'
 import type { UserVocabulary } from '@/types/database'
@@ -12,6 +12,7 @@ export function useVocabulary() {
   const [vocabularyItems, setVocabularyItems] = useState<UserVocabulary[]>([])
   const [wordIdSet, setWordIdSet] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(false)
+  const fetchVersionRef = useRef(0)
 
   const fetchVocabulary = useCallback(async () => {
     if (!user) {
@@ -20,10 +21,11 @@ export function useVocabulary() {
       return
     }
 
+    const version = ++fetchVersionRef.current
     setLoading(true)
     try {
       const res = await fetch('/api/vocabulary')
-      if (res.ok) {
+      if (res.ok && version === fetchVersionRef.current) {
         const data: UserVocabulary[] = await res.json()
         setVocabularyItems(data)
         setWordIdSet(new Set(data.map((v) => v.word_id)))
@@ -31,7 +33,9 @@ export function useVocabulary() {
     } catch {
       // silent fail
     } finally {
-      setLoading(false)
+      if (version === fetchVersionRef.current) {
+        setLoading(false)
+      }
     }
   }, [user])
 

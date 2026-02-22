@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAuthContext } from '@/components/providers/auth-provider'
 import { getSessionId } from '@/lib/session'
 import type { UserExpression } from '@/types/database'
@@ -12,6 +12,7 @@ export function useExpressionVocabulary() {
   const [expressionItems, setExpressionItems] = useState<UserExpression[]>([])
   const [expressionIdSet, setExpressionIdSet] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(false)
+  const fetchVersionRef = useRef(0)
 
   const fetchExpressions = useCallback(async () => {
     if (!user) {
@@ -20,10 +21,11 @@ export function useExpressionVocabulary() {
       return
     }
 
+    const version = ++fetchVersionRef.current
     setLoading(true)
     try {
       const res = await fetch('/api/vocabulary/expressions')
-      if (res.ok) {
+      if (res.ok && version === fetchVersionRef.current) {
         const data: UserExpression[] = await res.json()
         setExpressionItems(data)
         setExpressionIdSet(new Set(data.map((v) => v.expression_id)))
@@ -31,7 +33,9 @@ export function useExpressionVocabulary() {
     } catch {
       // silent fail
     } finally {
-      setLoading(false)
+      if (version === fetchVersionRef.current) {
+        setLoading(false)
+      }
     }
   }, [user])
 

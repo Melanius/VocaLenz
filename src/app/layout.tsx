@@ -8,7 +8,7 @@ import { Toaster } from '@/components/ui/toaster'
 import { OnboardingTrigger } from '@/components/onboarding/onboarding-trigger'
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://vocalenz.vercel.app'),
+  metadataBase: new URL('https://www.vocalenz.com'),
   title: {
     default: 'VocaLenz - AI 영어 단어장',
     template: '%s | VocaLenz',
@@ -19,7 +19,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'VocaLenz - AI 영어 단어장',
     description: 'AI가 만들어주는 나만의 영어 단어 학습 카드',
-    url: 'https://vocalenz.vercel.app',
+    url: 'https://www.vocalenz.com',
     siteName: 'VocaLenz',
     locale: 'ko_KR',
     type: 'website',

@@ -1,10 +1,16 @@
 import { ImageResponse } from 'next/og'
+import { readFileSync } from 'fs'
+import { join } from 'path'
 
+export const runtime = 'nodejs'
 export const alt = 'VocaLenz - AI 영어 단어장'
 export const size = { width: 1200, height: 630 }
 export const contentType = 'image/png'
 
 export default function OGImage() {
+  const logoData = readFileSync(join(process.cwd(), 'public', 'logo', 'VocaLenz_logo_light.png'))
+  const logoSrc = `data:image/png;base64,${logoData.toString('base64')}`
+
   return new ImageResponse(
     (
       <div
@@ -12,47 +18,19 @@ export default function OGImage() {
           width: '100%',
           height: '100%',
           display: 'flex',
-          flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 50%, #60a5fa 100%)',
-          fontFamily: 'system-ui, sans-serif',
+          background: 'linear-gradient(180deg, #f8fafc 0%, #eff6ff 100%)',
         }}
       >
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: 80,
-            height: 80,
-            borderRadius: 20,
-            background: 'rgba(255,255,255,0.2)',
-            marginBottom: 24,
-          }}
-        >
-          <span style={{ fontSize: 48, fontWeight: 700, color: 'white' }}>V</span>
-        </div>
-        <h1
-          style={{
-            fontSize: 64,
-            fontWeight: 700,
-            color: 'white',
-            margin: 0,
-            letterSpacing: -1,
-          }}
-        >
-          VocaLenz
-        </h1>
-        <p
-          style={{
-            fontSize: 28,
-            color: 'rgba(255,255,255,0.85)',
-            margin: '16px 0 0',
-          }}
-        >
-          나만의 TEPS AI 튜터
-        </p>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={logoSrc}
+          width={800}
+          height={253}
+          alt="VocaLenz"
+          style={{ objectFit: 'contain' }}
+        />
       </div>
     ),
     { ...size }

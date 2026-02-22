@@ -19,14 +19,24 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'VocaLenz - AI 영어 단어장',
     description: 'AI가 만들어주는 나만의 영어 단어 학습 카드',
+    url: 'https://vocalenz.vercel.app',
     siteName: 'VocaLenz',
     locale: 'ko_KR',
     type: 'website',
+    images: [
+      {
+        url: '/og-image.png',
+        width: 1200,
+        height: 630,
+        alt: 'VocaLenz - AI 영어 단어장',
+      },
+    ],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'VocaLenz - AI 영어 단어장',
     description: 'AI가 만들어주는 나만의 영어 단어 학습 카드',
+    images: ['/og-image.png'],
   },
 }
 

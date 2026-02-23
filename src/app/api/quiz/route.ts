@@ -40,31 +40,34 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const count = Math.min(parseInt(searchParams.get('count') || '10', 10), 20)
-    const sourceParam = searchParams.get('source') || 'unmemorized'
-    const historyDate = searchParams.get('historyDate') || ''
-    const historyDateTo = searchParams.get('historyDateTo') || ''
+    const sourceParam = searchParams.get('source') || ''
+    const dateFrom = searchParams.get('dateFrom') || ''
+    const dateTo = searchParams.get('dateTo') || ''
+    const memoParam = searchParams.get('memos') || ''
+    const memos = memoParam ? memoParam.split(',').filter(Boolean) : []
     const sessionId = searchParams.get('sessionId') || ''
     const quizType = searchParams.get('quizType') || 'word'
     const sources = sourceParam.split(',').filter(Boolean)
 
     if (quizType === 'expression') {
-      return handleExpressionQuiz({ user, count, sources, historyDate, historyDateTo, sessionId, sourceParam })
+      return handleExpressionQuiz({ user, count, sources, dateFrom, dateTo, memos, sessionId, sourceParam })
     }
 
-    return handleWordQuiz({ user, count, sources, historyDate, historyDateTo, sessionId, sourceParam })
+    return handleWordQuiz({ user, count, sources, dateFrom, dateTo, memos, sessionId, sourceParam })
   } catch {
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 })
   }
 }
 
 async function handleWordQuiz({
-  user, count, sources, historyDate, historyDateTo, sessionId, sourceParam,
+  user, count, sources, dateFrom, dateTo, memos, sessionId, sourceParam,
 }: {
   user: { id: string }
   count: number
   sources: string[]
-  historyDate: string
-  historyDateTo: string
+  dateFrom: string
+  dateTo: string
+  memos: string[]
   sessionId: string
   sourceParam: string
 }) {
@@ -80,54 +83,43 @@ async function handleWordQuiz({
     }
   }
 
-  if (sources.includes('unmemorized')) {
-    const { data } = await supabaseAdmin
+  const extractWords = (data: Record<string, unknown>[] | null) =>
+    (data || [])
+      .map((v) => v.word)
+      .filter((w): w is WordRow => w !== null && w !== undefined)
+
+  // 날짜·메모 필터를 쿼리에 적용 (PostgrestFilterBuilder any 타입 활용)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const withVocabFilters = (q: any) => {
+    if (dateFrom) q = q.gte('added_at', dateFrom)
+    if (dateTo) q = q.lte('added_at', dateTo + 'T23:59:59.999Z')
+    if (memos.length > 0) q = q.or(memos.map((m: string) => `memo.ilike.%${m}%`).join(','))
+    return q
+  }
+
+  const runWordQuery = async (statusFilter?: 'unmemorized' | 'memorized' | 'quiz_wrong') => {
+    let q = supabaseAdmin
       .from('user_vocabulary')
       .select('word:words(id, word, part_of_speech, meanings)')
       .eq('user_id', user.id)
-      .eq('is_memorized', false)
-
-    const words = (data || [])
-      .map((v: Record<string, unknown>) => v.word)
-      .filter((w): w is WordRow => w !== null && w !== undefined)
-    addWords(words)
+    if (statusFilter === 'unmemorized') q = q.eq('is_memorized', false)
+    else if (statusFilter === 'memorized') q = q.eq('is_memorized', true)
+    else if (statusFilter === 'quiz_wrong') q = q.eq('needs_review', true)
+    const { data } = await withVocabFilters(q)
+    addWords(extractWords(data as Record<string, unknown>[] | null))
   }
 
-  if (sources.includes('memorized')) {
-    const { data } = await supabaseAdmin
-      .from('user_vocabulary')
-      .select('word:words(id, word, part_of_speech, meanings)')
-      .eq('user_id', user.id)
-      .eq('is_memorized', true)
-
-    const words = (data || [])
-      .map((v: Record<string, unknown>) => v.word)
-      .filter((w): w is WordRow => w !== null && w !== undefined)
-    addWords(words)
+  // 상태 필터가 없으면 전체 단어장 기준
+  if (sources.length === 0) {
+    await runWordQuery()
   }
-
-  if (sources.includes('history') && historyDate) {
-    let query = supabaseAdmin
-      .from('user_word_history')
-      .select('word:words(id, word, part_of_speech, meanings)')
-      .eq('user_id', user.id)
-      .gte('searched_at', historyDate)
-
-    if (historyDateTo) {
-      query = query.lt('searched_at', historyDateTo + 'T23:59:59.999Z')
-    }
-
-    const { data } = await query
-
-    const words = (data || [])
-      .map((v: Record<string, unknown>) => v.word)
-      .filter((w): w is WordRow => w !== null && w !== undefined)
-    addWords(words)
-  }
+  if (sources.includes('unmemorized')) await runWordQuery('unmemorized')
+  if (sources.includes('memorized')) await runWordQuery('memorized')
+  if (sources.includes('quiz_wrong')) await runWordQuery('quiz_wrong')
 
   if (collectedWords.length < 4) {
     return NextResponse.json(
-      { error: '선택한 범위에 단어가 4개 이상 필요합니다. 범위를 넓혀 주세요.' },
+      { error: '선택한 조건에 해당하는 단어가 4개 이상 필요합니다. 조건을 넓혀 주세요.' },
       { status: 400 }
     )
   }
@@ -189,7 +181,6 @@ async function handleWordQuiz({
         quizType: 'word',
         count: questions.length,
         source: sourceParam,
-        ...(historyDate && { historyDate }),
       },
     })
   }
@@ -198,13 +189,14 @@ async function handleWordQuiz({
 }
 
 async function handleExpressionQuiz({
-  user, count, sources, historyDate, historyDateTo, sessionId, sourceParam,
+  user, count, sources, dateFrom, dateTo, memos, sessionId, sourceParam,
 }: {
   user: { id: string }
   count: number
   sources: string[]
-  historyDate: string
-  historyDateTo: string
+  dateFrom: string
+  dateTo: string
+  memos: string[]
   sessionId: string
   sourceParam: string
 }) {
@@ -220,54 +212,42 @@ async function handleExpressionQuiz({
     }
   }
 
-  if (sources.includes('unmemorized')) {
-    const { data } = await supabaseAdmin
+  const extractExprs = (data: Record<string, unknown>[] | null) =>
+    (data || [])
+      .map((v) => v.expression)
+      .filter((e): e is ExpressionRow => e !== null && e !== undefined)
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const withExprFilters = (q: any) => {
+    if (dateFrom) q = q.gte('added_at', dateFrom)
+    if (dateTo) q = q.lte('added_at', dateTo + 'T23:59:59.999Z')
+    if (memos.length > 0) q = q.or(memos.map((m: string) => `memo.ilike.%${m}%`).join(','))
+    return q
+  }
+
+  const runExprQuery = async (statusFilter?: 'unmemorized' | 'memorized' | 'quiz_wrong') => {
+    let q = supabaseAdmin
       .from('user_expressions')
       .select('expression:expressions(id, expression, meanings)')
       .eq('user_id', user.id)
-      .eq('is_memorized', false)
-
-    const exprs = (data || [])
-      .map((v: Record<string, unknown>) => v.expression)
-      .filter((e): e is ExpressionRow => e !== null && e !== undefined)
-    addExprs(exprs)
+    if (statusFilter === 'unmemorized') q = q.eq('is_memorized', false)
+    else if (statusFilter === 'memorized') q = q.eq('is_memorized', true)
+    else if (statusFilter === 'quiz_wrong') q = q.eq('needs_review', true)
+    const { data } = await withExprFilters(q)
+    addExprs(extractExprs(data as Record<string, unknown>[] | null))
   }
 
-  if (sources.includes('memorized')) {
-    const { data } = await supabaseAdmin
-      .from('user_expressions')
-      .select('expression:expressions(id, expression, meanings)')
-      .eq('user_id', user.id)
-      .eq('is_memorized', true)
-
-    const exprs = (data || [])
-      .map((v: Record<string, unknown>) => v.expression)
-      .filter((e): e is ExpressionRow => e !== null && e !== undefined)
-    addExprs(exprs)
+  // 상태 필터가 없으면 전체 Lenz픽 기준
+  if (sources.length === 0) {
+    await runExprQuery()
   }
-
-  if (sources.includes('history') && historyDate) {
-    let query = supabaseAdmin
-      .from('user_expression_history')
-      .select('expression:expressions(id, expression, meanings)')
-      .eq('user_id', user.id)
-      .gte('searched_at', historyDate)
-
-    if (historyDateTo) {
-      query = query.lt('searched_at', historyDateTo + 'T23:59:59.999Z')
-    }
-
-    const { data } = await query
-
-    const exprs = (data || [])
-      .map((v: Record<string, unknown>) => v.expression)
-      .filter((e): e is ExpressionRow => e !== null && e !== undefined)
-    addExprs(exprs)
-  }
+  if (sources.includes('unmemorized')) await runExprQuery('unmemorized')
+  if (sources.includes('memorized')) await runExprQuery('memorized')
+  if (sources.includes('quiz_wrong')) await runExprQuery('quiz_wrong')
 
   if (collectedExprs.length < 4) {
     return NextResponse.json(
-      { error: '선택한 범위에 청해 구문이 4개 이상 필요합니다. 범위를 넓혀 주세요.' },
+      { error: '선택한 조건에 해당하는 청해 구문이 4개 이상 필요합니다. 조건을 넓혀 주세요.' },
       { status: 400 }
     )
   }
@@ -311,7 +291,6 @@ async function handleExpressionQuiz({
         quizType: 'expression',
         count: questions.length,
         source: sourceParam,
-        ...(historyDate && { historyDate }),
       },
     })
   }

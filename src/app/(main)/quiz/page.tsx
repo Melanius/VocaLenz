@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef } from 'react'
 import Link from 'next/link'
-import { Brain, Loader2, RotateCcw, BookOpen, Trophy, XCircle, CheckCircle2, Shuffle, RefreshCw, Headphones } from 'lucide-react'
+import { Brain, Loader2, RotateCcw, BookOpen, Trophy, XCircle, CheckCircle2, Shuffle, RefreshCw, Headphones, X } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { useAuthContext } from '@/components/providers/auth-provider'
@@ -42,13 +42,18 @@ export default function QuizPage() {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const questionStartTime = useRef<number>(Date.now())
 
-  // 퀴즈 범위 체크박스
+  // 퀴즈 범위 — 암기 상태 칩 (다중 선택, 미선택 시 전체)
   const [sourceUnmemorized, setSourceUnmemorized] = useState(true)
   const [sourceMemorized, setSourceMemorized] = useState(false)
-  const [sourceHistory, setSourceHistory] = useState(false)
-  const [historyDateMode, setHistoryDateMode] = useState<'single' | 'range'>('single')
-  const [historyDate, setHistoryDate] = useState('')
-  const [historyDateTo, setHistoryDateTo] = useState('')
+  const [sourceQuizWrong, setSourceQuizWrong] = useState(false)
+  // 날짜 필터 (단어장 추가일 기준)
+  const [dateFilterOn, setDateFilterOn] = useState(false)
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+  // 메모 필터 (OR 검색, 태그 방식)
+  const [memoFilterOn, setMemoFilterOn] = useState(false)
+  const [memoTags, setMemoTags] = useState<string[]>([])
+  const [memoInput, setMemoInput] = useState('')
 
   // 복습 표시 처리 상태
   const [reviewMarked, setReviewMarked] = useState<Set<string>>(new Set())
@@ -57,26 +62,34 @@ export default function QuizPage() {
     const sources: string[] = []
     if (sourceUnmemorized) sources.push('unmemorized')
     if (sourceMemorized) sources.push('memorized')
-    if (sourceHistory) sources.push('history')
+    if (sourceQuizWrong) sources.push('quiz_wrong')
     return sources.join(',')
   }
 
+  const addMemoTag = (raw: string) => {
+    const tag = raw.replace(/,$/, '').trim()
+    if (tag && !memoTags.includes(tag)) {
+      setMemoTags((prev) => [...prev, tag])
+    }
+  }
+
   const fetchQuiz = useCallback(async () => {
-    const source = buildSourceParam()
-    if (!source) {
-      toast({ title: '범위 선택 필요', description: '최소 하나의 범위를 선택해 주세요.', variant: 'destructive' })
+    if (memoFilterOn && memoTags.length === 0) {
+      toast({ title: '메모 입력 필요', description: '메모 필터를 사용하려면 메모를 하나 이상 입력해 주세요.', variant: 'destructive' })
       return
     }
 
+    const source = buildSourceParam()
     setState('loading')
     try {
       const sid = getSessionId()
       let url = `/api/quiz?count=${questionCount}&source=${source}&sessionId=${sid}&quizType=${quizType}`
-      if (sourceHistory && historyDate) {
-        url += `&historyDate=${historyDate}`
-        if (historyDateMode === 'range' && historyDateTo) {
-          url += `&historyDateTo=${historyDateTo}`
-        }
+      if (dateFilterOn && dateFrom) {
+        url += `&dateFrom=${dateFrom}`
+        if (dateTo) url += `&dateTo=${dateTo}`
+      }
+      if (memoFilterOn && memoTags.length > 0) {
+        url += `&memos=${encodeURIComponent(memoTags.join(','))}`
       }
       const res = await fetch(url)
       const data = await res.json()
@@ -101,7 +114,7 @@ export default function QuizPage() {
       setState('idle')
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [quizType, questionCount, sourceUnmemorized, sourceMemorized, sourceHistory, historyDate, historyDateMode, historyDateTo])
+  }, [quizType, questionCount, sourceUnmemorized, sourceMemorized, sourceQuizWrong, dateFilterOn, dateFrom, dateTo, memoFilterOn, memoTags])
 
   const handleAnswer = (index: number) => {
     if (showFeedback || selectedIndex !== null) return
@@ -500,92 +513,125 @@ export default function QuizPage() {
             </div>
 
             {/* 퀴즈 범위 */}
-            <div className="space-y-3">
+            <div className="space-y-4">
               <label className="text-sm font-medium">퀴즈 범위</label>
+
+              {/* 암기 상태 칩 */}
+              <div className="space-y-1.5">
+                <p className="text-xs text-muted-foreground">
+                  암기 상태
+                  <span className="text-muted-foreground/60"> · 다중 선택 가능 / 미선택 시 전체 포함</span>
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {([
+                    { key: 'unmemorized', label: '미암기', active: sourceUnmemorized, toggle: () => setSourceUnmemorized((v) => !v) },
+                    { key: 'memorized', label: '암기완료', active: sourceMemorized, toggle: () => setSourceMemorized((v) => !v) },
+                    { key: 'quiz_wrong', label: '퀴즈오답', active: sourceQuizWrong, toggle: () => setSourceQuizWrong((v) => !v) },
+                  ] as const).map(({ key, label, active, toggle }) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={toggle}
+                      className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-all ${
+                        active
+                          ? 'bg-primary text-primary-foreground border-primary shadow-sm'
+                          : 'bg-background text-muted-foreground border-border hover:border-foreground hover:text-foreground'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 날짜 필터 */}
               <div className="space-y-2">
-                <label className="flex items-center gap-2 cursor-pointer">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
                   <input
                     type="checkbox"
-                    checked={sourceUnmemorized}
-                    onChange={(e) => setSourceUnmemorized(e.target.checked)}
+                    checked={dateFilterOn}
+                    onChange={(e) => setDateFilterOn(e.target.checked)}
                     className="rounded border-gray-300 text-primary focus:ring-primary"
                   />
-                  <span className="text-sm">{listName} 미암기 {isExpression ? '구문' : '단어'}</span>
+                  <span className="text-sm font-medium">날짜 필터</span>
+                  <span className="text-xs text-muted-foreground">(단어장 추가일 기준)</span>
                 </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={sourceMemorized}
-                    onChange={(e) => setSourceMemorized(e.target.checked)}
-                    className="rounded border-gray-300 text-primary focus:ring-primary"
-                  />
-                  <span className="text-sm">{listName} 암기완료 {isExpression ? '구문' : '단어'}</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={sourceHistory}
-                    onChange={(e) => setSourceHistory(e.target.checked)}
-                    className="rounded border-gray-300 text-primary focus:ring-primary"
-                  />
-                  <span className="text-sm">검색 이력 {isExpression ? '구문' : '단어'}</span>
-                </label>
-                {sourceHistory && (
-                  <div className="ml-6 space-y-2">
-                    <div className="flex gap-3">
-                      <label className="flex items-center gap-1.5 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="dateMode"
-                          checked={historyDateMode === 'single'}
-                          onChange={() => setHistoryDateMode('single')}
-                          className="accent-primary"
-                        />
-                        <span className="text-xs">특정 날짜</span>
-                      </label>
-                      <label className="flex items-center gap-1.5 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="dateMode"
-                          checked={historyDateMode === 'range'}
-                          onChange={() => setHistoryDateMode('range')}
-                          className="accent-primary"
-                        />
-                        <span className="text-xs">기간 설정</span>
-                      </label>
+                {dateFilterOn && (
+                  <div className="ml-5 grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-xs text-muted-foreground block mb-1">시작일</label>
+                      <input
+                        type="date"
+                        value={dateFrom}
+                        onChange={(e) => setDateFrom(e.target.value)}
+                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      />
                     </div>
-                    {historyDateMode === 'single' ? (
-                      <div>
-                        <label className="text-xs text-muted-foreground">이 날짜에 검색한 {isExpression ? '구문' : '단어'}</label>
-                        <input
-                          type="date"
-                          value={historyDate}
-                          onChange={(e) => setHistoryDate(e.target.value)}
-                          className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                        />
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        <div>
-                          <label className="text-xs text-muted-foreground">시작일</label>
-                          <input
-                            type="date"
-                            value={historyDate}
-                            onChange={(e) => setHistoryDate(e.target.value)}
-                            className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-xs text-muted-foreground">종료일</label>
-                          <input
-                            type="date"
-                            value={historyDateTo}
-                            onChange={(e) => setHistoryDateTo(e.target.value)}
-                            className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                          />
-                        </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground block mb-1">종료일</label>
+                      <input
+                        type="date"
+                        value={dateTo}
+                        onChange={(e) => setDateTo(e.target.value)}
+                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 메모 필터 */}
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={memoFilterOn}
+                    onChange={(e) => setMemoFilterOn(e.target.checked)}
+                    className="rounded border-gray-300 text-primary focus:ring-primary"
+                  />
+                  <span className="text-sm font-medium">메모 필터</span>
+                  <span className="text-xs text-muted-foreground">(OR 검색)</span>
+                </label>
+                {memoFilterOn && (
+                  <div className="ml-5 space-y-2">
+                    {memoTags.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {memoTags.map((tag, i) => (
+                          <span
+                            key={i}
+                            className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-primary/10 text-primary rounded-full text-xs font-medium"
+                          >
+                            {tag}
+                            <button
+                              type="button"
+                              onClick={() => setMemoTags((prev) => prev.filter((_, j) => j !== i))}
+                              className="ml-0.5 hover:text-destructive transition-colors"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </span>
+                        ))}
                       </div>
                     )}
+                    <input
+                      type="text"
+                      value={memoInput}
+                      onChange={(e) => setMemoInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if ((e.key === 'Enter' || e.key === ',') && memoInput.trim()) {
+                          e.preventDefault()
+                          addMemoTag(memoInput)
+                          setMemoInput('')
+                        } else if (e.key === 'Backspace' && !memoInput && memoTags.length > 0) {
+                          setMemoTags((prev) => prev.slice(0, -1))
+                        }
+                      }}
+                      placeholder="메모명 입력 후 Enter..."
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Enter 또는 쉼표로 추가. 입력한 메모 중 하나라도 포함된 {isExpression ? '구문' : '단어'}를 출제합니다.
+                    </p>
                   </div>
                 )}
               </div>
@@ -603,7 +649,7 @@ export default function QuizPage() {
               className="w-full"
               size="lg"
               onClick={fetchQuiz}
-              disabled={!sourceUnmemorized && !sourceMemorized && !sourceHistory}
+              disabled={memoFilterOn && memoTags.length === 0}
             >
               퀴즈 시작
             </Button>

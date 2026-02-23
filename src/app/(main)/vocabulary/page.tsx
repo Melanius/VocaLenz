@@ -180,6 +180,19 @@ export default function VocabularyPage() {
     return shuffleSeed ? seededShuffle(items, shuffleSeed) : items
   }, [expressionItems, filter, dateFrom, dateTo, hasDateFilter, memoFilterLower, shuffleSeed])
 
+  // 업로드 진행 목록: 단어별 최신 상태만 표시 (generating → added 중복 제거)
+  const displayProgress = useMemo(() => {
+    const map = new Map<string, BulkProgress>()
+    uploadProgress.forEach(p => map.set(p.word, p))
+    return [...map.values()]
+  }, [uploadProgress])
+
+  // 실제 완료 단어 수 (generating 제외한 terminal 상태만)
+  const completedCount = useMemo(
+    () => uploadProgress.filter(p => p.status !== 'generating').length,
+    [uploadProgress]
+  )
+
   const clearDateFilter = () => {
     setDateFrom('')
     setDateTo('')
@@ -1074,26 +1087,26 @@ export default function VocabularyPage() {
                   <div className="h-2 bg-muted rounded-full overflow-hidden">
                     <div
                       className="h-full bg-primary rounded-full transition-all duration-300"
-                      style={{ width: `${uploadTotal > 0 ? (uploadProgress.length / uploadTotal) * 100 : 0}%` }}
+                      style={{ width: `${uploadTotal > 0 ? Math.min((completedCount / uploadTotal) * 100, 100) : 0}%` }}
                     />
                   </div>
                   <div className="max-h-48 overflow-y-auto space-y-1">
-                    {uploadProgress.map((p, i) => (
-                      <div key={i} className="flex items-center gap-2 text-sm">
-                        <span className="shrink-0">
+                    {displayProgress.map((p) => (
+                      <div key={p.word} className="flex items-start gap-2 text-sm min-w-0">
+                        <span className="shrink-0 mt-0.5">
                           {p.status === 'added' ? '✅' :
                            p.status === 'skipped' ? '⏭️' :
                            p.status === 'generating' ? '🔄' :
                            p.status === 'failed' ? '❌' : '⏳'}
                         </span>
                         <span className="font-mono shrink-0">{p.word}</span>
-                        <span className="text-xs text-muted-foreground truncate">
+                        <span className="text-xs text-muted-foreground flex-1 min-w-0 break-words">
                           {p.status === 'added' ? '추가 완료' :
                            p.status === 'skipped' ? `이미 ${uploadTarget === 'word' ? 'Voca 리스트' : 'Lenz 픽'}에 있음` :
                            p.status === 'generating' ? '생성 중...' :
                            p.status === 'failed' ? (
                              p.correction
-                               ? `${p.error} → ${p.correction}`
+                               ? `${p.error} → 올바른 철자: ${p.correction}`
                                : p.error
                            ) : ''}
                         </span>

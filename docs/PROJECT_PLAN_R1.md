@@ -2979,6 +2979,37 @@ Step 8.1 → 8.2 → 8.3 → 8.4 → `pnpm build` 검증 → Step 8.5 (수동 QA
 
 ---
 
+## ✅ Phase 32: OG 이미지 교체 + 관리자 CSV 일괄 업로드 (완료)
+**완료 일시:** 2026-02-23
+
+### Step 32.1: 이미지 최적화 및 교체 ✅
+- PNG → JPEG 변환으로 파일 크기 대폭 감소
+  - `public/og-image.png` (1042KB) → `public/og-image.jpg` (117KB, 1200×630)
+  - `public/video/{spring,summer,fall,winter}.png` (~1MB 각) → `.jpg` (~90KB 각, 900×900)
+- Python Pillow로 RGBA→RGB 변환 후 JPEG quality 85 압축
+- `src/app/layout.tsx`: OG/Twitter 이미지 경로 → `/og-image.jpg`
+- `src/app/(main)/page.tsx`: SEASON_IMAGES 경로 → `.jpg` 확장자
+
+### Step 32.2: 관리자 CSV 일괄 업로드 기능 ✅
+- **API:** `POST /api/admin/words`
+  - 최대 500행 제한, word/meanings 필수 검증
+  - 중복 처리: `onDuplicate: 'skip' | 'update'` (word + exam_type 기준)
+  - 응답: `{ inserted, updated, skipped, errors[] }`
+- **Admin UI:** `src/app/(main)/admin/page.tsx`
+  - CSV 파싱 유틸: 따옴표 안의 쉼표 처리, 세미콜론 배열 필드 지원
+  - CSV 템플릿 다운로드 (15개 컬럼 + 예시 행)
+  - drag-and-drop 파일 업로드 영역
+  - 행별 유효성 검증 미리보기 (word/meanings 필수 체크)
+  - 중복 처리 토글 (건너뜀 / 덮어쓰기)
+  - 업로드 결과 요약 패널 (추가됨/수정됨/건너뜀 + 오류 목록)
+  - shadcn/ui Sheet 슬라이드 패널 구현
+
+- **커밋:** `3e14cea - feat: replace images with optimized JPEG + add admin CSV bulk upload`
+
+**Phase 32 총 커밋:** 1개
+
+---
+
 ## 개발 완료 후 운영 체크리스트
 
 | 항목 | 내용 | 상태 |

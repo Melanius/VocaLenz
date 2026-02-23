@@ -20,10 +20,10 @@ import { analytics } from '@/lib/analytics'
 import type { Word, Expression, SearchMode } from '@/types/database'
 
 const SEASON_IMAGES: Record<string, string> = {
-  spring: '/video/spring.jpg',
-  summer: '/video/summer.jpg',
-  fall: '/video/fall.jpg',
-  winter: '/video/winter.jpg',
+  spring: '/video/spring.png',
+  summer: '/video/summer.png',
+  fall: '/video/fall.png',
+  winter: '/video/winter.png',
 }
 
 type UnifiedHistoryItem =

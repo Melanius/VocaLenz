@@ -2979,16 +2979,14 @@ Step 8.1 → 8.2 → 8.3 → 8.4 → `pnpm build` 검증 → Step 8.5 (수동 QA
 
 ---
 
-## ✅ Phase 32: OG 이미지 교체 + 관리자 CSV 일괄 업로드 (완료)
+## ✅ Phase 32: OG 이미지 교체 + 관리자 CSV 일괄 업로드 + PWA 아이콘 교체 (완료)
 **완료 일시:** 2026-02-23
 
-### Step 32.1: 이미지 최적화 및 교체 ✅
-- PNG → JPEG 변환으로 파일 크기 대폭 감소
-  - `public/og-image.png` (1042KB) → `public/og-image.jpg` (117KB, 1200×630)
-  - `public/video/{spring,summer,fall,winter}.png` (~1MB 각) → `.jpg` (~90KB 각, 900×900)
+### Step 32.1: OG 이미지 최적화 및 교체 ✅
+- `public/og-image.png` (1042KB) → `public/og-image.jpg` (117KB, 1200×630)
 - Python Pillow로 RGBA→RGB 변환 후 JPEG quality 85 압축
 - `src/app/layout.tsx`: OG/Twitter 이미지 경로 → `/og-image.jpg`
-- `src/app/(main)/page.tsx`: SEASON_IMAGES 경로 → `.jpg` 확장자
+- **커밋:** `3e14cea`
 
 ### Step 32.2: 관리자 CSV 일괄 업로드 기능 ✅
 - **API:** `POST /api/admin/words`
@@ -3003,10 +3001,29 @@ Step 8.1 → 8.2 → 8.3 → 8.4 → `pnpm build` 검증 → Step 8.5 (수동 QA
   - 중복 처리 토글 (건너뜀 / 덮어쓰기)
   - 업로드 결과 요약 패널 (추가됨/수정됨/건너뜀 + 오류 목록)
   - shadcn/ui Sheet 슬라이드 패널 구현
-
 - **커밋:** `3e14cea - feat: replace images with optimized JPEG + add admin CSV bulk upload`
 
-**Phase 32 총 커밋:** 1개
+### Step 32.3: 홈화면 계절 이미지 복구 ✅
+- 이전 커밋에서 계절 이미지를 잘못된 소스(home_img.png)로 덮어쓴 것을 git 히스토리에서 복구
+- 원본은 121프레임 애니메이션 PNG(APNG) — JPEG 변환 시 애니메이션 소실됨을 확인
+- `public/video/{spring,summer,fall,winter}.png` 원본 복원
+- `src/app/(main)/page.tsx`: SEASON_IMAGES 경로를 `.png`로 원복
+- **커밋:** `aebc8a4 - fix: restore animated APNG season images on home page`
+
+### Step 32.4: PWA 아이콘 교체 (home_img.png 적용) ✅
+- `home_img.png` (2048×2048, RGBA) 소스로 PWA 아이콘 전체 재생성
+- **생성 파일:**
+  - `public/icons/icon-192.png` — 투명 배경, any purpose
+  - `public/icons/icon-512.png` — 투명 배경, any purpose
+  - `public/icons/icon-192-maskable.png` — 흰 배경, 80% safe zone, maskable
+  - `public/icons/icon-512-maskable.png` — 흰 배경, 80% safe zone, maskable
+  - `public/apple-touch-icon.png` (180×180) — 흰 배경, iOS Safari 홈화면 아이콘
+- `src/app/manifest.ts`: maskable 아이콘을 별도 파일로 분리
+- `src/app/layout.tsx`: `icons.apple` 메타데이터 추가
+- **커밋:** `bbe3eee - feat: apply home_img.png to PWA icons and apple-touch-icon`
+- **커밋:** `7ad7677 - fix: change maskable icon background from brand blue to white`
+
+**Phase 32 총 커밋:** 5개
 
 ---
 

@@ -38,6 +38,9 @@ export const metadata: Metadata = {
     description: 'AI가 만들어주는 나만의 영어 단어 학습 카드',
     images: ['/og-image.jpg'],
   },
+  icons: {
+    apple: '/apple-touch-icon.png',
+  },
 }
 
 export default function RootLayout({

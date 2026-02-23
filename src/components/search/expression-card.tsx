@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { usePronunciation } from '@/hooks/use-pronunciation'
-import { useExpressionVocabulary } from '@/hooks/use-expression-vocabulary'
+import { useExpressionVocabularyContext } from '@/contexts/expression-vocabulary-context'
 import { useAuthContext } from '@/components/providers/auth-provider'
 import { useDisplayPreferences } from '@/hooks/use-display-preferences'
 import { toast } from '@/hooks/use-toast'
@@ -39,7 +39,7 @@ const DEFAULT_FIELD_ORDER: ExpressionCardField[] = [
 export function ExpressionCard({ expression, showVocabularyButton = true }: ExpressionCardProps) {
   const { speak } = usePronunciation()
   const { user } = useAuthContext()
-  const { isInExpressionVocabulary, addToExpressionVocabulary, removeFromExpressionVocabulary } = useExpressionVocabulary()
+  const { isInExpressionVocabulary, addToExpressionVocabulary, removeFromExpressionVocabulary } = useExpressionVocabularyContext()
   const { preferences } = useDisplayPreferences()
   const levelConfig = LEVEL_CONFIG[expression.difficulty_level] || LEVEL_CONFIG[2]
 

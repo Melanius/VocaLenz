@@ -12,8 +12,8 @@ import { CardCustomizer } from '@/components/search/card-customizer'
 import { useSearchContext } from '@/contexts/search-context'
 import { useAuthContext } from '@/components/providers/auth-provider'
 import { useDisplayPreferences } from '@/hooks/use-display-preferences'
-import { useVocabulary } from '@/hooks/use-vocabulary'
-import { useExpressionVocabulary } from '@/hooks/use-expression-vocabulary'
+import { useVocabularyContext } from '@/contexts/vocabulary-context'
+import { useExpressionVocabularyContext } from '@/contexts/expression-vocabulary-context'
 import { useTheme } from '@/components/providers/theme-provider'
 import { getSessionId } from '@/lib/session'
 import { analytics } from '@/lib/analytics'
@@ -70,8 +70,8 @@ export default function SearchPage() {
   const { history, addToHistory, updateHistoryItem, scrollToItem, searchType, setSearchType } = useSearchContext()
   const { user } = useAuthContext()
   const { preferences } = useDisplayPreferences()
-  const { isInVocabulary, addToVocabulary } = useVocabulary()
-  const { isInExpressionVocabulary, addToExpressionVocabulary } = useExpressionVocabulary()
+  const { isInVocabulary, addToVocabulary } = useVocabularyContext()
+  const { isInExpressionVocabulary, addToExpressionVocabulary } = useExpressionVocabularyContext()
   const { season } = useTheme()
   const scrollRef = useRef<HTMLDivElement>(null)
   const isEmpty = history.length === 0

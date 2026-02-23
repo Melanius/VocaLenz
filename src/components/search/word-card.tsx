@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { usePronunciation } from '@/hooks/use-pronunciation'
 import { useDisplayPreferences } from '@/hooks/use-display-preferences'
-import { useVocabulary } from '@/hooks/use-vocabulary'
+import { useVocabularyContext } from '@/contexts/vocabulary-context'
 import { useAuthContext } from '@/components/providers/auth-provider'
 import { toast } from '@/hooks/use-toast'
 import type { Word, WordCardField } from '@/types/database'
@@ -33,7 +33,7 @@ export function WordCard({ word, showVocabularyButton = true }: WordCardProps) {
   const { speak } = usePronunciation()
   const { preferences } = useDisplayPreferences()
   const { user } = useAuthContext()
-  const { isInVocabulary, addToVocabulary, removeFromVocabulary } = useVocabulary()
+  const { isInVocabulary, addToVocabulary, removeFromVocabulary } = useVocabularyContext()
 
   const inVocab = user ? isInVocabulary(word.id) : false
 

@@ -30,6 +30,7 @@ export function useVocabulary() {
         setVocabularyItems(data)
         setWordIdSet(new Set(data.map((v) => v.word_id)))
       }
+
     } catch {
       // silent fail
     } finally {

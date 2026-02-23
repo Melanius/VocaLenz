@@ -2918,6 +2918,67 @@ Step 8.1 → 8.2 → 8.3 → 8.4 → `pnpm build` 검증 → Step 8.5 (수동 QA
 
 ---
 
+## ✅ Phase 31: 검색창 자동 단어장 저장 버그 수정 (완료)
+**완료 일시:** 2026-02-23 (KST)
+
+### 버그 내용
+- **증상:** 설정에서 "자동 저장" 활성화 상태여도 검색창(MultiSearchInput)에서 단어 검색 시 단어장에 자동 저장되지 않음. 별(⭐) 아이콘이 노란색으로 채워지지 않음
+- 사이드바 검색 이력 클릭 시에는 자동 저장 정상 동작
+
+### 근본 원인 분석
+
+**원인 1 - `autoSaveToVocabulary` undefined (Step 31.1)**
+- 기존 localStorage에 `autoSaveToVocabulary` 필드가 없는 구버전 데이터 존재
+- `!== false` 조건에서 `undefined !== false` → `true` 이지만, `migratePreferences`가 해당 필드를 보정하지 않아 특정 상황에서 undefined로 평가
+
+**원인 2 - 단일 Context 인스턴스 부재 (Step 31.2)**
+- `WordCard`와 `page.tsx` 각각이 독립적인 `useVocabulary()` 인스턴스를 사용
+- `page.tsx`에서 `addToVocabulary` 호출 후 상태가 업데이트돼도 `WordCard`의 별도 인스턴스에는 반영 안 됨
+
+**원인 3 (핵심) - MultiSearchInput의 독립 검색 경로 (Step 31.3)**
+- `MultiSearchInput.handleSubmit`은 `/api/words/search`를 직접 호출하는 독립 경로
+- `page.tsx`의 `handleSearchWord`(자동 저장 로직 포함)를 전혀 거치지 않음
+- 사이드바 클릭 → `vocalenz:trigger-search` 이벤트 → `handleSearchWord` 경로는 정상 동작
+
+### 수정 내용
+
+#### Step 31.1: `autoSaveToVocabulary` undefined 마이그레이션 ✅
+- `use-display-preferences.ts`의 `migratePreferences`에 `autoSaveToVocabulary === undefined` → `true` 보정 추가
+- `page.tsx` 자동 저장 조건: `=== true` → `!== false` 로 변경 (undefined 포용)
+- **수정 파일:** `src/hooks/use-display-preferences.ts`, `src/app/(main)/page.tsx`
+- **커밋:** `2eab1e1`
+
+#### Step 31.2: VocabularyContext 도입 (단일 인스턴스 공유) ✅
+- `src/contexts/vocabulary-context.tsx` 신규 생성: `useVocabulary()` 단일 인스턴스를 Context로 공유
+- `src/contexts/expression-vocabulary-context.tsx` 신규 생성: 동일 패턴
+- `src/app/(main)/layout.tsx`에 `VocabularyProvider`, `ExpressionVocabularyProvider` 추가
+- `src/components/search/word-card.tsx`, `expression-card.tsx`: `useVocabulary()` 직접 호출 → `useVocabularyContext()` 로 교체
+- **커밋:** `4d5c880`
+
+#### Step 31.3: MultiSearchInput 자동 저장 로직 추가 (핵심 수정) ✅
+- `MultiSearchInput`에 `useVocabularyContext`, `useExpressionVocabularyContext`, `useAuthContext` 추가
+- `handleSubmit` 내 API 응답 후 `handleSearchWord`와 동일한 자동 저장 로직 삽입
+- **수정 파일:** `src/components/search/multi-search-input.tsx`
+- **커밋:** `b9358ef`
+
+#### Step 31.4: Optimistic Update (즉시 UI 반영) ✅
+- `addToVocabulary` 호출 시 API 응답 전에 `wordIdSet`에 즉시 추가 (Optimistic update)
+- POST 성공 → `fetchVocabulary`로 서버 상태 동기화
+- POST 실패 / 네트워크 오류 → Rollback
+- 409 Duplicate → Optimistic 유지 + 서버 동기화
+- `use-expression-vocabulary.ts`에도 동일 패턴 적용
+- **수정 파일:** `src/hooks/use-vocabulary.ts`, `src/hooks/use-expression-vocabulary.ts`
+- **커밋:** `2ac50b3`
+
+#### Step 31.5: fetch 경쟁 조건 방지 ✅
+- `fetchVersionRef` 버전 카운터로 stale 응답이 최신 상태를 덮어쓰는 race condition 방지
+- **수정 파일:** `src/hooks/use-vocabulary.ts`, `src/hooks/use-expression-vocabulary.ts`
+- **커밋:** `6e25cf6`
+
+**Phase 31 총 커밋:** 5개
+
+---
+
 ## 개발 완료 후 운영 체크리스트
 
 | 항목 | 내용 | 상태 |

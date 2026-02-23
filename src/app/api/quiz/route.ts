@@ -88,9 +88,8 @@ async function handleWordQuiz({
       .map((v) => v.word)
       .filter((w): w is WordRow => w !== null && w !== undefined)
 
-  // 날짜·메모 필터를 쿼리에 적용 (PostgrestFilterBuilder any 타입 활용)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const withVocabFilters = (q: any) => {
+  // 날짜·메모 필터를 쿼리에 적용
+  const withVocabFilters = (q: any) => { // eslint-disable-line
     if (dateFrom) q = q.gte('added_at', dateFrom)
     if (dateTo) q = q.lte('added_at', dateTo + 'T23:59:59.999Z')
     if (memos.length > 0) q = q.or(memos.map((m: string) => `memo.ilike.%${m}%`).join(','))
@@ -217,8 +216,7 @@ async function handleExpressionQuiz({
       .map((v) => v.expression)
       .filter((e): e is ExpressionRow => e !== null && e !== undefined)
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const withExprFilters = (q: any) => {
+  const withExprFilters = (q: any) => { // eslint-disable-line
     if (dateFrom) q = q.gte('added_at', dateFrom)
     if (dateTo) q = q.lte('added_at', dateTo + 'T23:59:59.999Z')
     if (memos.length > 0) q = q.or(memos.map((m: string) => `memo.ilike.%${m}%`).join(','))

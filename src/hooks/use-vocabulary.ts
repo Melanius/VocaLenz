@@ -67,6 +67,10 @@ export function useVocabulary() {
         return { success: false, message: '단어장이 가득 찼습니다. (최대 2000개)' }
       }
 
+      // Optimistic update: immediately mark as in vocabulary so the star fills at once.
+      // setWordIdSet is a stable React setter — even stale closures update the current state.
+      setWordIdSet((prev) => new Set([...prev, wordId]))
+
       try {
         const res = await fetch('/api/vocabulary', {
           method: 'POST',
@@ -79,9 +83,27 @@ export function useVocabulary() {
           return { success: true, message: '단어장에 추가되었습니다.' }
         }
 
+        if (res.status === 409) {
+          // Already exists in DB — keep optimistic update and sync full state
+          await fetchVocabulary()
+          return { success: true, message: '이미 단어장에 있습니다.' }
+        }
+
+        // Rollback optimistic update on error
+        setWordIdSet((prev) => {
+          const next = new Set(prev)
+          next.delete(wordId)
+          return next
+        })
         const error = await res.json()
         return { success: false, message: error.error || '추가에 실패했습니다.' }
       } catch {
+        // Rollback optimistic update on network error
+        setWordIdSet((prev) => {
+          const next = new Set(prev)
+          next.delete(wordId)
+          return next
+        })
         return { success: false, message: '추가에 실패했습니다.' }
       }
     },

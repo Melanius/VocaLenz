@@ -67,6 +67,10 @@ export function useExpressionVocabulary() {
         return { success: false, message: '표현 단어장이 가득 찼습니다. (최대 2000개)' }
       }
 
+      // Optimistic update: immediately mark as in vocabulary so the star fills at once.
+      // setExpressionIdSet is a stable React setter — even stale closures update the current state.
+      setExpressionIdSet((prev) => new Set([...prev, expressionId]))
+
       try {
         const res = await fetch('/api/vocabulary/expressions', {
           method: 'POST',
@@ -79,9 +83,27 @@ export function useExpressionVocabulary() {
           return { success: true, message: '표현 단어장에 추가되었습니다.' }
         }
 
+        if (res.status === 409) {
+          // Already exists in DB — keep optimistic update and sync full state
+          await fetchExpressions()
+          return { success: true, message: '이미 표현 단어장에 있습니다.' }
+        }
+
+        // Rollback optimistic update on error
+        setExpressionIdSet((prev) => {
+          const next = new Set(prev)
+          next.delete(expressionId)
+          return next
+        })
         const error = await res.json()
         return { success: false, message: error.error || '추가에 실패했습니다.' }
       } catch {
+        // Rollback optimistic update on network error
+        setExpressionIdSet((prev) => {
+          const next = new Set(prev)
+          next.delete(expressionId)
+          return next
+        })
         return { success: false, message: '추가에 실패했습니다.' }
       }
     },

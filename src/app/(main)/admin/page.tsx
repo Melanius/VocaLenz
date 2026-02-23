@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Search, Trash2, Save, Loader2, Users, BookOpen,
   BarChart3, CheckCircle2, ChevronLeft, ChevronRight, ArrowRight,
+  Upload, Download, FileText, AlertCircle, X,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -20,9 +21,69 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog'
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
 import { useAuthContext } from '@/components/providers/auth-provider'
 import { toast } from '@/hooks/use-toast'
 import type { Word } from '@/types/database'
+
+// ─── CSV 파싱 유틸 ───────────────────────────────────────────────
+function parseCSV(text: string): Record<string, string>[] {
+  const lines = text.split(/\r?\n/).filter((l) => l.trim())
+  if (lines.length < 2) return []
+  const headers = lines[0].split(',').map((h) => h.trim().replace(/^"|"$/g, ''))
+  return lines.slice(1).map((line) => {
+    // 따옴표 안의 쉼표 처리
+    const cols: string[] = []
+    let cur = ''
+    let inQ = false
+    for (const ch of line) {
+      if (ch === '"') { inQ = !inQ; continue }
+      if (ch === ',' && !inQ) { cols.push(cur.trim()); cur = ''; continue }
+      cur += ch
+    }
+    cols.push(cur.trim())
+    const row: Record<string, string> = {}
+    headers.forEach((h, i) => { row[h] = cols[i] ?? '' })
+    return row
+  })
+}
+
+const CSV_TEMPLATE_HEADERS = [
+  'word', 'part_of_speech', 'pronunciation', 'meanings',
+  'description', 'description_en', 'image_text', 'teps_point',
+  'synonyms', 'antonyms', 'comparisons', 'paraphrasing',
+  'example_sentence', 'example_translation', 'difficulty_level',
+]
+
+const CSV_TEMPLATE_EXAMPLE = [
+  'exacerbate', 'v.', '/ɪɡˈzæsərbeɪt/', '악화시키다;심화시키다',
+  '이미 나쁜 상황을 더 심하게 만들다', 'to make a bad situation worse', '끓는 불에 기름을 붓다',
+  'TEPS 빈출 고난도 동사', 'aggravate;worsen', 'alleviate;mitigate', '', '',
+  'His actions exacerbated the situation.', '그의 행동이 상황을 악화시켰다.', '3',
+]
+
+function downloadTemplate() {
+  const header = CSV_TEMPLATE_HEADERS.join(',')
+  const example = CSV_TEMPLATE_EXAMPLE.map((v) => v.includes(',') ? `"${v}"` : v).join(',')
+  const note = '# 배열 필드(meanings/synonyms/antonyms/comparisons/paraphrasing)는 세미콜론(;)으로 구분'
+  const blob = new Blob([note + '\n' + header + '\n' + example], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url; a.download = 'words_template.csv'; a.click()
+  URL.revokeObjectURL(url)
+}
+
+// ─── 업로드 미리보기 행 타입 ─────────────────────────────────────
+interface PreviewRow {
+  data: Record<string, string>
+  status: 'valid' | 'error'
+  errorMsg?: string
+}
 
 // --- Dashboard ---
 interface DashboardStats {
@@ -106,6 +167,82 @@ function WordsTab() {
   const [editingWord, setEditingWord] = useState<Word | null>(null)
   const [editForm, setEditForm] = useState<Record<string, unknown>>({})
   const [saving, setSaving] = useState(false)
+
+  // ── CSV 업로드 상태 ──
+  const [uploadOpen, setUploadOpen] = useState(false)
+  const [previewRows, setPreviewRows] = useState<PreviewRow[]>([])
+  const [onDuplicate, setOnDuplicate] = useState<'skip' | 'update'>('skip')
+  const [uploading, setUploading] = useState(false)
+  const [uploadResult, setUploadResult] = useState<{ inserted: number; updated: number; skipped: number; errors: { word: string; reason: string }[] } | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const processFile = (file: File) => {
+    if (!file.name.endsWith('.csv')) {
+      toast({ title: 'CSV 파일만 업로드할 수 있습니다.', variant: 'destructive' })
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const text = e.target?.result as string
+      const rows = parseCSV(text)
+      if (rows.length === 0) {
+        toast({ title: 'CSV 파일에 데이터가 없습니다.', variant: 'destructive' })
+        return
+      }
+      const preview: PreviewRow[] = rows.map((row) => {
+        if (!row.word?.trim()) return { data: row, status: 'error', errorMsg: 'word 필드 필수' }
+        if (!row.meanings?.trim()) return { data: row, status: 'error', errorMsg: 'meanings 필드 필수' }
+        return { data: row, status: 'valid' }
+      })
+      setPreviewRows(preview)
+      setUploadResult(null)
+    }
+    reader.readAsText(file, 'utf-8')
+  }
+
+  const handleFileDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(false)
+    const file = e.dataTransfer.files[0]
+    if (file) processFile(file)
+  }
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) processFile(file)
+    e.target.value = ''
+  }
+
+  const handleUpload = async () => {
+    const validRows = previewRows.filter((r) => r.status === 'valid').map((r) => r.data)
+    if (validRows.length === 0) return
+    setUploading(true)
+    try {
+      const res = await fetch('/api/admin/words', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ words: validRows, onDuplicate }),
+      })
+      const result = await res.json()
+      if (!res.ok) {
+        toast({ title: result.error || '업로드 실패', variant: 'destructive' })
+        return
+      }
+      setUploadResult(result)
+      fetchWords(query, page)
+    } catch {
+      toast({ title: '네트워크 오류', variant: 'destructive' })
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const resetUpload = () => {
+    setPreviewRows([])
+    setUploadResult(null)
+    setOnDuplicate('skip')
+  }
 
   const fetchWords = useCallback(async (q: string, p: number) => {
     setLoading(true)
@@ -206,6 +343,7 @@ function WordsTab() {
 
   return (
     <div className="space-y-4">
+      {/* 검색 + 업로드 버튼 */}
       <div className="flex gap-2">
         <Input
           placeholder="단어 검색..."
@@ -217,9 +355,202 @@ function WordsTab() {
         <Button onClick={handleSearch} size="icon" variant="secondary">
           <Search className="h-4 w-4" />
         </Button>
+        <Button
+          variant="outline"
+          className="gap-1.5 shrink-0"
+          onClick={() => { resetUpload(); setUploadOpen(true) }}
+        >
+          <Upload className="h-4 w-4" />
+          CSV 업로드
+        </Button>
       </div>
 
       <p className="text-xs text-muted-foreground">총 {total.toLocaleString()}개</p>
+
+      {/* CSV 업로드 Sheet */}
+      <Sheet open={uploadOpen} onOpenChange={(o) => { setUploadOpen(o); if (!o) resetUpload() }}>
+        <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto flex flex-col gap-0 p-0">
+          <SheetHeader className="px-6 py-4 border-b">
+            <SheetTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5 text-primary" />
+              단어 CSV 일괄 업로드
+            </SheetTitle>
+          </SheetHeader>
+
+          <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+
+            {/* 템플릿 다운로드 */}
+            <div className="flex items-center justify-between rounded-lg border bg-muted/40 px-4 py-3">
+              <div>
+                <p className="text-sm font-medium">CSV 템플릿</p>
+                <p className="text-xs text-muted-foreground mt-0.5">배열 필드는 세미콜론(;)으로 구분 · 최대 500행</p>
+              </div>
+              <Button variant="outline" size="sm" className="gap-1.5" onClick={downloadTemplate}>
+                <Download className="h-3.5 w-3.5" />
+                템플릿 다운로드
+              </Button>
+            </div>
+
+            {/* 드래그 앤 드롭 영역 */}
+            {previewRows.length === 0 && !uploadResult && (
+              <div
+                className={`flex flex-col items-center justify-center rounded-xl border-2 border-dashed px-6 py-12 text-center transition-colors cursor-pointer ${
+                  isDragging
+                    ? 'border-primary bg-primary/5'
+                    : 'border-muted-foreground/25 hover:border-primary/50 hover:bg-muted/30'
+                }`}
+                onDragOver={(e) => { e.preventDefault(); setIsDragging(true) }}
+                onDragLeave={() => setIsDragging(false)}
+                onDrop={handleFileDrop}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Upload className="h-10 w-10 text-muted-foreground/50 mb-3" />
+                <p className="text-sm font-medium text-foreground">CSV 파일을 드래그하거나 클릭하여 선택</p>
+                <p className="text-xs text-muted-foreground mt-1">UTF-8 인코딩 권장</p>
+                <input ref={fileInputRef} type="file" accept=".csv" className="hidden" onChange={handleFileChange} />
+              </div>
+            )}
+
+            {/* 업로드 결과 */}
+            {uploadResult && (
+              <div className="rounded-xl border bg-background overflow-hidden">
+                <div className="px-4 py-3 bg-muted/40 border-b flex items-center justify-between">
+                  <p className="text-sm font-semibold">업로드 완료</p>
+                  <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={resetUpload}>
+                    <X className="h-3.5 w-3.5 mr-1" />
+                    초기화
+                  </Button>
+                </div>
+                <div className="px-4 py-3 grid grid-cols-3 gap-3">
+                  {[
+                    { label: '추가됨', value: uploadResult.inserted, color: 'text-green-600 dark:text-green-400' },
+                    { label: '수정됨', value: uploadResult.updated, color: 'text-blue-600 dark:text-blue-400' },
+                    { label: '건너뜀', value: uploadResult.skipped, color: 'text-muted-foreground' },
+                  ].map((item) => (
+                    <div key={item.label} className="text-center">
+                      <p className={`text-2xl font-bold ${item.color}`}>{item.value}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{item.label}</p>
+                    </div>
+                  ))}
+                </div>
+                {uploadResult.errors.length > 0 && (
+                  <div className="border-t px-4 py-3 space-y-1.5">
+                    <p className="text-xs font-medium text-destructive flex items-center gap-1">
+                      <AlertCircle className="h-3.5 w-3.5" />
+                      오류 {uploadResult.errors.length}건
+                    </p>
+                    <div className="max-h-32 overflow-y-auto space-y-1">
+                      {uploadResult.errors.map((e, i) => (
+                        <p key={i} className="text-xs text-muted-foreground">
+                          <span className="font-medium text-foreground">{e.word}</span>: {e.reason}
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* 미리보기 테이블 */}
+            {previewRows.length > 0 && !uploadResult && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium">
+                    미리보기{' '}
+                    <span className="text-muted-foreground font-normal">
+                      (총 {previewRows.length}행 · 유효 {previewRows.filter((r) => r.status === 'valid').length} / 오류 {previewRows.filter((r) => r.status === 'error').length})
+                    </span>
+                  </p>
+                  <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={resetUpload}>
+                    <X className="h-3.5 w-3.5 mr-1" />
+                    파일 변경
+                  </Button>
+                </div>
+
+                {/* 중복 처리 옵션 */}
+                <div className="flex items-center gap-3 rounded-lg border px-4 py-2.5 bg-muted/30">
+                  <p className="text-xs font-medium text-foreground shrink-0">중복 단어 처리:</p>
+                  <div className="flex gap-2">
+                    {(['skip', 'update'] as const).map((opt) => (
+                      <button
+                        key={opt}
+                        type="button"
+                        onClick={() => setOnDuplicate(opt)}
+                        className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+                          onDuplicate === opt
+                            ? 'bg-primary text-primary-foreground'
+                            : 'bg-background border text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        {opt === 'skip' ? '건너뜀' : '덮어쓰기'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 행 목록 */}
+                <div className="rounded-lg border overflow-hidden">
+                  <div className="max-h-72 overflow-y-auto divide-y">
+                    {previewRows.map((row, i) => (
+                      <div
+                        key={i}
+                        className={`flex items-start gap-3 px-4 py-2.5 ${
+                          row.status === 'error' ? 'bg-destructive/5' : 'bg-background'
+                        }`}
+                      >
+                        <span className="text-xs text-muted-foreground w-6 shrink-0 pt-0.5">{i + 1}</span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-sm font-medium">{row.data.word || '—'}</span>
+                            {row.data.difficulty_level && (
+                              <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                                Lv.{row.data.difficulty_level}
+                              </Badge>
+                            )}
+                            {row.data.part_of_speech && (
+                              <span className="text-xs text-muted-foreground">{row.data.part_of_speech}</span>
+                            )}
+                          </div>
+                          {row.status === 'error' ? (
+                            <p className="text-xs text-destructive mt-0.5 flex items-center gap-1">
+                              <AlertCircle className="h-3 w-3" />
+                              {row.errorMsg}
+                            </p>
+                          ) : (
+                            <p className="text-xs text-muted-foreground truncate mt-0.5">
+                              {row.data.meanings?.replace(/;/g, ', ')}
+                            </p>
+                          )}
+                        </div>
+                        <div className="shrink-0">
+                          {row.status === 'valid'
+                            ? <CheckCircle2 className="h-4 w-4 text-green-500" />
+                            : <AlertCircle className="h-4 w-4 text-destructive" />}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 업로드 버튼 */}
+                <Button
+                  className="w-full"
+                  disabled={uploading || previewRows.filter((r) => r.status === 'valid').length === 0}
+                  onClick={handleUpload}
+                >
+                  {uploading ? (
+                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" />업로드 중...</>
+                  ) : (
+                    <><Upload className="h-4 w-4 mr-2" />
+                      {previewRows.filter((r) => r.status === 'valid').length}개 단어 업로드
+                    </>
+                  )}
+                </Button>
+              </div>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
 
       {loading ? (
         <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>

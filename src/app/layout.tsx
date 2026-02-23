@@ -25,7 +25,7 @@ export const metadata: Metadata = {
     type: 'website',
     images: [
       {
-        url: '/og-image.png',
+        url: '/og-image.jpg',
         width: 1200,
         height: 630,
         alt: 'VocaLenz - AI 영어 단어장',
@@ -36,7 +36,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'VocaLenz - AI 영어 단어장',
     description: 'AI가 만들어주는 나만의 영어 단어 학습 카드',
-    images: ['/og-image.png'],
+    images: ['/og-image.jpg'],
   },
 }
 

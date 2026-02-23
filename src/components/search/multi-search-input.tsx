@@ -6,6 +6,9 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { useDisplayPreferences } from '@/hooks/use-display-preferences'
 import { useSearchContext } from '@/contexts/search-context'
+import { useVocabularyContext } from '@/contexts/vocabulary-context'
+import { useExpressionVocabularyContext } from '@/contexts/expression-vocabulary-context'
+import { useAuthContext } from '@/components/providers/auth-provider'
 import { getSessionId } from '@/lib/session'
 import type { SearchMode } from '@/types/database'
 
@@ -18,6 +21,9 @@ interface MultiSearchInputProps {
 export function MultiSearchInput({ onSearchStart, autoFocus = false, compact = false }: MultiSearchInputProps) {
   const { preferences } = useDisplayPreferences()
   const { addToHistory, updateHistoryItem, searchType } = useSearchContext()
+  const { user } = useAuthContext()
+  const { isInVocabulary, addToVocabulary } = useVocabularyContext()
+  const { isInExpressionVocabulary, addToExpressionVocabulary } = useExpressionVocabularyContext()
   const [queries, setQueries] = useState<string[]>(Array(4).fill(''))
   const [isSearching, setIsSearching] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -75,6 +81,15 @@ export function MultiSearchInput({ onSearchStart, autoFocus = false, compact = f
         }
 
         updateHistoryItem(itemId, data.result)
+
+        // 자동 단어장 저장
+        if (preferences.autoSaveToVocabulary !== false && user) {
+          if (data.result.type === 'word' && !isInVocabulary(data.result.data.id)) {
+            await addToVocabulary(data.result.data.id)
+          } else if (data.result.type === 'expression' && !isInExpressionVocabulary(data.result.data.id)) {
+            await addToExpressionVocabulary(data.result.data.id)
+          }
+        }
       } catch {
         updateHistoryItem(itemId, {
           type: 'error',

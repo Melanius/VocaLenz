@@ -3116,6 +3116,109 @@ Step 8.1 → 8.2 → 8.3 → 8.4 → `pnpm build` 검증 → Step 8.5 (수동 QA
 
 ---
 
+## Phase 34: 플립카드 버그 수정 + 퀴즈 오답 버그 수정 + 단어장 무한스크롤 + 투트랙 의미 수정 시스템 (완료)
+**완료 일시:** 2026-02-25 (KST)
+**커밋:** `6382638`, `c5b0e02`
+
+### Step 34.1: 플립카드 흰 공백 버그 수정 ✅
+**배경:** 플립카드 뒷면 내용이 짧을 때 앞면·뒷면 높이가 달라 흰 공백이 생기는 현상.
+
+**근본 원인:** `.flip-card-inner`에 `height: 100%` + 앞·뒷면에 `position: absolute; inset: 0` 사용 → 높이가 flip-card 컨테이너 기준으로 고정되어, 뒷면이 앞면보다 짧으면 빈 공간 발생.
+
+**수정 내용 (`src/app/globals.css`):**
+- `.flip-card-inner`: `height: 100%` → `display: grid`
+- `.flip-card-front, .flip-card-back`: `position: absolute; inset: 0` → `grid-area: 1 / 1`
+- `.flip-card-back`: `align-self: start` 추가 → 내용 크기에 맞게 자연스럽게 높이 결정
+- 컴포넌트에서 `style={{ minHeight: '250px' }}` 제거
+
+---
+
+### Step 34.2: 퀴즈 오답(오답 체크) 버그 수정 ✅
+**배경:** 청해 구문(Lenz픽) 퀴즈에서 오답 체크 시 DB 반영 안 됨.
+
+**근본 원인:** `markForReview` / `markAllForReview`가 항상 `user_vocabulary` 테이블만 업데이트 → 청해 구문은 `user_expressions` 테이블에 있어 반영 안 됨.
+
+**수정 내용:**
+- `/api/vocabulary/review/route.ts`: `type` 파라미터 추가, `type=expression`이면 `user_expressions.expression_id` 기준으로 업데이트
+- `quiz/page.tsx`: `markForReview` / `markAllForReview`에 `&type=${quizType === 'expression' ? 'expression' : 'word'}` 파라미터 추가
+
+**수정 파일:** `src/app/api/vocabulary/review/route.ts`, `src/app/(main)/quiz/page.tsx`
+
+---
+
+### Step 34.3: 단어장 무한스크롤 + 필터 인식 셔플 ✅
+**배경:** 단어장 100개 제한 도달 시 모든 단어를 한번에 렌더링 → 성능 이슈 우려. 셔플이 전체 단어에 적용되어 필터 적용 후에도 필터 밖 순서 영향.
+
+**구현 내용 (`src/app/(main)/vocabulary/page.tsx`):**
+- `INITIAL_DISPLAY_COUNT = 20`, `LOAD_MORE_COUNT = 10` 상수 추가
+- `displayLimit` state: 현재 렌더링할 개수 관리
+- IntersectionObserver **콜백 ref 패턴**: `[sentinelEl, setSentinelEl] = useState<HTMLDivElement | null>(null)` → 탭 전환 시 sentinel 언마운트/마운트 → useEffect 자동 재연결
+- `filtered.slice(0, displayLimit).map(...)` → sentinel div가 viewport에 닿으면 +10씩 로드
+- 필터/탭/셔플 변경 시 `displayLimit` 자동 초기화 (20으로 리셋)
+- 필터 인식 셔플: 클라이언트 사이드 필터 후 `seededShuffle(filtered, shuffleSeed)` → 자연스럽게 필터된 항목만 셔플됨
+- 탭 카운트: 필터 적용 시 `Voca (filtered/total)` 형태로 표시
+
+---
+
+### Step 34.4: 투트랙 의미 수정 시스템 ✅
+**배경:** AI가 생성한 단어/표현 의미가 잘못된 경우, 사용자가 제안하고 관리자가 AI로 수정하는 시스템 필요.
+
+#### Track 1 — 관리자 AI 직접 재생성
+- **`src/lib/word-generator.ts`**: `regenerateWordWithHint(word, currentMeanings, hint)` 함수 추가 — 기존 시스템 프롬프트 + 현재 의미 + 힌트를 GPT에 전달
+- **`src/lib/expression-generator.ts`**: `regenerateExpressionWithHint(expression, currentMeanings, hint)` 함수 추가
+- **`src/app/api/admin/words/regenerate/route.ts`** (신규): `POST { id, type: 'word'|'expression', hint }` → GPT 재생성 → DB 즉시 업데이트
+- **관리자 편집 다이얼로그**: 하단에 "AI 재생성 힌트" 입력창 + `Wand2` 버튼 추가, 재생성 결과를 폼에 자동 반영
+
+#### Track 2 — 사용자 제안 → 관리자 검토
+- **`src/app/api/meaning-corrections/route.ts`** (신규):
+  - `POST`: 사용자 제안 제출 (중복 pending 방지 로직 포함)
+  - `GET` (관리자): 제안 목록 조회 (status/page 필터, word/expression 이름 및 제출자 정보 포함)
+- **`src/app/api/meaning-corrections/[id]/route.ts`** (신규): `PATCH { action: 'approve'|'reject', adminReason? }` — 관리자 승인/반려
+- **`src/app/api/meaning-corrections/notifications/route.ts`** (신규): `GET` — 처리된 제안 중 미열람(notified=false)인 것 조회 후 notified=true 업데이트
+- **플립카드 Flag 버튼** (`VocabularyFlipCard`, `ExpressionFlipCard`): 액션 바에 `Flag` 아이콘 추가, 클릭 시 수정 제안 다이얼로그 오픈 (현재 의미 표시 + 수정 내용 입력)
+- **관리자 "의미 수정" 탭** (`admin/page.tsx`): 5번째 탭 추가, `MeaningCorrectionsTab` 컴포넌트 — 현재 의미/제안 내용 나란히 표시, 재생성 힌트 입력 후 "재생성 & 승인" 또는 "반려"
+- **단어장 알림** (`vocabulary/page.tsx`): 페이지 로드 시 `/api/meaning-corrections/notifications` 호출 → 승인/반려 결과 toast 표시
+
+**DB 테이블 (Supabase에서 수동 생성 필요):**
+```sql
+CREATE TABLE meaning_correction_requests (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  type TEXT NOT NULL CHECK (type IN ('word', 'expression')),
+  word_id UUID REFERENCES words(id) ON DELETE CASCADE,
+  expression_id UUID REFERENCES expressions(id) ON DELETE CASCADE,
+  current_meanings TEXT[] NOT NULL,
+  suggested_meaning TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+  admin_reason TEXT,
+  notified BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  resolved_at TIMESTAMPTZ
+);
+ALTER TABLE meaning_correction_requests ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can read own correction requests"
+  ON meaning_correction_requests FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert correction requests"
+  ON meaning_correction_requests FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE INDEX ON meaning_correction_requests (user_id, status);
+```
+
+**수정/추가 파일:**
+- `src/components/vocabulary/vocabulary-flip-card.tsx`
+- `src/components/vocabulary/expression-flip-card.tsx`
+- `src/app/(main)/admin/page.tsx`
+- `src/app/(main)/vocabulary/page.tsx`
+- `src/lib/word-generator.ts`
+- `src/lib/expression-generator.ts`
+- `src/app/api/admin/words/regenerate/route.ts` (신규)
+- `src/app/api/meaning-corrections/route.ts` (신규)
+- `src/app/api/meaning-corrections/[id]/route.ts` (신규)
+- `src/app/api/meaning-corrections/notifications/route.ts` (신규)
+
+**Phase 34 총 커밋:** 2개
+
+---
+
 ## 개발 완료 후 운영 체크리스트
 
 | 항목 | 내용 | 상태 |

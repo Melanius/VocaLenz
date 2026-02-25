@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { useRouter, usePathname } from 'next/navigation'
-import { Search, BookOpen, History, BarChart3, Brain, Menu, Settings, Shield, LogOut, ChevronDown } from 'lucide-react'
+import { Search, BookOpen, BarChart3, Brain, Menu, Settings, Shield, LogOut, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -19,7 +19,6 @@ const NAV_LINKS = [
   { href: '/', label: '단어 검색', icon: Search },
   { href: '/vocabulary', label: '내 단어장', icon: BookOpen },
   { href: '/quiz', label: '단어 퀴즈', icon: Brain },
-  { href: '/history', label: '검색 이력', icon: History },
   { href: '/scores', label: '성적 관리', icon: BarChart3 },
 ]
 

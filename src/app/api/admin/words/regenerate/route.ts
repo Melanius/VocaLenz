@@ -5,8 +5,10 @@ import { regenerateWordWithHint } from '@/lib/word-generator'
 import { regenerateExpressionWithHint } from '@/lib/expression-generator'
 
 export async function POST(request: NextRequest) {
-  const authError = await requireAdmin()
-  if (authError) return authError
+  const authResult = await requireAdmin()
+  if ('error' in authResult) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status })
+  }
 
   try {
     const { id, type, hint } = await request.json()

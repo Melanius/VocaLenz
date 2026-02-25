@@ -81,8 +81,10 @@ export async function POST(request: NextRequest) {
 
 // GET: 관리자 전용 목록 조회
 export async function GET(request: NextRequest) {
-  const authError = await requireAdmin()
-  if (authError) return authError
+  const authResult = await requireAdmin()
+  if ('error' in authResult) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status })
+  }
 
   try {
     const { searchParams } = new URL(request.url)

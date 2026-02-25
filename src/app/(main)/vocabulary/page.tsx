@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { BookOpen, Headphones, Star, Loader2, Upload, Search, Shuffle, X, StickyNote, Settings, AlertCircle, ChevronDown, Download } from 'lucide-react'
+import { BookOpen, Headphones, Star, Loader2, Upload, Search, Shuffle, X, StickyNote, Settings, AlertCircle, ChevronDown, Download, Clock, ChevronLeft, ChevronRight, GalleryHorizontal, LayoutGrid } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -16,6 +16,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
+import { Sidebar } from '@/components/layout/sidebar'
 import { useAuthContext } from '@/components/providers/auth-provider'
 import { useVocabulary } from '@/hooks/use-vocabulary'
 import { useExpressionVocabulary } from '@/hooks/use-expression-vocabulary'
@@ -105,6 +112,10 @@ export default function VocabularyPage() {
   const [shuffleSeed, setShuffleSeed] = useState(0)
   const [displayLimit, setDisplayLimit] = useState(INITIAL_DISPLAY_COUNT)
   const [sentinelEl, setSentinelEl] = useState<HTMLDivElement | null>(null)
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [cardViewMode, setCardViewMode] = useState(false)
+  const [cardViewIndex, setCardViewIndex] = useState(0)
+  const touchStartX = useRef(0)
 
   // Level 변경 제안 알림 확인 (페이지 로드 시 1회)
   useEffect(() => {
@@ -168,9 +179,10 @@ export default function VocabularyPage() {
       .catch(() => {})
   }, [user])
 
-  // 필터/탭/셔플 변경 시 표시 개수 초기화
+  // 필터/탭/셔플 변경 시 표시 개수 + 카드뷰 인덱스 초기화
   useEffect(() => {
     setDisplayLimit(INITIAL_DISPLAY_COUNT)
+    setCardViewIndex(0)
   }, [vocabTab, filter, dateFrom, dateTo, memoFilter, shuffleSeed])
 
   // 무한스크롤 Intersection Observer (콜백 ref 패턴: sentinel 마운트/언마운트 시 자동 연결)
@@ -237,6 +249,29 @@ export default function VocabularyPage() {
     })
     return shuffleSeed ? seededShuffle(items, shuffleSeed) : items
   }, [expressionItems, filter, dateFrom, dateTo, hasDateFilter, memoFilterLower, shuffleSeed])
+
+  // 카드뷰 모드 네비게이션
+  const cardViewTotal = vocabTab === 'words' ? filtered.length : filteredExpressions.length
+
+  const goNextCard = useCallback(() => {
+    setCardViewIndex((prev) => Math.min(prev + 1, cardViewTotal - 1))
+  }, [cardViewTotal])
+
+  const goPrevCard = useCallback(() => {
+    setCardViewIndex((prev) => Math.max(prev - 1, 0))
+  }, [])
+
+  const handleCardTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX
+  }
+
+  const handleCardTouchEnd = (e: React.TouchEvent) => {
+    const dx = touchStartX.current - e.changedTouches[0].clientX
+    if (Math.abs(dx) > 50) {
+      if (dx > 0) goNextCard()
+      else goPrevCard()
+    }
+  }
 
   // 업로드 진행 목록: 단어별 최신 상태만 표시 (generating → added 중복 제거)
   const displayProgress = useMemo(() => {
@@ -671,11 +706,20 @@ export default function VocabularyPage() {
               </span>
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <Button
               variant="ghost"
               size="icon"
-              className="h-10 w-10 rounded-full"
+              className="h-9 w-9 rounded-full text-muted-foreground hover:text-foreground"
+              onClick={() => setHistoryOpen(true)}
+              aria-label="검색 이력"
+            >
+              <Clock className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 rounded-full"
               onClick={() => setCustomizerOpen(true)}
               aria-label="카드 표시 설정"
             >
@@ -684,7 +728,7 @@ export default function VocabularyPage() {
             <Button
               variant="outline"
               size="icon"
-              className="h-10 w-10 rounded-full"
+              className="h-9 w-9 rounded-full"
               onClick={() => {
                 resetUpload()
                 setUploadTarget(vocabTab === 'words' ? 'word' : 'expression')
@@ -737,16 +781,31 @@ export default function VocabularyPage() {
           </button>
         </div>
 
-        {/* 메모 검색 + 셔플 한 행 */}
+        {/* Row 1: 상태 필터 칩 */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
+          {(['all', 'not-memorized', 'memorized', 'needs-review'] as FilterType[]).map((f) => (
+            <Button
+              key={f}
+              variant={filter === f ? 'default' : 'outline'}
+              size="sm"
+              className="flex-shrink-0 h-8 text-xs px-3"
+              onClick={() => setFilter(f)}
+            >
+              {f === 'all' ? '전체' : f === 'not-memorized' ? '미암기' : f === 'memorized' ? '암기완료' : '퀴즈오답'}
+            </Button>
+          ))}
+        </div>
+
+        {/* Row 2: 메모 검색 + 날짜 필터 + 셔플 + 카드뷰 */}
         <div className="flex items-center gap-2">
-          <div className="relative w-44 min-w-0">
+          <div className="relative flex-1 min-w-0 max-w-[180px]">
             <StickyNote className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-amber-500 pointer-events-none" />
             <input
               type="text"
               value={memoFilter}
               onChange={(e) => setMemoFilter(e.target.value)}
               placeholder="메모로 검색"
-              className="pl-8 pr-8 py-1.5 text-sm rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-amber-400 w-full"
+              className="pl-8 pr-8 py-1.5 text-sm rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-amber-400 w-full h-8"
             />
             {memoFilter && (
               <button
@@ -758,30 +817,6 @@ export default function VocabularyPage() {
               </button>
             )}
           </div>
-          <Button
-            variant={shuffleSeed !== 0 ? 'default' : 'outline'}
-            size="icon"
-            className="h-9 w-9 flex-shrink-0"
-            onClick={() => setShuffleSeed(shuffleSeed !== 0 ? 0 : Date.now())}
-            title="섞기"
-            aria-label="섞기"
-          >
-            <Shuffle className="h-4 w-4" />
-          </Button>
-        </div>
-
-        {/* 필터 버튼 행 */}
-        <div className="flex items-center gap-2 flex-wrap">
-          {(['all', 'not-memorized', 'memorized', 'needs-review'] as FilterType[]).map((f) => (
-            <Button
-              key={f}
-              variant={filter === f ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setFilter(f)}
-            >
-              {f === 'all' ? '전체' : f === 'not-memorized' ? '미암기' : f === 'memorized' ? '암기완료' : '퀴즈오답'}
-            </Button>
-          ))}
 
           {/* 날짜 필터 */}
           <Popover open={datePopoverOpen} onOpenChange={setDatePopoverOpen}>
@@ -789,14 +824,14 @@ export default function VocabularyPage() {
               <Button
                 variant={hasDateFilter ? 'default' : 'outline'}
                 size="sm"
-                className="gap-1.5"
+                className="h-8 text-xs flex-shrink-0 gap-1.5"
               >
                 {hasDateFilter
                   ? dateFrom && dateTo
-                    ? `${dateFrom} ~ ${dateTo}`
+                    ? `${dateFrom.slice(5)} ~ ${dateTo.slice(5)}`
                     : dateFrom
-                      ? `${dateFrom}~`
-                      : `~${dateTo}`
+                      ? `${dateFrom.slice(5)}~`
+                      : `~${dateTo.slice(5)}`
                   : '날짜'}
               </Button>
             </PopoverTrigger>
@@ -876,6 +911,35 @@ export default function VocabularyPage() {
               </div>
             </PopoverContent>
           </Popover>
+
+          <div className="flex items-center gap-1.5 ml-auto flex-shrink-0">
+            <Button
+              variant={shuffleSeed !== 0 ? 'default' : 'ghost'}
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setShuffleSeed(shuffleSeed !== 0 ? 0 : Date.now())}
+              title="섞기"
+              aria-label="섞기"
+            >
+              <Shuffle className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant={cardViewMode ? 'default' : 'ghost'}
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => {
+                setCardViewMode((prev) => !prev)
+                setCardViewIndex(0)
+              }}
+              title={cardViewMode ? '그리드 보기' : '카드 보기'}
+              aria-label={cardViewMode ? '그리드 보기' : '카드 보기'}
+            >
+              {cardViewMode
+                ? <LayoutGrid className="h-3.5 w-3.5" />
+                : <GalleryHorizontal className="h-3.5 w-3.5" />
+              }
+            </Button>
+          </div>
         </div>
 
         {/* Content */}
@@ -899,6 +963,61 @@ export default function VocabularyPage() {
                   &ldquo;단어&rdquo; 모드로 검색 후 자동 저장되거나, 일괄 업로드를 이용하세요.
                 </p>
               )}
+            </div>
+          ) : cardViewMode ? (
+            /* 카드 뷰 모드 */
+            <div className="flex flex-col items-center gap-4">
+              {/* 인디케이터 */}
+              <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={goPrevCard}
+                  disabled={cardViewIndex === 0}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="min-w-[64px] text-center font-medium tabular-nums">
+                  {cardViewIndex + 1} / {filtered.length}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={goNextCard}
+                  disabled={cardViewIndex >= filtered.length - 1}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+              {/* 카드 */}
+              <div
+                className="w-full max-w-sm"
+                onTouchStart={handleCardTouchStart}
+                onTouchEnd={handleCardTouchEnd}
+              >
+                <VocabularyFlipCard
+                  key={filtered[cardViewIndex].id}
+                  item={filtered[cardViewIndex]}
+                  isFlipped={flippedCards.has(filtered[cardViewIndex].id)}
+                  onFlip={() => toggleFlip(filtered[cardViewIndex].id)}
+                  onDetail={handleDetail}
+                  onToggleMemorized={handleToggle}
+                  onToggleReview={handleToggleReview}
+                  onDelete={handleDelete}
+                  onMemoUpdate={updateMemo}
+                />
+              </div>
+              {/* 하단 진행 바 */}
+              <div className="w-full max-w-sm">
+                <div className="h-1 rounded-full bg-muted overflow-hidden">
+                  <div
+                    className="h-full bg-primary rounded-full transition-all duration-200"
+                    style={{ width: `${((cardViewIndex + 1) / filtered.length) * 100}%` }}
+                  />
+                </div>
+              </div>
             </div>
           ) : (
             <>
@@ -947,6 +1066,58 @@ export default function VocabularyPage() {
                 </p>
               )}
             </div>
+          ) : cardViewMode ? (
+            /* 카드 뷰 모드 (표현) */
+            <div className="flex flex-col items-center gap-4">
+              <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={goPrevCard}
+                  disabled={cardViewIndex === 0}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="min-w-[64px] text-center font-medium tabular-nums">
+                  {cardViewIndex + 1} / {filteredExpressions.length}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={goNextCard}
+                  disabled={cardViewIndex >= filteredExpressions.length - 1}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+              <div
+                className="w-full max-w-sm"
+                onTouchStart={handleCardTouchStart}
+                onTouchEnd={handleCardTouchEnd}
+              >
+                <ExpressionFlipCard
+                  key={filteredExpressions[cardViewIndex].id}
+                  item={filteredExpressions[cardViewIndex]}
+                  isFlipped={flippedCards.has(filteredExpressions[cardViewIndex].id)}
+                  onFlip={() => toggleFlip(filteredExpressions[cardViewIndex].id)}
+                  onDetail={handleExprDetail}
+                  onToggleMemorized={handleExprToggle}
+                  onToggleReview={handleExprToggleReview}
+                  onDelete={handleExprDelete}
+                  onMemoUpdate={updateExprMemo}
+                />
+              </div>
+              <div className="w-full max-w-sm">
+                <div className="h-1 rounded-full bg-muted overflow-hidden">
+                  <div
+                    className="h-full bg-primary rounded-full transition-all duration-200"
+                    style={{ width: `${((cardViewIndex + 1) / filteredExpressions.length) * 100}%` }}
+                  />
+                </div>
+              </div>
+            </div>
           ) : (
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -984,6 +1155,18 @@ export default function VocabularyPage() {
       >
         <Search className="h-6 w-6" />
       </button>
+
+      {/* 검색 이력 Sheet */}
+      <Sheet open={historyOpen} onOpenChange={setHistoryOpen}>
+        <SheetContent side="right" className="w-[300px] sm:w-[360px] p-0 flex flex-col">
+          <SheetHeader className="px-4 pt-4 pb-0">
+            <SheetTitle className="text-sm font-medium text-muted-foreground sr-only">검색 이력</SheetTitle>
+          </SheetHeader>
+          <div className="flex-1 overflow-hidden">
+            <Sidebar />
+          </div>
+        </SheetContent>
+      </Sheet>
 
       {/* 상세 보기 다이얼로그 */}
       <Dialog

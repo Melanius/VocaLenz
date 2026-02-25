@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { Check, CheckCircle2, Eye, RotateCcw, Trash2, StickyNote, ChevronDown, ArrowRight, Loader2, SendHorizontal, Volume2 } from 'lucide-react'
+import { Check, CheckCircle2, Eye, RotateCcw, Trash2, StickyNote, ChevronDown, ArrowRight, Loader2, SendHorizontal, Volume2, Flag } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Popover,
@@ -72,6 +72,9 @@ export function VocabularyFlipCard({
   const [levelOpen, setLevelOpen] = useState(false)
   const [proposedLevel, setProposedLevel] = useState<number | null>(null)
   const [submittingRequest, setSubmittingRequest] = useState(false)
+  const [correctionOpen, setCorrectionOpen] = useState(false)
+  const [correctionText, setCorrectionText] = useState('')
+  const [correctionSubmitting, setCorrectionSubmitting] = useState(false)
   const { toast } = useToast()
   const { speak } = usePronunciation()
 
@@ -125,6 +128,37 @@ export function VocabularyFlipCard({
     } finally {
       setSubmittingRequest(false)
       setProposedLevel(null)
+    }
+  }
+
+  const handleSubmitCorrection = async () => {
+    if (!correctionText.trim()) return
+    setCorrectionSubmitting(true)
+    try {
+      const res = await fetch('/api/meaning-corrections', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          wordId: word.id,
+          type: 'word',
+          currentMeanings: word.meanings,
+          suggestedMeaning: correctionText.trim(),
+        }),
+      })
+      const data = await res.json()
+      if (res.status === 409) {
+        toast({ title: '이미 검토 중인 제안이 있어요', description: '처리 완료 후 다시 제안할 수 있어요.' })
+      } else if (!res.ok) {
+        toast({ title: '제안 실패', description: data.error || '잠시 후 다시 시도해 주세요.', variant: 'destructive' })
+      } else {
+        toast({ title: '의미 수정 제안이 접수됐어요!', description: '관리자 검토 후 결과를 알려드릴게요.' })
+        setCorrectionOpen(false)
+        setCorrectionText('')
+      }
+    } catch {
+      toast({ title: '네트워크 오류', variant: 'destructive' })
+    } finally {
+      setCorrectionSubmitting(false)
     }
   }
 
@@ -272,6 +306,15 @@ export function VocabularyFlipCard({
               <Button
                 variant="ghost"
                 size="icon"
+                className="h-8 w-8 text-muted-foreground hover:text-orange-500"
+                onClick={() => setCorrectionOpen(true)}
+                aria-label="의미 수정 제안"
+              >
+                <Flag className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
                 className="h-8 w-8 text-muted-foreground hover:text-destructive"
                 onClick={() => onDelete(item)}
                 aria-label="삭제"
@@ -315,6 +358,48 @@ export function VocabularyFlipCard({
           </div>
         </div>
       </div>
+
+      {/* 의미 수정 제안 다이얼로그 */}
+      {correctionOpen && (
+        <Dialog open onOpenChange={(open) => { if (!open) { setCorrectionOpen(false); setCorrectionText('') } }}>
+          <DialogContent className="max-w-sm" onClick={(e) => e.stopPropagation()}>
+            <DialogHeader>
+              <DialogTitle>의미 수정 제안</DialogTitle>
+            </DialogHeader>
+            <div className="py-2 space-y-3">
+              <p className="text-sm text-muted-foreground">
+                <span className="font-semibold text-foreground">{word.word}</span>의 의미가 잘못되었나요?
+              </p>
+              <div className="space-y-1.5">
+                <p className="text-xs font-medium text-muted-foreground">현재 등록된 의미</p>
+                <div className="rounded-md bg-muted/50 px-3 py-2 space-y-1">
+                  {word.meanings.map((m, i) => (
+                    <p key={i} className="text-xs text-foreground">{i + 1}. {m}</p>
+                  ))}
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <p className="text-xs font-medium text-muted-foreground">올바른 의미 제안</p>
+                <textarea
+                  value={correctionText}
+                  onChange={(e) => setCorrectionText(e.target.value)}
+                  placeholder="올바른 의미나 수정 방향을 입력해 주세요."
+                  rows={3}
+                  className="w-full text-xs px-3 py-2 rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none"
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">관리자 검토 후 결과를 알림으로 알려드립니다.</p>
+            </div>
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => { setCorrectionOpen(false); setCorrectionText('') }}>취소</Button>
+              <Button onClick={handleSubmitCorrection} disabled={correctionSubmitting || !correctionText.trim()}>
+                {correctionSubmitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                제안하기
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Level 변경 제안 다이얼로그 */}
       {proposedLevel !== null && (

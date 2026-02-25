@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import {
   Search, Trash2, Save, Loader2, Users, BookOpen,
   BarChart3, CheckCircle2, ChevronLeft, ChevronRight, ArrowRight,
-  Upload, Download, FileText, AlertCircle, X,
+  Upload, Download, FileText, AlertCircle, X, Wand2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -167,6 +167,8 @@ function WordsTab() {
   const [editingWord, setEditingWord] = useState<Word | null>(null)
   const [editForm, setEditForm] = useState<Record<string, unknown>>({})
   const [saving, setSaving] = useState(false)
+  const [regenHint, setRegenHint] = useState('')
+  const [regenerating, setRegenerating] = useState(false)
 
   // ── CSV 업로드 상태 ──
   const [uploadOpen, setUploadOpen] = useState(false)
@@ -338,6 +340,41 @@ function WordsTab() {
       }
     } catch {
       toast({ title: '네트워크 오류', variant: 'destructive' })
+    }
+  }
+
+  const handleRegen = async () => {
+    if (!editingWord || !regenHint.trim()) return
+    setRegenerating(true)
+    try {
+      const res = await fetch('/api/admin/words/regenerate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: editingWord.id, type: 'word', hint: regenHint.trim() }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        toast({ title: 'AI 재생성 실패', description: data.error || '', variant: 'destructive' })
+        return
+      }
+      setEditForm((prev) => ({
+        ...prev,
+        meanings: (data.meanings || []).join(', '),
+        description: data.description || '',
+        description_en: data.description_en || '',
+        teps_point: data.teps_point || '',
+        synonyms: (data.synonyms || []).join(', '),
+        antonyms: (data.antonyms || []).join(', '),
+        example_sentence: data.example_sentence || '',
+        example_translation: data.example_translation || '',
+        difficulty_level: data.difficulty_level ?? prev.difficulty_level,
+      }))
+      setRegenHint('')
+      toast({ title: 'AI 재생성 완료', description: '내용을 확인 후 저장해 주세요.' })
+    } catch {
+      toast({ title: '네트워크 오류', variant: 'destructive' })
+    } finally {
+      setRegenerating(false)
     }
   }
 
@@ -644,6 +681,29 @@ function WordsTab() {
               </div>
             ))}
           </div>
+            <Separator className="my-1" />
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">AI 재생성 힌트</Label>
+              <div className="flex gap-2">
+                <Input
+                  value={regenHint}
+                  onChange={(e) => setRegenHint(e.target.value)}
+                  placeholder="ex: 청취 파트 빈출, TEPS 고난도..."
+                  className="text-xs"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0"
+                  onClick={handleRegen}
+                  disabled={regenerating || !regenHint.trim()}
+                >
+                  {regenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+                </Button>
+              </div>
+              <p className="text-[11px] text-muted-foreground">힌트를 입력하면 AI가 단어 내용을 재생성합니다. 재생성 후 반드시 저장해 주세요.</p>
+            </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setEditingWord(null)}>취소</Button>
             <Button onClick={handleSave} disabled={saving}>
@@ -993,6 +1053,262 @@ function LevelRequestsTab() {
   )
 }
 
+// --- Meaning Correction Requests ---
+interface CorrectionRequest {
+  id: string
+  type: 'word' | 'expression'
+  name: string
+  entityId: string
+  currentMeanings: string[]
+  suggestedMeaning: string
+  status: 'pending' | 'approved' | 'rejected'
+  adminReason: string | null
+  requesterEmail: string
+  requesterName: string | null
+  createdAt: string
+  resolvedAt: string | null
+}
+
+function MeaningCorrectionsTab() {
+  const [requests, setRequests] = useState<CorrectionRequest[]>([])
+  const [loading, setLoading] = useState(true)
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [statusFilter, setStatusFilter] = useState('pending')
+  const [rejectingId, setRejectingId] = useState<string | null>(null)
+  const [rejectReason, setRejectReason] = useState('')
+  const [processing, setProcessing] = useState<string | null>(null)
+  const [regenHints, setRegenHints] = useState<Record<string, string>>({})
+
+  const fetchRequests = useCallback(async (status: string, p: number) => {
+    setLoading(true)
+    try {
+      const res = await fetch(`/api/meaning-corrections?status=${status}&page=${p}`)
+      const data = await res.json()
+      setRequests(data.requests || [])
+      setTotalPages(data.totalPages || 1)
+    } catch {
+      toast({ title: '로드 실패', variant: 'destructive' })
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchRequests(statusFilter, page)
+  }, [page, statusFilter, fetchRequests])
+
+  const handleRegenAndApprove = async (r: CorrectionRequest) => {
+    const hint = (regenHints[r.id] || r.suggestedMeaning).trim()
+    if (!hint) return
+    setProcessing(r.id)
+    try {
+      const regenRes = await fetch('/api/admin/words/regenerate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: r.entityId, type: r.type, hint }),
+      })
+      if (!regenRes.ok) {
+        const data = await regenRes.json()
+        toast({ title: 'AI 재생성 실패', description: data.error || '', variant: 'destructive' })
+        return
+      }
+      const approveRes = await fetch(`/api/meaning-corrections/${r.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'approve' }),
+      })
+      if (approveRes.ok) {
+        toast({ title: '재생성 및 승인 완료' })
+        fetchRequests(statusFilter, page)
+      } else {
+        toast({ title: '승인 실패', variant: 'destructive' })
+      }
+    } catch {
+      toast({ title: '네트워크 오류', variant: 'destructive' })
+    } finally {
+      setProcessing(null)
+    }
+  }
+
+  const handleReject = async (id: string, reason: string) => {
+    setProcessing(id)
+    try {
+      const res = await fetch(`/api/meaning-corrections/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'reject', adminReason: reason }),
+      })
+      if (res.ok) {
+        toast({ title: '반려 완료' })
+        setRejectingId(null)
+        setRejectReason('')
+        fetchRequests(statusFilter, page)
+      } else {
+        toast({ title: '처리 실패', variant: 'destructive' })
+      }
+    } catch {
+      toast({ title: '네트워크 오류', variant: 'destructive' })
+    } finally {
+      setProcessing(null)
+    }
+  }
+
+  const rejectingRequest = rejectingId ? requests.find((r) => r.id === rejectingId) : null
+
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-1.5 flex-wrap">
+        {(['pending', 'approved', 'rejected', 'all'] as const).map((s) => (
+          <Button
+            key={s}
+            variant={statusFilter === s ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => { setStatusFilter(s); setPage(1) }}
+          >
+            {s === 'pending' ? '대기중' : s === 'approved' ? '승인' : s === 'rejected' ? '반려' : '전체'}
+          </Button>
+        ))}
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center py-12">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      ) : requests.length === 0 ? (
+        <p className="text-center text-sm text-muted-foreground py-8">의미 수정 제안이 없습니다.</p>
+      ) : (
+        <div className="space-y-3">
+          {requests.map((r) => (
+            <Card key={r.id}>
+              <CardContent className="py-4 px-4 space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium text-sm">{r.name}</span>
+                      {r.type === 'expression' && (
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300 border-sky-200 dark:border-sky-800">
+                          청해
+                        </Badge>
+                      )}
+                      {r.status === 'pending' && <Badge variant="destructive" className="text-[10px]">대기중</Badge>}
+                      {r.status === 'approved' && <Badge className="text-[10px] bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">승인</Badge>}
+                      {r.status === 'rejected' && <Badge variant="secondary" className="text-[10px]">반려</Badge>}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      {r.requesterName ? `${r.requesterName} · ` : ''}{r.requesterEmail}
+                      {' · '}{new Date(r.createdAt).toLocaleDateString('ko-KR')}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="rounded-md bg-muted/50 px-3 py-2">
+                    <p className="text-[10px] font-medium text-muted-foreground mb-1">현재 의미</p>
+                    {r.currentMeanings.map((m, i) => (
+                      <p key={i} className="text-xs">{i + 1}. {m}</p>
+                    ))}
+                  </div>
+                  <div className="rounded-md bg-orange-50 dark:bg-orange-950/30 px-3 py-2">
+                    <p className="text-[10px] font-medium text-orange-600 dark:text-orange-400 mb-1">수정 제안</p>
+                    <p className="text-xs">{r.suggestedMeaning}</p>
+                  </div>
+                </div>
+
+                {r.status === 'pending' && (
+                  <div className="space-y-2">
+                    <Input
+                      value={regenHints[r.id] || ''}
+                      onChange={(e) => setRegenHints((prev) => ({ ...prev, [r.id]: e.target.value }))}
+                      placeholder="재생성 힌트 (비워두면 제안 내용 그대로 사용)"
+                      className="text-xs h-8"
+                    />
+                    <div className="flex gap-1.5">
+                      <Button
+                        size="sm"
+                        className="h-8 px-3 text-xs gap-1.5"
+                        onClick={() => handleRegenAndApprove(r)}
+                        disabled={processing === r.id}
+                      >
+                        {processing === r.id
+                          ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          : <Wand2 className="h-3.5 w-3.5" />
+                        }
+                        재생성 & 승인
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 px-3 text-xs"
+                        onClick={() => { setRejectingId(r.id); setRejectReason('') }}
+                        disabled={!!processing}
+                      >
+                        반려
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {r.adminReason && (
+                  <p className="text-[11px] text-muted-foreground italic">반려 사유: {r.adminReason}</p>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2 pt-2">
+          <Button variant="ghost" size="icon" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <span className="text-sm text-muted-foreground">{page} / {totalPages}</span>
+          <Button variant="ghost" size="icon" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
+
+      <Dialog open={!!rejectingId} onOpenChange={(open) => { if (!open) setRejectingId(null) }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>반려 사유 입력</DialogTitle>
+          </DialogHeader>
+          {rejectingRequest && (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                <span className="font-semibold text-foreground">{rejectingRequest.name}</span>의 의미 수정 제안을 반려합니다.
+              </p>
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">사유 (선택)</label>
+                <textarea
+                  value={rejectReason}
+                  onChange={(e) => setRejectReason(e.target.value)}
+                  placeholder="반려 사유를 입력하세요"
+                  rows={3}
+                  className="w-full text-sm px-3 py-2 rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none"
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setRejectingId(null)}>취소</Button>
+            <Button
+              variant="destructive"
+              onClick={() => rejectingId && handleReject(rejectingId, rejectReason)}
+              disabled={!!processing}
+            >
+              {processing && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              반려
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
+
 // --- Main Admin Page ---
 export default function AdminPage() {
   const { user, profile, loading: authLoading } = useAuthContext()
@@ -1017,11 +1333,12 @@ export default function AdminPage() {
         <h1 className="text-2xl font-bold">관리자</h1>
 
         <Tabs defaultValue="dashboard">
-          <TabsList className="w-full grid grid-cols-4">
+          <TabsList className="w-full grid grid-cols-5">
             <TabsTrigger value="dashboard">대시보드</TabsTrigger>
             <TabsTrigger value="words">단어 관리</TabsTrigger>
             <TabsTrigger value="reports">신고 관리</TabsTrigger>
             <TabsTrigger value="level-requests">Level 제안</TabsTrigger>
+            <TabsTrigger value="meaning-corrections">의미 수정</TabsTrigger>
           </TabsList>
 
           <TabsContent value="dashboard">
@@ -1038,6 +1355,10 @@ export default function AdminPage() {
 
           <TabsContent value="level-requests">
             <LevelRequestsTab />
+          </TabsContent>
+
+          <TabsContent value="meaning-corrections">
+            <MeaningCorrectionsTab />
           </TabsContent>
         </Tabs>
       </div>

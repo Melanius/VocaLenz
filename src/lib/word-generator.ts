@@ -34,6 +34,51 @@ const WORD_GENERATOR_SYSTEM_PROMPT = `당신은 TEPS 시험 전문 영어 어휘
   "difficulty_level": 1~4 (1: Essential 327점↓ 기초필수, 2: Core 450점 목표 중급학술, 3: Advanced 550점+ 고득점, 4: Killer 만점 변별력 희귀어)
 }`
 
+export async function regenerateWordWithHint(
+  word: string,
+  currentMeanings: string[],
+  hint: string
+): Promise<WordGenerationResponse> {
+  const maxRetries = 3
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const response = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        response_format: { type: 'json_object' },
+        messages: [
+          { role: 'system', content: WORD_GENERATOR_SYSTEM_PROMPT },
+          {
+            role: 'user',
+            content: `단어: "${word}"\n\n현재 등록된 의미: ${currentMeanings.join(', ')}\n\n수정 힌트: "${hint}"\n\n위 수정 힌트를 최우선으로 반영하여 이 단어의 전체 정보를 새로 생성해 주세요. 힌트는 올바른 주요 의미·용법·품사 등에 대한 안내입니다.`,
+          },
+        ],
+        temperature: 0.3,
+        max_tokens: 2000,
+      })
+      const content = response.choices[0].message.content
+      if (!content) throw new Error('Empty response from OpenAI')
+      const parsed = JSON.parse(content) as WordGenerationResponse
+      if (!parsed.word || !parsed.description) throw new Error('Missing required fields in response')
+      return {
+        ...parsed,
+        meanings: parsed.meanings || [],
+        synonyms: parsed.synonyms || [],
+        antonyms: parsed.antonyms || [],
+        comparisons: parsed.comparisons || [],
+        paraphrasing: parsed.paraphrasing || [],
+        difficulty_level: parsed.difficulty_level || 2,
+      }
+    } catch (error) {
+      if (attempt === maxRetries - 1) {
+        console.error('Word regeneration failed after retries:', error)
+        throw new Error('AI 단어 재생성에 실패했습니다.')
+      }
+      await new Promise((r) => setTimeout(r, 500))
+    }
+  }
+  throw new Error('AI 단어 재생성에 실패했습니다.')
+}
+
 export async function generateWordData(
   word: string
 ): Promise<WordGenerationResponse> {

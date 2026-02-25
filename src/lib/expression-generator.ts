@@ -34,6 +34,51 @@ const EXPRESSION_GENERATOR_SYSTEM_PROMPT = `당신은 TEPS 청해 시험 전문 
   "difficulty_level": 1~4 (1: Essential, 2: Core, 3: Advanced, 4: Killer)
 }`
 
+export async function regenerateExpressionWithHint(
+  expression: string,
+  currentMeanings: string[],
+  hint: string
+): Promise<ExpressionGenerationResponse> {
+  const maxRetries = 3
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const response = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        response_format: { type: 'json_object' },
+        messages: [
+          { role: 'system', content: EXPRESSION_GENERATOR_SYSTEM_PROMPT },
+          {
+            role: 'user',
+            content: `표현: "${expression}"\n\n현재 등록된 의미: ${currentMeanings.join(', ')}\n\n수정 힌트: "${hint}"\n\n위 수정 힌트를 최우선으로 반영하여 이 표현의 전체 정보를 새로 생성해 주세요. 힌트는 올바른 뉘앙스·용법·의미 등에 대한 안내입니다.`,
+          },
+        ],
+        temperature: 0.3,
+        max_tokens: 1500,
+      })
+      const content = response.choices[0].message.content
+      if (!content) throw new Error('Empty response from OpenAI')
+      const parsed = JSON.parse(content) as ExpressionGenerationResponse
+      if (!parsed.expression || !parsed.description) throw new Error('Missing required fields in response')
+      return {
+        ...parsed,
+        image_text: parsed.image_text || '',
+        meanings: parsed.meanings || [],
+        listening_parts: parsed.listening_parts || [],
+        paraphrasing: parsed.paraphrasing || [],
+        comparisons: parsed.comparisons || [],
+        difficulty_level: parsed.difficulty_level || 2,
+      }
+    } catch (error) {
+      if (attempt === maxRetries - 1) {
+        console.error('Expression regeneration failed after retries:', error)
+        throw new Error('AI 표현 재생성에 실패했습니다.')
+      }
+      await new Promise((r) => setTimeout(r, 500))
+    }
+  }
+  throw new Error('AI 표현 재생성에 실패했습니다.')
+}
+
 export async function generateExpressionData(
   expression: string
 ): Promise<ExpressionGenerationResponse> {

@@ -137,6 +137,36 @@ export default function VocabularyPage() {
       .catch(() => {})
   }, [user])
 
+  // 의미 수정 제안 알림 확인 (페이지 로드 시 1회)
+  useEffect(() => {
+    if (!user) return
+    fetch('/api/meaning-corrections/notifications')
+      .then((r) => r.json())
+      .then((data) => {
+        if (!data.notifications?.length) return
+        data.notifications.forEach((n: {
+          status: 'approved' | 'rejected'
+          name: string
+          adminReason?: string
+        }) => {
+          if (n.status === 'approved') {
+            toast({
+              title: '의미 수정 승인',
+              description: `"${n.name}": 관리자가 의미를 수정했습니다.`,
+            })
+          } else {
+            toast({
+              title: '의미 수정 제안 반려',
+              description: n.adminReason
+                ? `"${n.name}": ${n.adminReason}`
+                : `"${n.name}"의 의미 수정 제안이 반려되었습니다.`,
+            })
+          }
+        })
+      })
+      .catch(() => {})
+  }, [user])
+
   // 필터/탭/셔플 변경 시 표시 개수 초기화
   useEffect(() => {
     setDisplayLimit(INITIAL_DISPLAY_COUNT)

@@ -181,7 +181,8 @@ export default function QuizPage() {
 
   const markForReview = async (wordId: string) => {
     try {
-      const res = await fetch(`/api/vocabulary/review?wordId=${wordId}`, {
+      const type = quizType === 'expression' ? 'expression' : 'word'
+      const res = await fetch(`/api/vocabulary/review?wordId=${wordId}&type=${type}`, {
         method: 'PATCH',
       })
       if (res.ok) {
@@ -194,10 +195,11 @@ export default function QuizPage() {
   }
 
   const markAllForReview = async (wrongAnswers: AnswerRecord[]) => {
+    const type = quizType === 'expression' ? 'expression' : 'word'
     for (const a of wrongAnswers) {
       if (!reviewMarked.has(a.question.wordId)) {
         try {
-          const res = await fetch(`/api/vocabulary/review?wordId=${a.question.wordId}`, {
+          const res = await fetch(`/api/vocabulary/review?wordId=${a.question.wordId}&type=${type}`, {
             method: 'PATCH',
           })
           if (res.ok) {

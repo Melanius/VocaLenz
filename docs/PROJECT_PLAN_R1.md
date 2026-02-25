@@ -3027,6 +3027,95 @@ Step 8.1 → 8.2 → 8.3 → 8.4 → `pnpm build` 검증 → Step 8.5 (수동 QA
 
 ---
 
+## Phase 33: 퀴즈 범위 필터 개편 + 업로드 진행 바 수정 + 오타 정정 텍스트 오버플로우 수정 (완료)
+**완료 일시:** 2026-02-24 (KST)
+**커밋:** `e595dc9`, `559f619`
+
+### Step 33.1: 퀴즈 범위 필터 개편 ✅
+**배경:** 기존 퀴즈 범위는 미암기/암기완료/검색 이력 3종 체크박스. 검색 이력은 사용성이 낮고, 단어장 필터 옵션(퀴즈오답, 날짜, 메모)과 불일치.
+
+**변경 내용:**
+- **검색 이력 소스 완전 제거** (`user_word_history`, `user_expression_history` 쿼리 삭제)
+- **암기 상태 칩 멀티셀렉트** (기존 체크박스 → 토글 pill 버튼):
+  - 미암기 / 암기완료 / 퀴즈오답 — 다중 선택 가능, OR 조합
+  - **미선택 시 전체 단어장 기준** (상태 필터 없음)
+  - 퀴즈오답 = `user_vocabulary.needs_review = true` (기존 단어장의 "복습 필요" 필터와 동일)
+- **날짜 필터** (체크박스 on/off):
+  - 기준: 단어장에 추가한 날짜 (`added_at`) — 기존 검색 이력 날짜와 다름
+  - 시작일 / 종료일 두 칸, 한 칸만 입력해도 동작
+- **메모 태그 필터** (체크박스 on/off):
+  - 태그 입력 방식: Enter 또는 쉼표로 태그 추가, Backspace로 마지막 태그 삭제
+  - 복수 태그 = OR 검색 (`memo ILIKE '%Test3%' OR memo ILIKE '%Test4%'`)
+  - 태그가 없는 상태에서 퀴즈 시작 불가 (버튼 비활성화)
+
+**다중 필터 조합 로직:**
+- 상태 칩: OR (미암기 + 퀴즈오답 = 두 집합의 합집합, `seenIds` Set으로 중복 제거)
+- 날짜 + 메모: 각 상태 소스 쿼리에 AND 조건으로 직접 적용 (post-filter 아님)
+- 미선택(전체) + 날짜/메모: 전체 단어장 풀에 AND 필터
+
+**API 변경 (`src/app/api/quiz/route.ts`):**
+- 파라미터 변경: `historyDate`, `historyDateTo` 제거 → `dateFrom`, `dateTo`, `memos` (쉼표 구분) 추가
+- `runWordQuery(statusFilter?)` / `runExprQuery(statusFilter?)` 내부 헬퍼로 쿼리 추상화
+- `withVocabFilters(q)` / `withExprFilters(q)`: 날짜·메모 필터를 체이닝으로 적용 (Supabase `.or()` 활용)
+- 에러 메시지: "범위" → "조건"으로 변경
+
+**UI 변경 (`src/app/(main)/quiz/page.tsx`):**
+- 상태 변수: `sourceHistory`, `historyDateMode`, `historyDate`, `historyDateTo` 제거
+- 상태 변수 추가: `sourceQuizWrong`, `dateFilterOn`, `dateFrom`, `dateTo`, `memoFilterOn`, `memoTags`, `memoInput`
+- `addMemoTag()` 함수 추가
+- `fetchQuiz` URL 파라미터 구성 변경
+- 시작 버튼 비활성 조건: `memoFilterOn && memoTags.length === 0` (메모 필터 on 상태에서 태그 미입력 시)
+- lucide-react `X` 아이콘 추가 (메모 태그 삭제 버튼)
+
+**수정 파일:** `src/app/(main)/quiz/page.tsx`, `src/app/api/quiz/route.ts`
+
+---
+
+### Step 33.2: 일괄 업로드 진행 바 정확도 수정 ✅
+**배경:** 단어장 일괄 업로드 시 진행 바가 실제 처리 속도보다 빠르게 채워지는 현상.
+
+**근본 원인:**
+- DB에 없는 신규 단어: 스트리밍 이벤트 2개 발생
+  1. `{ status: 'generating' }` — AI 생성 시작 직전
+  2. `{ status: 'added' | 'failed' }` — AI 생성 완료 후
+- DB에 이미 있는 단어: 이벤트 1개 (`added` 또는 `skipped`)
+- 기존 계산: `uploadProgress.length / uploadTotal` → `generating` 이벤트도 카운트 → 신규 단어 많을수록 바가 2배 빠르게 채워짐
+
+**수정 내용:**
+- `completedCount` useMemo 추가: `uploadProgress.filter(p => p.status !== 'generating').length`
+- 진행 바 width: `(completedCount / uploadTotal) * 100` + `Math.min(..., 100)` cap 적용
+- `displayProgress` useMemo 추가: `Map<word, BulkProgress>`로 단어별 최신 상태만 관리
+  - `generating` → `added` 전환 시 목록에서 동일 단어가 2행으로 중복 표시되던 문제 해결
+  - Map은 삽입 순서 유지 → 목록 순서 안정적
+
+**수정 파일:** `src/app/(main)/vocabulary/page.tsx`
+
+---
+
+### Step 33.3: 오타 정정 텍스트 오버플로우 수정 ✅
+**배경:** 일괄 업로드 시 오타 단어의 오류 메시지(`${p.error} → ${p.correction}`)가 길어지면 Dialog 우측을 벗어나는 버그.
+
+**근본 원인:** flex 컨테이너에 `min-w-0` 미적용 → flex item이 content 크기 이하로 축소되지 않음 → `truncate`가 동작하지 않음.
+
+**수정 내용:**
+- 목록 행 컨테이너: `flex items-center` → `flex items-start min-w-0` (multi-line 대응)
+- 이모지 아이콘: `mt-0.5` 추가 (상단 정렬)
+- 상태 텍스트 span: `truncate` → `flex-1 min-w-0 break-words` (줄바꿈 허용)
+- 오타 정정 표시 형식 개선: `${p.error} → ${p.correction}` → `${p.error} → 올바른 철자: ${p.correction}`
+
+**수정 파일:** `src/app/(main)/vocabulary/page.tsx`
+
+---
+
+### Step 33.4: ESLint 빌드 에러 수정 ✅
+**원인:** `// eslint-disable-next-line @typescript-eslint/no-explicit-any` 주석이 프로젝트 ESLint 설정에 없는 규칙을 참조 → 빌드 실패.
+**수정:** `// eslint-disable-line`으로 교체.
+**커밋:** `559f619`
+
+**Phase 33 총 커밋:** 2개
+
+---
+
 ## 개발 완료 후 운영 체크리스트
 
 | 항목 | 내용 | 상태 |

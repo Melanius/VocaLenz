@@ -13,16 +13,26 @@ export async function PATCH(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const wordId = searchParams.get('wordId')
+    const type = searchParams.get('type') || 'word'
 
     if (!wordId) {
       return NextResponse.json({ error: 'wordId가 필요합니다.' }, { status: 400 })
     }
 
-    const { error } = await supabaseAdmin
-      .from('user_vocabulary')
-      .update({ needs_review: true })
-      .eq('user_id', user.id)
-      .eq('word_id', wordId)
+    let error
+    if (type === 'expression') {
+      ;({ error } = await supabaseAdmin
+        .from('user_expressions')
+        .update({ needs_review: true })
+        .eq('user_id', user.id)
+        .eq('expression_id', wordId))
+    } else {
+      ;({ error } = await supabaseAdmin
+        .from('user_vocabulary')
+        .update({ needs_review: true })
+        .eq('user_id', user.id)
+        .eq('word_id', wordId))
+    }
 
     if (error) {
       return NextResponse.json({ error: '복습 표시에 실패했습니다.' }, { status: 500 })

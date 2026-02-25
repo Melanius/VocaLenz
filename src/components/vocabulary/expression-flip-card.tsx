@@ -139,7 +139,6 @@ export function ExpressionFlipCard({
 
         <div
           className={`flip-card-inner ${isFlipped ? 'flipped' : ''}`}
-          style={{ minHeight: '250px' }}
         >
           {/* 앞면 */}
           <div

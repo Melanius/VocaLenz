@@ -15,7 +15,7 @@
   .flip-card-inner {
     position: relative;
     width: 100%;
-    height: 100%;
+    display: grid;
     transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
     transform-style: preserve-3d;
   }
@@ -24,12 +24,12 @@
   }
   .flip-card-front,
   .flip-card-back {
-    position: absolute;
-    inset: 0;
+    grid-area: 1 / 1;
     backface-visibility: hidden;
     -webkit-backface-visibility: hidden;
   }
   .flip-card-back {
+    align-self: start;
     transform: rotateY(180deg);
   }
 }

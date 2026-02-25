@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { BookOpen, Headphones, Star, Loader2, Upload, Search, Shuffle, X, StickyNote, Settings, AlertCircle, ChevronDown, Download } from 'lucide-react'
@@ -55,6 +55,9 @@ interface RetryItem {
 
 type VocabTab = 'words' | 'expressions'
 
+const INITIAL_DISPLAY_COUNT = 20
+const LOAD_MORE_COUNT = 10
+
 function seededShuffle<T>(arr: T[], seed: number): T[] {
   const result = [...arr]
   let s = seed
@@ -99,6 +102,8 @@ export default function VocabularyPage() {
   const [pendingDelete, setPendingDelete] = useState<UserVocabulary | null>(null)
   const [pendingExprDelete, setPendingExprDelete] = useState<UserExpression | null>(null)
   const [shuffleSeed, setShuffleSeed] = useState(0)
+  const [displayLimit, setDisplayLimit] = useState(INITIAL_DISPLAY_COUNT)
+  const [sentinelEl, setSentinelEl] = useState<HTMLDivElement | null>(null)
 
   // Level 변경 제안 알림 확인 (페이지 로드 시 1회)
   useEffect(() => {
@@ -131,6 +136,28 @@ export default function VocabularyPage() {
       })
       .catch(() => {})
   }, [user])
+
+  // 필터/탭/셔플 변경 시 표시 개수 초기화
+  useEffect(() => {
+    setDisplayLimit(INITIAL_DISPLAY_COUNT)
+  }, [vocabTab, filter, dateFrom, dateTo, memoFilter, shuffleSeed])
+
+  // 무한스크롤 Intersection Observer (콜백 ref 패턴: sentinel 마운트/언마운트 시 자동 연결)
+  const loadMore = useCallback(() => {
+    setDisplayLimit((prev) => prev + LOAD_MORE_COUNT)
+  }, [])
+
+  useEffect(() => {
+    if (!sentinelEl) return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) loadMore()
+      },
+      { rootMargin: '100px' }
+    )
+    observer.observe(sentinelEl)
+    return () => observer.disconnect()
+  }, [sentinelEl, loadMore])
 
   const toggleFlip = (id: string) => {
     setFlippedCards((prev) => {
@@ -659,7 +686,7 @@ export default function VocabularyPage() {
             }`}
           >
             <BookOpen className="h-3.5 w-3.5 shrink-0" />
-            {memoFilterLower
+            {filtered.length < count
               ? `Voca (${filtered.length}/${count})`
               : `Voca 리스트 (${count})`}
           </button>
@@ -673,7 +700,7 @@ export default function VocabularyPage() {
             }`}
           >
             <Headphones className="h-3.5 w-3.5 shrink-0" />
-            {memoFilterLower
+            {filteredExpressions.length < exprCount
               ? `Lenz (${filteredExpressions.length}/${exprCount})`
               : `Lenz 픽 (${exprCount})`}
           </button>
@@ -845,21 +872,30 @@ export default function VocabularyPage() {
               )}
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              {filtered.map((item) => (
-                <VocabularyFlipCard
-                  key={item.id}
-                  item={item}
-                  isFlipped={flippedCards.has(item.id)}
-                  onFlip={() => toggleFlip(item.id)}
-                  onDetail={handleDetail}
-                  onToggleMemorized={handleToggle}
-                  onToggleReview={handleToggleReview}
-                  onDelete={handleDelete}
-                  onMemoUpdate={updateMemo}
-                />
-              ))}
-            </div>
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                {filtered.slice(0, displayLimit).map((item) => (
+                  <VocabularyFlipCard
+                    key={item.id}
+                    item={item}
+                    isFlipped={flippedCards.has(item.id)}
+                    onFlip={() => toggleFlip(item.id)}
+                    onDetail={handleDetail}
+                    onToggleMemorized={handleToggle}
+                    onToggleReview={handleToggleReview}
+                    onDelete={handleDelete}
+                    onMemoUpdate={updateMemo}
+                  />
+                ))}
+              </div>
+              {displayLimit < filtered.length && (
+                <div ref={setSentinelEl} className="flex justify-center py-4">
+                  <span className="text-xs text-muted-foreground">
+                    {filtered.length - displayLimit}개 더 보기...
+                  </span>
+                </div>
+              )}
+            </>
           )
         ) : (
           exprLoading ? (
@@ -883,21 +919,30 @@ export default function VocabularyPage() {
               )}
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              {filteredExpressions.map((item) => (
-                <ExpressionFlipCard
-                  key={item.id}
-                  item={item}
-                  isFlipped={flippedCards.has(item.id)}
-                  onFlip={() => toggleFlip(item.id)}
-                  onDetail={handleExprDetail}
-                  onToggleMemorized={handleExprToggle}
-                  onToggleReview={handleExprToggleReview}
-                  onDelete={handleExprDelete}
-                  onMemoUpdate={updateExprMemo}
-                />
-              ))}
-            </div>
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                {filteredExpressions.slice(0, displayLimit).map((item) => (
+                  <ExpressionFlipCard
+                    key={item.id}
+                    item={item}
+                    isFlipped={flippedCards.has(item.id)}
+                    onFlip={() => toggleFlip(item.id)}
+                    onDetail={handleExprDetail}
+                    onToggleMemorized={handleExprToggle}
+                    onToggleReview={handleExprToggleReview}
+                    onDelete={handleExprDelete}
+                    onMemoUpdate={updateExprMemo}
+                  />
+                ))}
+              </div>
+              {displayLimit < filteredExpressions.length && (
+                <div ref={setSentinelEl} className="flex justify-center py-4">
+                  <span className="text-xs text-muted-foreground">
+                    {filteredExpressions.length - displayLimit}개 더 보기...
+                  </span>
+                </div>
+              )}
+            </>
           )
         )}
       </div>

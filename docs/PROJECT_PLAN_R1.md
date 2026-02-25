@@ -3118,7 +3118,7 @@ Step 8.1 → 8.2 → 8.3 → 8.4 → `pnpm build` 검증 → Step 8.5 (수동 QA
 
 ## Phase 34: 플립카드 버그 수정 + 퀴즈 오답 버그 수정 + 단어장 무한스크롤 + 투트랙 의미 수정 시스템 (완료)
 **완료 일시:** 2026-02-25 (KST)
-**커밋:** `6382638`, `c5b0e02`
+**커밋:** `6382638`, `c5b0e02`, `cb35eb0`
 
 ### Step 34.1: 플립카드 흰 공백 버그 수정 ✅
 **배경:** 플립카드 뒷면 내용이 짧을 때 앞면·뒷면 높이가 달라 흰 공백이 생기는 현상.
@@ -3215,13 +3215,25 @@ CREATE INDEX ON meaning_correction_requests (user_id, status);
 - `src/app/api/meaning-corrections/[id]/route.ts` (신규)
 - `src/app/api/meaning-corrections/notifications/route.ts` (신규)
 
-**Phase 34 총 커밋:** 2개
+### Step 34.5: KST 기준 날짜 필터 수정 ✅
+**배경:** `added_at`이 UTC로 저장되어 있어 자정~오전 9시 사이 추가된 단어가 KST 날짜 기준 필터 시 하루 앞날짜로 분류되는 버그.
+
+**수정 내용 (`src/lib/date-utils.ts` 신규 + `vocabulary/page.tsx` + `quiz/route.ts`):**
+- `toKSTDateString(utcStr)`: UTC ISO 문자열 → KST 기준 'YYYY-MM-DD' 변환
+- `kstDateToUTCStart(kstDate)`: KST 자정 → UTC ISO (쿼리 시작값)
+- `kstDateToUTCEnd(kstDate)`: KST 23:59:59.999 → UTC ISO (쿼리 종료값)
+- `getKSTToday()`: KST 기준 오늘 날짜 반환
+- 단어장 클라이언트 필터: `item.added_at.slice(0, 10)` → `toKSTDateString(item.added_at)`
+- 단어장 프리셋 버튼(오늘/최근 7일/최근 30일): KST 기준으로 수정
+- 퀴즈 API `dateFrom`/`dateTo`: `kstDateToUTCStart/End()` 적용
+
+**Phase 34 총 커밋:** 3개
 
 ---
 
 ## Phase 35: 검색이력 재배치 + 카드뷰 스와이프 + 모바일 필터 개선 (완료)
 **완료 일시:** 2026-02-26 (KST)
-**커밋:** `1b0e325`
+**커밋:** `1b0e325`, `af193f5`
 
 ### Step 35.1: 검색이력 네비 제거 + 단어장 Sheet ✅
 - 헤더 네비게이션에서 '검색 이력' 탭 제거 (사이드바 이력과 중복)

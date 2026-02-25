@@ -3219,6 +3219,42 @@ CREATE INDEX ON meaning_correction_requests (user_id, status);
 
 ---
 
+## Phase 35: 검색이력 재배치 + 카드뷰 스와이프 + 모바일 필터 개선 (완료)
+**완료 일시:** 2026-02-26 (KST)
+**커밋:** `1b0e325`
+
+### Step 35.1: 검색이력 네비 제거 + 단어장 Sheet ✅
+- 헤더 네비게이션에서 '검색 이력' 탭 제거 (사이드바 이력과 중복)
+- 단어장 헤더 우측에 `Clock` 아이콘 버튼 추가
+- 클릭 시 우측에서 슬라이드인되는 Sheet에 기존 Sidebar 컴포넌트 임베드
+- 단어장 맥락 유지하며 이력 확인 후 바로 학습 복귀 가능
+
+### Step 35.2: 플립카드 스와이프 카드뷰 모드 ✅
+- 필터 Row2 우측에 `GalleryHorizontal` 아이콘 버튼으로 카드뷰 토글
+- 카드뷰 활성 시: 한 번에 카드 1장 중앙 표시 (max-w-sm)
+- 인터랙션:
+  - 좌/우 스와이프 (터치 임계값 50px) → 이전/다음 카드
+  - `ChevronLeft/Right` 화살표 버튼으로도 이동
+  - 탭 → 기존과 동일하게 플립 (앞/뒷면 전환)
+- 상단: "N / 총" 인디케이터, 하단: 진행 바 (progress bar)
+- 단어/청해 구문 탭 모두 지원, 탭/필터 변경 시 인덱스 0으로 리셋
+
+### Step 35.3: 단어장 모바일 필터 레이아웃 개선 ✅
+- 필터 영역을 2행으로 명확히 분리:
+  - **Row 1**: 상태 칩 (전체/미암기/암기완료/퀴즈오답) — `overflow-x-auto` 수평 스크롤
+  - **Row 2**: 메모 검색 + 날짜 필터 + 셔플 + 카드뷰 토글
+- 날짜 필터 버튼 표시: `YYYY-MM-DD` → `MM-DD` 단축 (공간 절약)
+- 셔플 버튼: ghost variant로 변경해 시각적 일관성 향상
+
+### fix: requireAdmin() 타입 오류 수정 ✅
+- Next.js 15 빌드에서 발견된 기존 버그: `requireAdmin()` 반환값을 직접 return해
+  `{ userId: string }` 객체가 HTTP 응답으로 반환되는 잘못된 패턴
+- 수정 파일: `regenerate/route.ts`, `meaning-corrections/route.ts`, `meaning-corrections/[id]/route.ts`
+
+**Phase 35 총 커밋:** 1개
+
+---
+
 ## 개발 완료 후 운영 체크리스트
 
 | 항목 | 내용 | 상태 |

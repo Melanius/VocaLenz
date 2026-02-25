@@ -26,6 +26,7 @@ import { VocabularyFlipCard } from '@/components/vocabulary/vocabulary-flip-card
 import { ExpressionFlipCard } from '@/components/vocabulary/expression-flip-card'
 import { CardCustomizer } from '@/components/search/card-customizer'
 import { getRandomPhrase, type LoadingPhrase } from '@/lib/loading-phrases'
+import { toKSTDateString, getKSTToday } from '@/lib/date-utils'
 import type { UserVocabulary, UserExpression, Word, Expression } from '@/types/database'
 
 type FilterType = 'all' | 'not-memorized' | 'memorized' | 'needs-review'
@@ -211,7 +212,7 @@ export default function VocabularyPage() {
       if (filter === 'not-memorized' && item.is_memorized) return false
       if (filter === 'needs-review' && !item.needs_review) return false
       if (hasDateFilter && item.added_at) {
-        const addedDate = item.added_at.slice(0, 10)
+        const addedDate = toKSTDateString(item.added_at)
         if (dateFrom && addedDate < dateFrom) return false
         if (dateTo && addedDate > dateTo) return false
       }
@@ -227,7 +228,7 @@ export default function VocabularyPage() {
       if (filter === 'not-memorized' && item.is_memorized) return false
       if (filter === 'needs-review' && !item.needs_review) return false
       if (hasDateFilter && item.added_at) {
-        const addedDate = item.added_at.slice(0, 10)
+        const addedDate = toKSTDateString(item.added_at)
         if (dateFrom && addedDate < dateFrom) return false
         if (dateTo && addedDate > dateTo) return false
       }
@@ -829,7 +830,7 @@ export default function VocabularyPage() {
                     size="sm"
                     className="text-xs"
                     onClick={() => {
-                      const today = new Date().toISOString().slice(0, 10)
+                      const today = getKSTToday()
                       setDateFrom(today)
                       setDateTo(today)
                     }}
@@ -841,10 +842,9 @@ export default function VocabularyPage() {
                     size="sm"
                     className="text-xs"
                     onClick={() => {
-                      const today = new Date()
-                      const weekAgo = new Date(today.getTime() - 7 * 86400000)
-                      setDateFrom(weekAgo.toISOString().slice(0, 10))
-                      setDateTo(today.toISOString().slice(0, 10))
+                      const now = Date.now()
+                      setDateFrom(toKSTDateString(new Date(now - 7 * 86400000).toISOString()))
+                      setDateTo(getKSTToday())
                     }}
                   >
                     최근 7일
@@ -854,10 +854,9 @@ export default function VocabularyPage() {
                     size="sm"
                     className="text-xs"
                     onClick={() => {
-                      const today = new Date()
-                      const monthAgo = new Date(today.getTime() - 30 * 86400000)
-                      setDateFrom(monthAgo.toISOString().slice(0, 10))
-                      setDateTo(today.toISOString().slice(0, 10))
+                      const now = Date.now()
+                      setDateFrom(toKSTDateString(new Date(now - 30 * 86400000).toISOString()))
+                      setDateTo(getKSTToday())
                     }}
                   >
                     최근 30일

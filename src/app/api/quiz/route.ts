@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { logEvent } from '@/lib/event-logger'
+import { kstDateToUTCStart, kstDateToUTCEnd } from '@/lib/date-utils'
 
 function shuffleArray<T>(array: T[]): T[] {
   const arr = [...array]
@@ -90,8 +91,8 @@ async function handleWordQuiz({
 
   // 날짜·메모 필터를 쿼리에 적용
   const withVocabFilters = (q: any) => { // eslint-disable-line
-    if (dateFrom) q = q.gte('added_at', dateFrom)
-    if (dateTo) q = q.lte('added_at', dateTo + 'T23:59:59.999Z')
+    if (dateFrom) q = q.gte('added_at', kstDateToUTCStart(dateFrom))
+    if (dateTo) q = q.lte('added_at', kstDateToUTCEnd(dateTo))
     if (memos.length > 0) q = q.or(memos.map((m: string) => `memo.ilike.%${m}%`).join(','))
     return q
   }
@@ -217,8 +218,8 @@ async function handleExpressionQuiz({
       .filter((e): e is ExpressionRow => e !== null && e !== undefined)
 
   const withExprFilters = (q: any) => { // eslint-disable-line
-    if (dateFrom) q = q.gte('added_at', dateFrom)
-    if (dateTo) q = q.lte('added_at', dateTo + 'T23:59:59.999Z')
+    if (dateFrom) q = q.gte('added_at', kstDateToUTCStart(dateFrom))
+    if (dateTo) q = q.lte('added_at', kstDateToUTCEnd(dateTo))
     if (memos.length > 0) q = q.or(memos.map((m: string) => `memo.ilike.%${m}%`).join(','))
     return q
   }

@@ -3302,6 +3302,35 @@ CREATE INDEX ON meaning_correction_requests (user_id, status);
 
 ---
 
+## Phase 37: 모바일 검색 UX 개선 (완료)
+**완료 일시:** 2026-02-28
+**커밋:** `9aa1d11`, `831a12a`
+
+### 배경
+- 채팅 모드 하단 바에서 단어/청해 구문 토글이 텍스트 레이블로 인해 검색창 폭을 과도하게 차지
+- 검색 이력 FAB(Floating Action Button)가 고정 위치(`fixed right-3 bottom-20`)로 인해 카드 액션 버튼들과 겹치는 문제
+
+### 구현 내용
+
+#### 검색 모드 토글 compact 개선 (`page.tsx`) ✅
+- compact 모드(채팅 상태 하단 바)에서 2-버튼 텍스트 토글 → 단일 아이콘 버튼으로 교체
+- 현재 활성 모드 아이콘(BookOpen/Headphones) + 작은 ArrowLeftRight 표시
+- 클릭 시 단어 ↔ 청해 구문 전환
+- 토글 너비 약 160px → 50px (약 100px 절약), 검색창 폭 확대
+- 배경색으로 현재 모드 구분 (단어: bg-muted/primary, 청해 구문: indigo tint)
+- 초기 홈 화면 2-버튼 토글은 변경 없이 유지
+
+#### 검색 이력 FAB 제거 및 칩 행 통합 (`page.tsx`) ✅
+- `fixed right-3 bottom-20 z-40` FAB 완전 제거 → 겹침 문제 해결
+- 하단 바 최근 검색 칩 행 맨 앞에 이력 버튼(h-7 w-7 rounded-full) 고정 배치
+- 칩 행을 항상 표시 (`recentWords.length > 0` 조건 제거)
+- Sheet를 SheetTrigger 없이 controlled 모드(`open={historyOpen}`)로 전환
+- `SheetTrigger` import 제거
+
+**Phase 37 총 커밋:** 2개
+
+---
+
 ## 개발 완료 후 운영 체크리스트
 
 | 항목 | 내용 | 상태 |

@@ -17,6 +17,28 @@ function stripPOS(meaning: string): string {
   return meaning.replace(/^\([^)]+\)\s*/, '')
 }
 
+// "(형용사) 공정한" → "형용사" | "공정한" → null
+function extractMeaningPOS(meaning: string): string | null {
+  const match = meaning.match(/^\(([^)]+)\)/)
+  return match ? match[1].trim() : null
+}
+
+// "adj./n." → "adj" | "v." → "v" | null → ""
+function extractPrimaryPOS(pos: string | null): string {
+  if (!pos) return ''
+  return pos.split('/')[0].trim().replace(/\.$/, '').toLowerCase()
+}
+
+// meanings 배열에서 quizPOS에 맞는 뜻 중 랜덤 선택 (없으면 전체 중 랜덤)
+function pickMeaning(meanings: string[], quizPOS: string | null): string {
+  const valid = meanings.filter(Boolean)
+  if (valid.length === 0) return ''
+  if (!quizPOS) return valid[Math.floor(Math.random() * valid.length)]
+  const matched = valid.filter(m => extractMeaningPOS(m) === quizPOS)
+  const pool = matched.length > 0 ? matched : valid
+  return pool[Math.floor(Math.random() * pool.length)]
+}
+
 type WordRow = {
   id: string
   word: string
@@ -133,15 +155,15 @@ async function handleWordQuiz({
   const shuffledVocab = shuffleArray(eligibleWords)
   const questionWords = shuffledVocab.slice(0, Math.min(count, shuffledVocab.length))
 
-  // 보기 풀: 사용자 단어장 전체 제외 (출제 단어뿐 아니라 아는 단어 모두)
-  const allUserVocabIds = new Set(collectedWords.map(w => w.id))
+  // 보기 풀: 이번 퀴즈 출제 단어만 제외 (사용자 단어장 전체 포함 가능)
+  const questionWordIds = new Set(questionWords.map(w => w.id))
 
   const { data: allWords } = await supabaseAdmin
     .from('words')
     .select('id, word, part_of_speech, meanings, paraphrasing')
 
   const candidateWords = (allWords || []).filter(
-    (w: { id: string }) => !allUserVocabIds.has(w.id)
+    (w: { id: string }) => !questionWordIds.has(w.id)
   ) as WordRow[]
 
   const questions = questionWords.map((correctWord) => {
@@ -183,38 +205,81 @@ async function handleWordQuiz({
       }
     }
 
-    // en→ko: meanings[0]이 정답 (기존 로직 + 보기 풀 수정)
-    const samePOS = candidateWords.filter(
-      w => w.part_of_speech && w.part_of_speech === correctWord.part_of_speech
+    // ─────────────────────────────────────────────────────────────────
+    // en→ko: POS 일관성 보장 (방향 C)
+    // ─────────────────────────────────────────────────────────────────
+
+    // 1. 정답 뜻 선택 + quiz POS 확정
+    const validMeanings = correctWord.meanings.filter(Boolean)
+    const chosenMeaning = validMeanings.length > 0
+      ? validMeanings[Math.floor(Math.random() * validMeanings.length)]
+      : correctWord.word
+    const quizPOS = extractMeaningPOS(chosenMeaning) // e.g. "형용사" | null
+    const correctOptionText = stripPOS(chosenMeaning)
+
+    // 2. 오답 후보 분류 (primary POS 기준 느슨한 매칭)
+    const correctPrimaryPOS = extractPrimaryPOS(correctWord.part_of_speech)
+
+    // tier1: 같은 primary POS + quizPOS 태그 뜻 보유
+    const tier1 = candidateWords.filter(w =>
+      extractPrimaryPOS(w.part_of_speech) === correctPrimaryPOS &&
+      correctPrimaryPOS !== '' &&
+      (quizPOS === null || w.meanings.some(m => extractMeaningPOS(m) === quizPOS))
     )
-    const diffPOS = candidateWords.filter(
-      w => w.part_of_speech !== correctWord.part_of_speech
+    // tier2: 같은 primary POS (quizPOS 태그 뜻 없음)
+    const tier2 = candidateWords.filter(w =>
+      extractPrimaryPOS(w.part_of_speech) === correctPrimaryPOS &&
+      correctPrimaryPOS !== '' &&
+      quizPOS !== null &&
+      !w.meanings.some(m => extractMeaningPOS(m) === quizPOS)
+    )
+    // tier3: 다른 POS (최후 폴백)
+    const tier3 = candidateWords.filter(w =>
+      extractPrimaryPOS(w.part_of_speech) !== correctPrimaryPOS ||
+      correctPrimaryPOS === ''
     )
 
-    const wrongAnswers: WordRow[] = []
-    for (const w of shuffleArray(samePOS)) {
-      if (wrongAnswers.length >= 3) break
-      wrongAnswers.push(w)
-    }
-    for (const w of shuffleArray(diffPOS)) {
-      if (wrongAnswers.length >= 3) break
-      wrongAnswers.push(w)
+    // 3. 오답 3개 선택 (중복 방지)
+    const usedTexts = new Set<string>([correctOptionText])
+    const wrongOptions: string[] = []
+
+    const tryAdd = (w: WordRow, pos: string | null) => {
+      if (wrongOptions.length >= 3) return
+      const text = stripPOS(pickMeaning(w.meanings, pos))
+      if (text && !usedTexts.has(text)) {
+        wrongOptions.push(text)
+        usedTexts.add(text)
+      }
     }
 
-    const allOptions = [correctWord, ...wrongAnswers]
-    const shuffledOptions = shuffleArray(allOptions)
-    const correctIndex = shuffledOptions.findIndex(w => w.id === correctWord.id)
+    for (const w of shuffleArray(tier1)) {
+      if (wrongOptions.length >= 3) break
+      tryAdd(w, quizPOS)
+    }
+    for (const w of shuffleArray(tier2)) {
+      if (wrongOptions.length >= 3) break
+      tryAdd(w, null) // quizPOS 태그 뜻 없으니 제약 없이
+    }
+    for (const w of shuffleArray(tier3)) {
+      if (wrongOptions.length >= 3) break
+      tryAdd(w, null)
+    }
+
+    // 4. 셔플 후 정답 인덱스 확정
+    type OptionEntry = { text: string; isCorrect: boolean }
+    const rawEntries: OptionEntry[] = [
+      { text: correctOptionText, isCorrect: true },
+      ...wrongOptions.map(t => ({ text: t, isCorrect: false })),
+    ]
+    const shuffledEntries = shuffleArray(rawEntries)
 
     return {
       id: crypto.randomUUID(),
       wordId: correctWord.id,
       type: 'en2ko' as const,
       question: correctWord.word,
-      options: shuffledOptions.map(w => {
-        const m = w.meanings.filter(Boolean)
-        return stripPOS(m.length > 0 ? m[Math.floor(Math.random() * m.length)] : w.word)
-      }),
-      correctIndex,
+      options: shuffledEntries.map(e => e.text),
+      correctIndex: shuffledEntries.findIndex(e => e.isCorrect),
     }
   })
 

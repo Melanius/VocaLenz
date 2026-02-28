@@ -3267,6 +3267,41 @@ CREATE INDEX ON meaning_correction_requests (user_id, status);
 
 ---
 
+## Phase 36: 퀴즈 en→en 패러프레이징 모드 + 보기 풀 개선 (완료)
+**완료 일시:** 2026-02-28
+**커밋:** `9cfe645`
+
+### 배경
+- 기존 퀴즈는 영→한 뜻 맞추기만 지원
+- 보기 풀에서 사용자 단어장에 있는 단어가 오답으로 나올 수 있는 버그 존재
+- TEPS 패러프레이징 유형 퀴즈 추가 요구
+
+### 구현 내용
+
+#### DB 수정: words 테이블 한글 paraphrasing 5개 영어로 교정 ✅
+- 조사 결과: words 257개 중 5개가 한글로 잘못 저장 (radiation, lukewarm, visionary, issue, redemption)
+- expressions 테이블은 124/132개가 한글 (설계 의도) → en→en 퀴즈에서 제외
+- 5개 단어 영어 paraphrasing으로 직접 수정
+
+#### 퀴즈 API 개선 (`/api/quiz`) ✅
+- `answerMode` 파라미터 추가 (`en2ko` | `en2en`)
+- **보기 풀 버그 수정**: 이번 세션 출제 단어만 제외 → 사용자 단어장 전체 제외
+  (`questionWordIds` → `allUserVocabIds` Set으로 교체)
+- expression 퀴즈도 동일한 보기 풀 버그 수정
+- `WordRow` 타입에 `paraphrasing: string[]` 추가
+- en→en 모드: `paraphrasing[0]`을 정답으로, 다른 단어의 `paraphrasing[0]`을 오답으로
+  (같은 품사 단어 우선, 사용자 단어장 전체 제외)
+
+#### 퀴즈 UI 개선 (`/quiz/page.tsx`) ✅
+- `AnswerMode` 타입 추가
+- 설정 화면에 "답 유형" 토글 추가 (단어 퀴즈 전용, 청해 구문 퀴즈는 항상 en→ko)
+- 진행 화면 상단 레이블: `단어 → 패러프레이징` 표시
+- 문제 안내 문구: `다음 단어와 같은 의미의 표현은?`
+
+**Phase 36 총 커밋:** 1개
+
+---
+
 ## 개발 완료 후 운영 체크리스트
 
 | 항목 | 내용 | 상태 |

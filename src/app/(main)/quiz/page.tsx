@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { useAuthContext } from '@/components/providers/auth-provider'
 import { toast } from '@/hooks/use-toast'
 import { getSessionId } from '@/lib/session'
+import confetti from 'canvas-confetti'
 
 type QuizType = 'word' | 'expression'
 type QuizState = 'idle' | 'loading' | 'playing' | 'result'
@@ -63,6 +64,12 @@ export default function QuizPage() {
   // 오답노트 상세 리뷰 펼침 상태 (wrongAnswers 인덱스 Set)
   const [expandedDetails, setExpandedDetails] = useState<Set<number>>(new Set())
 
+  // 애니메이션 — 연속 정답 콤보
+  const [streak, setStreak] = useState(0)
+  const [streakPopup, setStreakPopup] = useState<number | null>(null)
+  const [cardShake, setCardShake] = useState(false)
+  const streakTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   // 제한시간 설정
   const [timerEnabled, setTimerEnabled] = useState(false)
   const [timerSeconds, setTimerSeconds] = useState(10)
@@ -80,6 +87,17 @@ export default function QuizPage() {
     if (quizTimerRef.current) {
       clearInterval(quizTimerRef.current)
       quizTimerRef.current = null
+    }
+  }
+
+  const fireConfetti = (newStreak: number) => {
+    if (typeof window === 'undefined') return
+    if (newStreak >= 3) {
+      // 콤보 3연속 이상: 화려한 컨페티
+      confetti({ particleCount: 110, spread: 70, origin: { y: 0.55 }, colors: ['#FF6B6B', '#FFD93D', '#6BCB77', '#4D96FF', '#C084FC'] })
+    } else {
+      // 일반 정답: 작은 컨페티
+      confetti({ particleCount: 55, spread: 50, origin: { y: 0.65 }, colors: ['#4CAF50', '#81C784', '#FFD700', '#4D96FF'] })
     }
   }
 
@@ -129,6 +147,10 @@ export default function QuizPage() {
     const current = questions[currentIndex]
     if (!current) return
     const timeMs = Date.now() - questionStartTime.current
+    // 시간 초과 = 오답 처리: streak 리셋 + 카드 셰이크
+    setStreak(0)
+    setCardShake(true)
+    setTimeout(() => setCardShake(false), 600)
     setSelectedIndex(-1)
     setShowFeedback(true)
     const record: AnswerRecord = { question: current, selectedIndex: -1, isCorrect: false, timeMs }
@@ -174,6 +196,21 @@ export default function QuizPage() {
     }
   }, [currentIndex, state, timerEnabled, timerSeconds])
 
+  // 퀴즈 완료 100% 달성 시 축하 컨페티
+  useEffect(() => {
+    if (state !== 'result' || answers.length === 0) return
+    const correctCount = answers.filter((a) => a.isCorrect).length
+    if (correctCount === answers.length) {
+      const t1 = setTimeout(() => {
+        confetti({ particleCount: 90, angle: 60, spread: 55, origin: { x: 0, y: 0.7 } })
+      }, 300)
+      const t2 = setTimeout(() => {
+        confetti({ particleCount: 90, angle: 120, spread: 55, origin: { x: 1, y: 0.7 } })
+      }, 600)
+      return () => { clearTimeout(t1); clearTimeout(t2) }
+    }
+  }, [state]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const fetchQuiz = useCallback(async () => {
     if (memoFilterOn && memoTags.length === 0) {
       toast({ title: '메모 입력 필요', description: '메모 필터를 사용하려면 메모를 하나 이상 입력해 주세요.', variant: 'destructive' })
@@ -210,6 +247,9 @@ export default function QuizPage() {
       setShowFeedback(false)
       setReviewMarked(new Set())
       setExpandedDetails(new Set())
+      setStreak(0)
+      setStreakPopup(null)
+      setCardShake(false)
       questionStartTime.current = Date.now()
       setState('playing')
     } catch {
@@ -228,6 +268,21 @@ export default function QuizPage() {
     const timeMs = Date.now() - questionStartTime.current
     setSelectedIndex(index)
     setShowFeedback(true)
+
+    if (isCorrect) {
+      const newStreak = streak + 1
+      setStreak(newStreak)
+      fireConfetti(newStreak)
+      if (newStreak >= 2) {
+        setStreakPopup(newStreak)
+        if (streakTimerRef.current) clearTimeout(streakTimerRef.current)
+        streakTimerRef.current = setTimeout(() => setStreakPopup(null), 1300)
+      }
+    } else {
+      setStreak(0)
+      setCardShake(true)
+      setTimeout(() => setCardShake(false), 600)
+    }
 
     const record: AnswerRecord = { question: current, selectedIndex: index, isCorrect, timeMs }
     const newAnswers = [...answers, record]
@@ -249,6 +304,7 @@ export default function QuizPage() {
 
   const resetQuiz = () => {
     if (timerRef.current) clearTimeout(timerRef.current)
+    if (streakTimerRef.current) clearTimeout(streakTimerRef.current)
     stopQuizTimer()
     setState('idle')
     setQuestions([])
@@ -258,6 +314,9 @@ export default function QuizPage() {
     setShowFeedback(false)
     setReviewMarked(new Set())
     setExpandedDetails(new Set())
+    setStreak(0)
+    setStreakPopup(null)
+    setCardShake(false)
   }
 
   const markForReview = async (wordId: string, silent = false) => {
@@ -529,6 +588,15 @@ export default function QuizPage() {
 
     return (
       <div className="flex-1 overflow-y-auto p-4 md:p-6">
+        {/* 연속 정답 콤보 팝업 */}
+        {streakPopup !== null && (
+          <div className="fixed inset-0 pointer-events-none flex items-center justify-center z-50">
+            <div className="animate-streak-popup text-3xl font-black text-white drop-shadow-lg bg-black/30 backdrop-blur-sm px-7 py-3 rounded-2xl">
+              🔥 {streakPopup}연속!
+            </div>
+          </div>
+        )}
+
         <div className="max-w-2xl mx-auto space-y-6">
           {/* 진행률 + 제한시간 바 */}
           <div className="space-y-1.5">
@@ -568,7 +636,7 @@ export default function QuizPage() {
           </div>
 
           {/* 문제 */}
-          <Card>
+          <Card className={cardShake ? 'animate-shake' : ''}>
             <CardContent className="p-8 text-center relative">
               {/* 북마크 버튼 */}
               <button

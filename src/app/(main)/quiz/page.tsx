@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react'
 import Link from 'next/link'
-import { Brain, Loader2, RotateCcw, BookOpen, Trophy, XCircle, CheckCircle2, Shuffle, RefreshCw, Headphones, X, Bookmark, Timer } from 'lucide-react'
+import { Brain, Loader2, RotateCcw, BookOpen, Trophy, XCircle, CheckCircle2, Shuffle, RefreshCw, Headphones, X, Bookmark, Timer, ChevronDown } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { useAuthContext } from '@/components/providers/auth-provider'
@@ -59,6 +59,9 @@ export default function QuizPage() {
 
   // 복습 표시 처리 상태
   const [reviewMarked, setReviewMarked] = useState<Set<string>>(new Set())
+
+  // 오답노트 상세 리뷰 펼침 상태 (wrongAnswers 인덱스 Set)
+  const [expandedDetails, setExpandedDetails] = useState<Set<number>>(new Set())
 
   // 제한시간 설정
   const [timerEnabled, setTimerEnabled] = useState(false)
@@ -206,6 +209,7 @@ export default function QuizPage() {
       setSelectedIndex(null)
       setShowFeedback(false)
       setReviewMarked(new Set())
+      setExpandedDetails(new Set())
       questionStartTime.current = Date.now()
       setState('playing')
     } catch {
@@ -253,6 +257,7 @@ export default function QuizPage() {
     setSelectedIndex(null)
     setShowFeedback(false)
     setReviewMarked(new Set())
+    setExpandedDetails(new Set())
   }
 
   const markForReview = async (wordId: string, silent = false) => {
@@ -377,25 +382,40 @@ export default function QuizPage() {
           {/* 틀린 항목 */}
           {wrongAnswers.length > 0 && (
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between flex-wrap gap-2">
                 <h3 className="text-lg font-semibold flex items-center gap-2">
                   <XCircle className="h-5 w-5 text-red-500" />
                   틀린 {quizType === 'expression' ? '구문' : '단어'} ({wrongAnswers.length}개)
                 </h3>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => markAllForReview(wrongAnswers)}
-                >
-                  <RefreshCw className="h-3 w-3 mr-1" />
-                  모두 복습 표시
-                </Button>
+                <div className="flex items-center gap-2">
+                  <button
+                    className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    onClick={() => {
+                      const allExpanded = wrongAnswers.every((_, i) => expandedDetails.has(i))
+                      if (allExpanded) {
+                        setExpandedDetails(new Set())
+                      } else {
+                        setExpandedDetails(new Set(wrongAnswers.map((_, i) => i)))
+                      }
+                    }}
+                  >
+                    {wrongAnswers.every((_, i) => expandedDetails.has(i)) ? '전체 접기' : '전체 펼치기'}
+                  </button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => markAllForReview(wrongAnswers)}
+                  >
+                    <RefreshCw className="h-3 w-3 mr-1" />
+                    모두 복습 표시
+                  </Button>
+                </div>
               </div>
               {wrongAnswers.map((a, i) => (
                 <Card key={i}>
-                  <CardContent className="p-4 space-y-1">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
                         <p className="font-medium">{a.question.question}</p>
                         <p className="text-sm text-red-500">
                           내 답: {a.selectedIndex === -1 ? '⏱ 시간 초과' : a.question.options[a.selectedIndex]}
@@ -404,22 +424,72 @@ export default function QuizPage() {
                           정답: {a.question.options[a.question.correctIndex]}
                         </p>
                       </div>
-                      {reviewMarked.has(a.question.wordId) ? (
-                        <span className="text-xs text-orange-500 font-medium px-2 py-1 bg-orange-50 dark:bg-orange-900/30 rounded">
-                          복습 표시됨
-                        </span>
-                      ) : (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-orange-500 hover:text-orange-600 shrink-0"
-                          onClick={() => markForReview(a.question.wordId)}
+                      <div className="flex items-center gap-1 shrink-0">
+                        {reviewMarked.has(a.question.wordId) ? (
+                          <span className="text-xs text-orange-500 font-medium px-2 py-1 bg-orange-50 dark:bg-orange-900/30 rounded">
+                            복습 표시됨
+                          </span>
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-orange-500 hover:text-orange-600"
+                            onClick={() => markForReview(a.question.wordId)}
+                          >
+                            <RefreshCw className="h-3 w-3 mr-1" />
+                            복습 표시
+                          </Button>
+                        )}
+                        <button
+                          className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground"
+                          onClick={() => {
+                            setExpandedDetails((prev) => {
+                              const next = new Set(prev)
+                              if (next.has(i)) next.delete(i)
+                              else next.add(i)
+                              return next
+                            })
+                          }}
+                          title={expandedDetails.has(i) ? '접기' : '선택지 펼치기'}
                         >
-                          <RefreshCw className="h-3 w-3 mr-1" />
-                          복습 표시
-                        </Button>
-                      )}
+                          <ChevronDown
+                            className={`h-4 w-4 transition-transform duration-200 ${
+                              expandedDetails.has(i) ? 'rotate-180' : ''
+                            }`}
+                          />
+                        </button>
+                      </div>
                     </div>
+
+                    {/* 상세 리뷰: 4개 선택지 전체 표시 */}
+                    {expandedDetails.has(i) && (
+                      <div className="mt-3 pt-3 border-t space-y-1.5">
+                        {a.question.options.map((option, idx) => {
+                          const isCorrect = idx === a.question.correctIndex
+                          const isMyAnswer = idx === a.selectedIndex
+                          const isWrong = isMyAnswer && !isCorrect
+                          return (
+                            <div
+                              key={idx}
+                              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${
+                                isCorrect
+                                  ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300'
+                                  : isWrong
+                                    ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'
+                                    : 'text-muted-foreground'
+                              }`}
+                            >
+                              <span className="font-semibold w-5 shrink-0">
+                                {String.fromCharCode(65 + idx)}.
+                              </span>
+                              <span className="flex-1">{option}</span>
+                              {isCorrect && <CheckCircle2 className="h-4 w-4 shrink-0 text-green-500" />}
+                              {isWrong && <XCircle className="h-4 w-4 shrink-0 text-red-500" />}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               ))}

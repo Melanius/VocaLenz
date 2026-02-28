@@ -3391,6 +3391,31 @@ CREATE INDEX ON meaning_correction_requests (user_id, status);
 
 ---
 
+## Phase 41: 퀴즈 정답/오답 애니메이션 (완료)
+**완료 일시:** 2026-02-28
+**커밋:** `ce21ebd`
+
+### 구현 내용
+
+#### CSS 애니메이션 (`globals.css`) ✅
+- `@keyframes shake` + `.animate-shake`: 카드 좌우 흔들기 (0.55s)
+- `@keyframes streak-popup` + `.animate-streak-popup`: 콤보 팝업 등장→사라짐 (1.3s)
+
+#### 퀴즈 애니메이션 (`/quiz/page.tsx`) ✅
+- **정답 시**: `canvas-confetti` 버스트 (55 파티클, 초록/파랑/골드)
+- **3연속 이상 정답**: 더 화려한 컨페티 (110 파티클, 오색)
+- **오답 / 시간초과**: 문제 카드 좌우 셰이크 (`animate-shake`)
+- **2연속 이상 정답**: "🔥 N연속!" 팝업 오버레이 (중앙 블러, 1.3s 자동 사라짐)
+- **퀴즈 100% 완료**: 좌우 양쪽에서 컨페티 폭죽 2연발 (결과 화면 진입 시)
+- `streak`, `streakPopup`, `cardShake` 상태 추가
+- `streakTimerRef` 추가, `resetQuiz`/`fetchQuiz`에서 초기화
+
+**의존성 추가**: `canvas-confetti 1.9.4`, `@types/canvas-confetti 1.9.0`
+
+**Phase 41 총 커밋:** 1개
+
+---
+
 ## 개발 완료 후 운영 체크리스트
 
 | 항목 | 내용 | 상태 |

@@ -44,7 +44,8 @@ export async function POST(request: NextRequest) {
 
     // 사용자 인증 확인
     const supabase = await createServerSupabaseClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { session } } = await supabase.auth.getSession()
+    const user = session?.user ?? null
     const userId = user?.id || null
     const isAuthenticated = !!userId
 

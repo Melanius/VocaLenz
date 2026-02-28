@@ -11,7 +11,8 @@ const MAX_COMBINED_SIZE = 5000
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createServerSupabaseClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { session } } = await supabase.auth.getSession()
+    const user = session?.user ?? null
 
     if (!user) {
       return new Response(JSON.stringify({ error: '로그인이 필요합니다.' }), {

@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useEffect, useState, useCallback } from 'react'
-import { History, ChevronDown, Loader2, BookOpen, Headphones, Trash2 } from 'lucide-react'
+import { History, ChevronDown, Loader2, BookOpen, Headphones, Trash2, ArrowLeftRight } from 'lucide-react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
@@ -540,11 +540,33 @@ function SearchTypeToggle({
 }) {
   const isExpression = value === 'expression'
 
+  // compact 모드: 단일 토글 버튼 (아이콘만, 클릭 시 모드 전환)
+  if (compact) {
+    return (
+      <button
+        type="button"
+        onClick={() => onChange(isExpression ? 'word' : 'expression')}
+        title={isExpression ? '청해 구문 모드 (탭하면 단어 모드로 전환)' : '단어 모드 (탭하면 청해 구문 모드로 전환)'}
+        className={`flex items-center justify-center gap-1 rounded-xl px-2.5 h-12 shrink-0 transition-all duration-200 ${
+          isExpression
+            ? 'bg-indigo-100/70 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400'
+            : 'bg-muted text-primary'
+        }`}
+      >
+        {isExpression ? (
+          <Headphones className="h-4 w-4" />
+        ) : (
+          <BookOpen className="h-4 w-4" />
+        )}
+        <ArrowLeftRight className="h-3 w-3 opacity-40" />
+      </button>
+    )
+  }
+
+  // 일반 모드: 2-버튼 토글
   return (
     <div
-      className={`inline-flex items-center rounded-xl p-0.5 transition-colors duration-300 ${
-        compact ? '' : 'mx-auto flex justify-center'
-      } ${
+      className={`inline-flex items-center rounded-xl p-0.5 transition-colors duration-300 mx-auto flex justify-center ${
         isExpression
           ? 'bg-indigo-100/70 dark:bg-indigo-950/50'
           : 'bg-muted'
@@ -554,46 +576,34 @@ function SearchTypeToggle({
       <button
         type="button"
         onClick={() => onChange('word')}
-        className={`flex items-center gap-1.5 rounded-lg transition-all ${
-          compact ? 'px-2.5 py-1' : 'px-3 py-1.5'
-        } ${
+        className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 transition-all ${
           value === 'word'
             ? 'bg-primary/15 text-primary font-semibold shadow-sm'
             : 'text-muted-foreground hover:text-foreground'
         }`}
       >
-        <BookOpen className={compact ? 'h-3.5 w-3.5 shrink-0' : 'h-4 w-4 shrink-0'} />
-        {compact ? (
-          <span className="text-sm font-medium">단어</span>
-        ) : (
-          <div className="flex flex-col items-start leading-none">
-            <span className="text-sm font-semibold">단어</span>
-            <span className="text-[10px] opacity-60 font-normal mt-0.5">Word</span>
-          </div>
-        )}
+        <BookOpen className="h-4 w-4 shrink-0" />
+        <div className="flex flex-col items-start leading-none">
+          <span className="text-sm font-semibold">단어</span>
+          <span className="text-[10px] opacity-60 font-normal mt-0.5">Word</span>
+        </div>
       </button>
 
       {/* 청해 구문 (Phrase) */}
       <button
         type="button"
         onClick={() => onChange('expression')}
-        className={`flex items-center gap-1.5 rounded-lg transition-all ${
-          compact ? 'px-2.5 py-1' : 'px-3 py-1.5'
-        } ${
+        className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 transition-all ${
           value === 'expression'
             ? 'bg-primary/15 text-primary font-semibold shadow-sm'
             : 'text-muted-foreground hover:text-foreground'
         }`}
       >
-        <Headphones className={compact ? 'h-3.5 w-3.5 shrink-0' : 'h-4 w-4 shrink-0'} />
-        {compact ? (
-          <span className="text-sm font-medium">청해구문</span>
-        ) : (
-          <div className="flex flex-col items-start leading-none">
-            <span className="text-sm font-semibold">청해 구문</span>
-            <span className="text-[10px] opacity-60 font-normal mt-0.5">Phrase</span>
-          </div>
-        )}
+        <Headphones className="h-4 w-4 shrink-0" />
+        <div className="flex flex-col items-start leading-none">
+          <span className="text-sm font-semibold">청해 구문</span>
+          <span className="text-[10px] opacity-60 font-normal mt-0.5">Phrase</span>
+        </div>
       </button>
     </div>
   )

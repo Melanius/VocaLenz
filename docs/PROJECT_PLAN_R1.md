@@ -3416,6 +3416,60 @@ CREATE INDEX ON meaning_correction_requests (user_id, status);
 
 ---
 
+## Phase 42: 퀴즈 영→한 POS 일관성 + 보기 풀 확장 (완료)
+**완료 일시:** 2026-02-28
+**커밋:** `66e5521`
+
+### 구현 내용
+
+#### POS 추출 헬퍼 (`/api/quiz/route.ts`) ✅
+- `extractMeaningPOS(meaning)`: `"(형용사) ..."` 패턴에서 POS 태그 추출
+- `extractPrimaryPOS(pos)`: `part_of_speech` 슬래시/점 구분 → 1차 품사만
+- `pickMeaning(meanings, quizPOS)`: 동일 POS 뜻 우선, 없으면 전체 풀에서 선택
+
+#### 3-티어 오답 보기 선택 ✅
+- **Tier 1**: 동일 1차 POS + 동일 meaning POS
+- **Tier 2**: 동일 1차 POS만
+- **Tier 3**: POS 무관 fallback
+- `OptionEntry` 패턴으로 correctIndex 추적 (shuffle-safe)
+- 기존 사용자 단어장 전체 제외 → 퀴즈 출제 단어만 제외 (풀 확장)
+
+**Phase 42 총 커밋:** 1개
+
+---
+
+## Phase 43: 단어장 페이지 서버사이드 페이지네이션 (완료)
+**완료 일시:** 2026-02-28
+
+### 구현 내용
+
+#### API 페이지네이션 지원 ✅
+- `GET /api/vocabulary?mode=page&limit=20&offset=0&status=...&dateFrom=...&dateTo=...&memo=...`
+- `GET /api/vocabulary/expressions?mode=page&...` (동일 패턴)
+- 응답: `{ items, total, totalAll, hasMore }`
+  - `total`: 필터 적용 후 총 개수
+  - `totalAll`: 필터 무관 전체 개수 (합산 용량 표시용)
+- `mode=page` 없으면 레거시 동작 유지
+
+#### 새 훅 생성 ✅
+- `src/hooks/use-vocabulary-page.ts`
+- `src/hooks/use-expression-vocabulary-page.ts`
+- 기능: 20개씩 페이지네이션, 무한스크롤 `loadMore`, 셔플모드(전체 fetch+클라이언트 shuffle), race condition 방지, 인플레이스 toggle/memo 업데이트, 필터 불일치 아이템 즉시 제거, `removeItem`
+
+#### 단어장 페이지 리팩토링 ✅
+- 클라이언트 `useMemo` 필터링 제거 → 서버에서 처리
+- `displayLimit` 상태 제거 → 인피니트 스크롤이 직접 `loadMore` 호출
+- 메모 필터 300ms 디바운스
+- `handleToggleReview` 단순화: `toggleNeedsReview()` 직접 호출
+- 삭제 후 `removeItem()` → 서버 재호출 없음
+- 카드뷰: 끝 근처 도달 시 자동 `loadMore`, 진행 바 서버 `total` 기준
+
+**결과**: 300+ 단어장 초기 로드 3초+ → ~0.5초 (20개만 fetch)
+
+**Phase 43 총 커밋:** 1개
+
+---
+
 ## 개발 완료 후 운영 체크리스트
 
 | 항목 | 내용 | 상태 |

@@ -24,8 +24,8 @@ import {
 } from '@/components/ui/sheet'
 import { Sidebar } from '@/components/layout/sidebar'
 import { useAuthContext } from '@/components/providers/auth-provider'
-import { useVocabulary } from '@/hooks/use-vocabulary'
-import { useExpressionVocabulary } from '@/hooks/use-expression-vocabulary'
+import { useVocabularyPage } from '@/hooks/use-vocabulary-page'
+import { useExpressionVocabularyPage } from '@/hooks/use-expression-vocabulary-page'
 import { toast } from '@/hooks/use-toast'
 import { WordCard } from '@/components/search/word-card'
 import { ExpressionCard } from '@/components/search/expression-card'
@@ -63,35 +63,74 @@ interface RetryItem {
 
 type VocabTab = 'words' | 'expressions'
 
-const INITIAL_DISPLAY_COUNT = 20
-const LOAD_MORE_COUNT = 10
-
-function seededShuffle<T>(arr: T[], seed: number): T[] {
-  const result = [...arr]
-  let s = seed
-  for (let i = result.length - 1; i > 0; i--) {
-    s = (s * 1664525 + 1013904223) & 0x7fffffff
-    const j = s % (i + 1)
-    ;[result[i], result[j]] = [result[j], result[i]]
-  }
-  return result
-}
-
 export default function VocabularyPage() {
   const router = useRouter()
   const { user, loading: authLoading } = useAuthContext()
-  const { vocabularyItems, count, loading, toggleMemorized, updateMemo, refresh } = useVocabulary()
-  const { expressionItems, count: exprCount, loading: exprLoading, toggleMemorized: toggleExprMemorized, updateMemo: updateExprMemo, refresh: refreshExpr } = useExpressionVocabulary()
+
+  // Filter state
   const [vocabTab, setVocabTab] = useState<VocabTab>('words')
   const [filter, setFilter] = useState<FilterType>('all')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [datePopoverOpen, setDatePopoverOpen] = useState(false)
+  const [memoFilter, setMemoFilter] = useState('')
+  const [shuffleSeed, setShuffleSeed] = useState(0)
+
+  // Debounced memo filter (300ms) — avoids API call on every keystroke
+  const [debouncedMemo, setDebouncedMemo] = useState('')
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedMemo(memoFilter), 300)
+    return () => clearTimeout(t)
+  }, [memoFilter])
+
+  const hasDateFilter = dateFrom !== '' || dateTo !== ''
+
+  // Paginated hooks
+  const wordFilters = useMemo(
+    () => ({ status: filter, dateFrom, dateTo, memo: debouncedMemo, shuffleSeed }),
+    [filter, dateFrom, dateTo, debouncedMemo, shuffleSeed]
+  )
+  const exprFilters = wordFilters // same filters for both tabs
+
+  const {
+    items: vocabularyItems,
+    total: wordTotal,
+    totalAll: wordTotalAll,
+    loading,
+    loadingMore,
+    hasMore: wordHasMore,
+    loadMore: wordLoadMore,
+    refresh,
+    removeItem: removeWordItem,
+    toggleMemorized,
+    toggleNeedsReview,
+    updateMemo,
+  } = useVocabularyPage(wordFilters)
+
+  const {
+    items: expressionItems,
+    total: exprTotal,
+    totalAll: exprTotalAll,
+    loading: exprLoading,
+    loadingMore: exprLoadingMore,
+    hasMore: exprHasMore,
+    loadMore: exprLoadMore,
+    refresh: refreshExpr,
+    removeItem: removeExprItem,
+    toggleMemorized: toggleExprMemorized,
+    toggleNeedsReview: toggleExprNeedsReview,
+    updateMemo: updateExprMemo,
+  } = useExpressionVocabularyPage(exprFilters)
+
+  // Convenience derived values
+  const count = wordTotalAll
+  const exprCount = exprTotalAll
+
+  // UI state
   const [detailWord, setDetailWord] = useState<Word | null>(null)
   const [detailExpression, setDetailExpression] = useState<Expression | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [flippedCards, setFlippedCards] = useState<Set<string>>(new Set())
-  const [memoFilter, setMemoFilter] = useState('')
   const [customizerOpen, setCustomizerOpen] = useState(false)
 
   // 업로드 상태
@@ -109,8 +148,6 @@ export default function VocabularyPage() {
   const [uploadTotal, setUploadTotal] = useState(0)
   const [pendingDelete, setPendingDelete] = useState<UserVocabulary | null>(null)
   const [pendingExprDelete, setPendingExprDelete] = useState<UserExpression | null>(null)
-  const [shuffleSeed, setShuffleSeed] = useState(0)
-  const [displayLimit, setDisplayLimit] = useState(INITIAL_DISPLAY_COUNT)
   const [sentinelEl, setSentinelEl] = useState<HTMLDivElement | null>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [cardViewMode, setCardViewMode] = useState(false)
@@ -179,83 +216,55 @@ export default function VocabularyPage() {
       .catch(() => {})
   }, [user])
 
-  // 필터/탭/셔플 변경 시 표시 개수 + 카드뷰 인덱스 초기화
+  // 필터/탭/셔플 변경 시 카드뷰 인덱스 초기화
   useEffect(() => {
-    setDisplayLimit(INITIAL_DISPLAY_COUNT)
     setCardViewIndex(0)
   }, [vocabTab, filter, dateFrom, dateTo, memoFilter, shuffleSeed])
 
-  // 무한스크롤 Intersection Observer (콜백 ref 패턴: sentinel 마운트/언마운트 시 자동 연결)
-  const loadMore = useCallback(() => {
-    setDisplayLimit((prev) => prev + LOAD_MORE_COUNT)
-  }, [])
+  // 무한스크롤 Intersection Observer
+  const handleSentinelIntersect = useCallback(() => {
+    if (vocabTab === 'words') wordLoadMore()
+    else exprLoadMore()
+  }, [vocabTab, wordLoadMore, exprLoadMore])
 
   useEffect(() => {
     if (!sentinelEl) return
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting) loadMore()
+        if (entries[0].isIntersecting) handleSentinelIntersect()
       },
-      { rootMargin: '100px' }
+      { rootMargin: '200px' }
     )
     observer.observe(sentinelEl)
     return () => observer.disconnect()
-  }, [sentinelEl, loadMore])
+  }, [sentinelEl, handleSentinelIntersect])
+
+  // 카드뷰 모드 — 끝 근처 도달 시 자동으로 더 불러오기
+  useEffect(() => {
+    if (!cardViewMode) return
+    if (vocabTab === 'words' && wordHasMore && !loadingMore) {
+      if (cardViewIndex >= vocabularyItems.length - 3) wordLoadMore()
+    }
+    if (vocabTab === 'expressions' && exprHasMore && !exprLoadingMore) {
+      if (cardViewIndex >= expressionItems.length - 3) exprLoadMore()
+    }
+  }, [cardViewMode, vocabTab, cardViewIndex, vocabularyItems.length, expressionItems.length,
+      wordHasMore, exprHasMore, loadingMore, exprLoadingMore, wordLoadMore, exprLoadMore])
 
   const toggleFlip = (id: string) => {
     setFlippedCards((prev) => {
       const next = new Set(prev)
-      if (next.has(id)) {
-        next.delete(id)
-      } else {
-        next.add(id)
-      }
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
       return next
     })
   }
 
-  const hasDateFilter = dateFrom !== '' || dateTo !== ''
-
-  const memoFilterLower = memoFilter.trim().toLowerCase()
-
-  const filtered = useMemo(() => {
-    const items = vocabularyItems.filter((item) => {
-      if (filter === 'memorized' && !item.is_memorized) return false
-      if (filter === 'not-memorized' && item.is_memorized) return false
-      if (filter === 'needs-review' && !item.needs_review) return false
-      if (hasDateFilter && item.added_at) {
-        const addedDate = toKSTDateString(item.added_at)
-        if (dateFrom && addedDate < dateFrom) return false
-        if (dateTo && addedDate > dateTo) return false
-      }
-      if (memoFilterLower && !(item.memo || '').toLowerCase().includes(memoFilterLower)) return false
-      return true
-    })
-    return shuffleSeed ? seededShuffle(items, shuffleSeed) : items
-  }, [vocabularyItems, filter, dateFrom, dateTo, hasDateFilter, memoFilterLower, shuffleSeed])
-
-  const filteredExpressions = useMemo(() => {
-    const items = expressionItems.filter((item) => {
-      if (filter === 'memorized' && !item.is_memorized) return false
-      if (filter === 'not-memorized' && item.is_memorized) return false
-      if (filter === 'needs-review' && !item.needs_review) return false
-      if (hasDateFilter && item.added_at) {
-        const addedDate = toKSTDateString(item.added_at)
-        if (dateFrom && addedDate < dateFrom) return false
-        if (dateTo && addedDate > dateTo) return false
-      }
-      if (memoFilterLower && !(item.memo || '').toLowerCase().includes(memoFilterLower)) return false
-      return true
-    })
-    return shuffleSeed ? seededShuffle(items, shuffleSeed) : items
-  }, [expressionItems, filter, dateFrom, dateTo, hasDateFilter, memoFilterLower, shuffleSeed])
-
   // 카드뷰 모드 네비게이션
-  const cardViewTotal = vocabTab === 'words' ? filtered.length : filteredExpressions.length
-
   const goNextCard = useCallback(() => {
-    setCardViewIndex((prev) => Math.min(prev + 1, cardViewTotal - 1))
-  }, [cardViewTotal])
+    const maxIdx = (vocabTab === 'words' ? vocabularyItems : expressionItems).length - 1
+    setCardViewIndex((prev) => Math.min(prev + 1, maxIdx))
+  }, [vocabTab, vocabularyItems, expressionItems])
 
   const goPrevCard = useCallback(() => {
     setCardViewIndex((prev) => Math.max(prev - 1, 0))
@@ -273,14 +282,14 @@ export default function VocabularyPage() {
     }
   }
 
-  // 업로드 진행 목록: 단어별 최신 상태만 표시 (generating → added 중복 제거)
+  // 업로드 진행 목록: 단어별 최신 상태만 표시
   const displayProgress = useMemo(() => {
     const map = new Map<string, BulkProgress>()
     uploadProgress.forEach(p => map.set(p.word, p))
     return [...map.values()]
   }, [uploadProgress])
 
-  // 실제 완료 단어 수 (generating 제외한 terminal 상태만)
+  // 실제 완료 단어 수 (terminal 상태만)
   const completedCount = useMemo(
     () => uploadProgress.filter(p => p.status !== 'generating').length,
     [uploadProgress]
@@ -290,6 +299,9 @@ export default function VocabularyPage() {
     setDateFrom('')
     setDateTo('')
   }
+
+  // 현재 탭의 필터 활성 여부
+  const hasActiveFilter = filter !== 'all' || hasDateFilter || debouncedMemo !== ''
 
   if (authLoading) {
     return (
@@ -331,7 +343,7 @@ export default function VocabularyPage() {
       })
       if (res.ok) {
         toast({ title: '삭제 완료', description: 'Voca 리스트에서 제거되었습니다.' })
-        refresh()
+        removeWordItem(item.id)
       }
     } catch {
       toast({ title: '오류', description: '삭제에 실패했습니다.', variant: 'destructive' })
@@ -371,24 +383,13 @@ export default function VocabularyPage() {
   }
 
   const handleToggleReview = async (item: UserVocabulary) => {
-    try {
-      const res = await fetch('/api/vocabulary', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ vocabularyId: item.id, needs_review: !item.needs_review }),
-      })
-      if (res.ok) {
-        refresh()
-        toast({
-          title: item.needs_review ? '오답 해제' : '퀴즈 오답 표시',
-          description: item.needs_review
-            ? '오답 표시를 해제했습니다.'
-            : '퀴즈 오답으로 표시했습니다.',
-        })
-      }
-    } catch {
-      toast({ title: '오류', description: '수정에 실패했습니다.', variant: 'destructive' })
-    }
+    await toggleNeedsReview(item.id, !item.needs_review)
+    toast({
+      title: item.needs_review ? '오답 해제' : '퀴즈 오답 표시',
+      description: item.needs_review
+        ? '오답 표시를 해제했습니다.'
+        : '퀴즈 오답으로 표시했습니다.',
+    })
   }
 
   // --- Expression handlers ---
@@ -406,7 +407,7 @@ export default function VocabularyPage() {
       })
       if (res.ok) {
         toast({ title: '삭제 완료', description: 'Lenz 픽에서 제거되었습니다.' })
-        refreshExpr()
+        removeExprItem(item.id)
       }
     } catch {
       toast({ title: '오류', description: '삭제에 실패했습니다.', variant: 'destructive' })
@@ -424,24 +425,13 @@ export default function VocabularyPage() {
   }
 
   const handleExprToggleReview = async (item: UserExpression) => {
-    try {
-      const res = await fetch('/api/vocabulary/expressions', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userExpressionId: item.id, needs_review: !item.needs_review }),
-      })
-      if (res.ok) {
-        refreshExpr()
-        toast({
-          title: item.needs_review ? '오답 해제' : '퀴즈 오답 표시',
-          description: item.needs_review
-            ? '오답 표시를 해제했습니다.'
-            : '퀴즈 오답으로 표시했습니다.',
-        })
-      }
-    } catch {
-      toast({ title: '오류', description: '수정에 실패했습니다.', variant: 'destructive' })
-    }
+    await toggleExprNeedsReview(item.id, !item.needs_review)
+    toast({
+      title: item.needs_review ? '오답 해제' : '퀴즈 오답 표시',
+      description: item.needs_review
+        ? '오답 표시를 해제했습니다.'
+        : '퀴즈 오답으로 표시했습니다.',
+    })
   }
 
   const toggleRetryItem = (idx: number) => {
@@ -761,8 +751,8 @@ export default function VocabularyPage() {
             }`}
           >
             <BookOpen className="h-3.5 w-3.5 shrink-0" />
-            {filtered.length < count
-              ? `Voca (${filtered.length}/${count})`
+            {wordTotal < count
+              ? `Voca (${wordTotal}/${count})`
               : `Voca 리스트 (${count})`}
           </button>
           <button
@@ -775,8 +765,8 @@ export default function VocabularyPage() {
             }`}
           >
             <Headphones className="h-3.5 w-3.5 shrink-0" />
-            {filteredExpressions.length < exprCount
-              ? `Lenz (${filteredExpressions.length}/${exprCount})`
+            {exprTotal < exprCount
+              ? `Lenz (${exprTotal}/${exprCount})`
               : `Lenz 픽 (${exprCount})`}
           </button>
         </div>
@@ -950,15 +940,15 @@ export default function VocabularyPage() {
                 <div key={i} className="h-[180px] bg-muted animate-pulse rounded-xl" />
               ))}
             </div>
-          ) : filtered.length === 0 ? (
+          ) : vocabularyItems.length === 0 ? (
             <div className="text-center py-16 space-y-3">
               <Star className="h-10 w-10 mx-auto text-muted-foreground" />
               <p className="text-muted-foreground">
-                {filter !== 'all'
+                {hasActiveFilter
                   ? '해당 필터에 맞는 단어가 없습니다.'
                   : 'Voca 리스트에 추가한 단어가 없습니다.'}
               </p>
-              {filter === 'all' && (
+              {!hasActiveFilter && (
                 <p className="text-sm text-muted-foreground">
                   &ldquo;단어&rdquo; 모드로 검색 후 자동 저장되거나, 일괄 업로드를 이용하세요.
                 </p>
@@ -978,43 +968,48 @@ export default function VocabularyPage() {
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
-                <span className="min-w-[64px] text-center font-medium tabular-nums">
-                  {cardViewIndex + 1} / {filtered.length}
+                <span className="min-w-[80px] text-center font-medium tabular-nums">
+                  {cardViewIndex + 1} / {wordTotal || vocabularyItems.length}
                 </span>
                 <Button
                   variant="ghost"
                   size="icon"
                   className="h-8 w-8"
                   onClick={goNextCard}
-                  disabled={cardViewIndex >= filtered.length - 1}
+                  disabled={cardViewIndex >= vocabularyItems.length - 1 && !wordHasMore && !loadingMore}
                 >
-                  <ChevronRight className="h-4 w-4" />
+                  {loadingMore && cardViewIndex >= vocabularyItems.length - 1
+                    ? <Loader2 className="h-4 w-4 animate-spin" />
+                    : <ChevronRight className="h-4 w-4" />
+                  }
                 </Button>
               </div>
               {/* 카드 */}
-              <div
-                className="w-full max-w-sm"
-                onTouchStart={handleCardTouchStart}
-                onTouchEnd={handleCardTouchEnd}
-              >
-                <VocabularyFlipCard
-                  key={filtered[cardViewIndex].id}
-                  item={filtered[cardViewIndex]}
-                  isFlipped={flippedCards.has(filtered[cardViewIndex].id)}
-                  onFlip={() => toggleFlip(filtered[cardViewIndex].id)}
-                  onDetail={handleDetail}
-                  onToggleMemorized={handleToggle}
-                  onToggleReview={handleToggleReview}
-                  onDelete={handleDelete}
-                  onMemoUpdate={updateMemo}
-                />
-              </div>
+              {vocabularyItems[cardViewIndex] && (
+                <div
+                  className="w-full max-w-sm"
+                  onTouchStart={handleCardTouchStart}
+                  onTouchEnd={handleCardTouchEnd}
+                >
+                  <VocabularyFlipCard
+                    key={vocabularyItems[cardViewIndex].id}
+                    item={vocabularyItems[cardViewIndex]}
+                    isFlipped={flippedCards.has(vocabularyItems[cardViewIndex].id)}
+                    onFlip={() => toggleFlip(vocabularyItems[cardViewIndex].id)}
+                    onDetail={handleDetail}
+                    onToggleMemorized={handleToggle}
+                    onToggleReview={handleToggleReview}
+                    onDelete={handleDelete}
+                    onMemoUpdate={updateMemo}
+                  />
+                </div>
+              )}
               {/* 하단 진행 바 */}
               <div className="w-full max-w-sm">
                 <div className="h-1 rounded-full bg-muted overflow-hidden">
                   <div
                     className="h-full bg-primary rounded-full transition-all duration-200"
-                    style={{ width: `${((cardViewIndex + 1) / filtered.length) * 100}%` }}
+                    style={{ width: `${wordTotal > 0 ? ((cardViewIndex + 1) / wordTotal) * 100 : 0}%` }}
                   />
                 </div>
               </div>
@@ -1022,7 +1017,7 @@ export default function VocabularyPage() {
           ) : (
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                {filtered.slice(0, displayLimit).map((item) => (
+                {vocabularyItems.map((item) => (
                   <VocabularyFlipCard
                     key={item.id}
                     item={item}
@@ -1036,11 +1031,12 @@ export default function VocabularyPage() {
                   />
                 ))}
               </div>
-              {displayLimit < filtered.length && (
+              {wordHasMore && (
                 <div ref={setSentinelEl} className="flex justify-center py-4">
-                  <span className="text-xs text-muted-foreground">
-                    {filtered.length - displayLimit}개 더 보기...
-                  </span>
+                  {loadingMore
+                    ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                    : <span className="text-xs text-muted-foreground">{wordTotal - vocabularyItems.length}개 더 불러오는 중...</span>
+                  }
                 </div>
               )}
             </>
@@ -1052,15 +1048,15 @@ export default function VocabularyPage() {
                 <div key={i} className="h-[180px] bg-muted animate-pulse rounded-xl" />
               ))}
             </div>
-          ) : filteredExpressions.length === 0 ? (
+          ) : expressionItems.length === 0 ? (
             <div className="text-center py-16 space-y-3">
               <Star className="h-10 w-10 mx-auto text-muted-foreground" />
               <p className="text-muted-foreground">
-                {filter !== 'all'
+                {hasActiveFilter
                   ? '해당 필터에 맞는 구문이 없습니다.'
                   : 'Lenz 픽에 추가한 청해 구문이 없습니다.'}
               </p>
-              {filter === 'all' && (
+              {!hasActiveFilter && (
                 <p className="text-sm text-muted-foreground">
                   &ldquo;청해 구문&rdquo; 모드로 검색 후 자동 저장되거나, 일괄 업로드를 이용하세요.
                 </p>
@@ -1079,41 +1075,46 @@ export default function VocabularyPage() {
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
-                <span className="min-w-[64px] text-center font-medium tabular-nums">
-                  {cardViewIndex + 1} / {filteredExpressions.length}
+                <span className="min-w-[80px] text-center font-medium tabular-nums">
+                  {cardViewIndex + 1} / {exprTotal || expressionItems.length}
                 </span>
                 <Button
                   variant="ghost"
                   size="icon"
                   className="h-8 w-8"
                   onClick={goNextCard}
-                  disabled={cardViewIndex >= filteredExpressions.length - 1}
+                  disabled={cardViewIndex >= expressionItems.length - 1 && !exprHasMore && !exprLoadingMore}
                 >
-                  <ChevronRight className="h-4 w-4" />
+                  {exprLoadingMore && cardViewIndex >= expressionItems.length - 1
+                    ? <Loader2 className="h-4 w-4 animate-spin" />
+                    : <ChevronRight className="h-4 w-4" />
+                  }
                 </Button>
               </div>
-              <div
-                className="w-full max-w-sm"
-                onTouchStart={handleCardTouchStart}
-                onTouchEnd={handleCardTouchEnd}
-              >
-                <ExpressionFlipCard
-                  key={filteredExpressions[cardViewIndex].id}
-                  item={filteredExpressions[cardViewIndex]}
-                  isFlipped={flippedCards.has(filteredExpressions[cardViewIndex].id)}
-                  onFlip={() => toggleFlip(filteredExpressions[cardViewIndex].id)}
-                  onDetail={handleExprDetail}
-                  onToggleMemorized={handleExprToggle}
-                  onToggleReview={handleExprToggleReview}
-                  onDelete={handleExprDelete}
-                  onMemoUpdate={updateExprMemo}
-                />
-              </div>
+              {expressionItems[cardViewIndex] && (
+                <div
+                  className="w-full max-w-sm"
+                  onTouchStart={handleCardTouchStart}
+                  onTouchEnd={handleCardTouchEnd}
+                >
+                  <ExpressionFlipCard
+                    key={expressionItems[cardViewIndex].id}
+                    item={expressionItems[cardViewIndex]}
+                    isFlipped={flippedCards.has(expressionItems[cardViewIndex].id)}
+                    onFlip={() => toggleFlip(expressionItems[cardViewIndex].id)}
+                    onDetail={handleExprDetail}
+                    onToggleMemorized={handleExprToggle}
+                    onToggleReview={handleExprToggleReview}
+                    onDelete={handleExprDelete}
+                    onMemoUpdate={updateExprMemo}
+                  />
+                </div>
+              )}
               <div className="w-full max-w-sm">
                 <div className="h-1 rounded-full bg-muted overflow-hidden">
                   <div
                     className="h-full bg-primary rounded-full transition-all duration-200"
-                    style={{ width: `${((cardViewIndex + 1) / filteredExpressions.length) * 100}%` }}
+                    style={{ width: `${exprTotal > 0 ? ((cardViewIndex + 1) / exprTotal) * 100 : 0}%` }}
                   />
                 </div>
               </div>
@@ -1121,7 +1122,7 @@ export default function VocabularyPage() {
           ) : (
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                {filteredExpressions.slice(0, displayLimit).map((item) => (
+                {expressionItems.map((item) => (
                   <ExpressionFlipCard
                     key={item.id}
                     item={item}
@@ -1135,11 +1136,12 @@ export default function VocabularyPage() {
                   />
                 ))}
               </div>
-              {displayLimit < filteredExpressions.length && (
+              {exprHasMore && (
                 <div ref={setSentinelEl} className="flex justify-center py-4">
-                  <span className="text-xs text-muted-foreground">
-                    {filteredExpressions.length - displayLimit}개 더 보기...
-                  </span>
+                  {exprLoadingMore
+                    ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                    : <span className="text-xs text-muted-foreground">{exprTotal - expressionItems.length}개 더 불러오는 중...</span>
+                  }
                 </div>
               )}
             </>

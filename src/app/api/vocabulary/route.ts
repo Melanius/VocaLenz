@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { logEvent } from '@/lib/event-logger'
+import { kstDateToUTCStart, kstDateToUTCEnd } from '@/lib/date-utils'
 
 const MAX_COMBINED_SIZE = 5000
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const supabase = await createServerSupabaseClient()
     const { data: { user } } = await supabase.auth.getUser()
@@ -14,6 +15,51 @@ export async function GET() {
       return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
     }
 
+    const { searchParams } = new URL(request.url)
+    const mode = searchParams.get('mode') // 'page' | null (null = legacy)
+    const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '20'), 1), 9999)
+    const offset = Math.max(parseInt(searchParams.get('offset') || '0'), 0)
+    const status = searchParams.get('status') || 'all'
+    const dateFrom = searchParams.get('dateFrom') || null
+    const dateTo = searchParams.get('dateTo') || null
+    const memo = searchParams.get('memo') || null
+
+    if (mode === 'page') {
+      // Paginated mode: apply filters + pagination, return {items, total, totalAll, hasMore}
+      let q = supabaseAdmin
+        .from('user_vocabulary')
+        .select('*, word:words(*)', { count: 'exact' })
+        .eq('user_id', user.id)
+
+      if (status === 'memorized') q = q.eq('is_memorized', true)
+      else if (status === 'not-memorized') q = q.eq('is_memorized', false)
+      else if (status === 'needs-review') q = q.eq('needs_review', true)
+      if (dateFrom) q = q.gte('added_at', kstDateToUTCStart(dateFrom))
+      if (dateTo) q = q.lte('added_at', kstDateToUTCEnd(dateTo))
+      if (memo) q = q.ilike('memo', `%${memo}%`)
+
+      const [pagedResult, countResult] = await Promise.all([
+        q.order('added_at', { ascending: false }).range(offset, offset + limit - 1),
+        supabaseAdmin
+          .from('user_vocabulary')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', user.id),
+      ])
+
+      if (pagedResult.error || countResult.error) {
+        return NextResponse.json({ error: '단어장 조회에 실패했습니다.' }, { status: 500 })
+      }
+
+      const total = pagedResult.count ?? 0
+      return NextResponse.json({
+        items: pagedResult.data || [],
+        total,
+        totalAll: countResult.count ?? 0,
+        hasMore: total > offset + limit,
+      })
+    }
+
+    // Legacy mode (no mode param): return all items
     const { data, error } = await supabaseAdmin
       .from('user_vocabulary')
       .select('*, word:words(*)')

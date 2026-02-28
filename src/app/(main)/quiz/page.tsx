@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import Link from 'next/link'
-import { Brain, Loader2, RotateCcw, BookOpen, Trophy, XCircle, CheckCircle2, Shuffle, RefreshCw, Headphones, X } from 'lucide-react'
+import { Brain, Loader2, RotateCcw, BookOpen, Trophy, XCircle, CheckCircle2, Shuffle, RefreshCw, Headphones, X, Bookmark, Timer } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { useAuthContext } from '@/components/providers/auth-provider'
@@ -60,6 +60,26 @@ export default function QuizPage() {
   // 복습 표시 처리 상태
   const [reviewMarked, setReviewMarked] = useState<Set<string>>(new Set())
 
+  // 제한시간 설정
+  const [timerEnabled, setTimerEnabled] = useState(false)
+  const [timerSeconds, setTimerSeconds] = useState(10)
+  const [timeLeft, setTimeLeft] = useState(10)
+  const quizTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const handleTimeoutRef = useRef<() => void>(() => {})
+  const showFeedbackRef = useRef(false)
+  const selectedIndexRef = useRef<number | null>(null)
+
+  // 매 렌더마다 ref를 최신 state로 동기화 (stale closure 방지)
+  showFeedbackRef.current = showFeedback
+  selectedIndexRef.current = selectedIndex
+
+  const stopQuizTimer = () => {
+    if (quizTimerRef.current) {
+      clearInterval(quizTimerRef.current)
+      quizTimerRef.current = null
+    }
+  }
+
   const buildSourceParam = () => {
     const sources: string[] = []
     if (sourceUnmemorized) sources.push('unmemorized')
@@ -74,6 +94,82 @@ export default function QuizPage() {
       setMemoTags((prev) => [...prev, tag])
     }
   }
+
+  const sendQuizComplete = async (finalAnswers: AnswerRecord[]) => {
+    try {
+      const correctCount = finalAnswers.filter((a) => a.isCorrect).length
+      const totalTime = finalAnswers.reduce((sum, a) => sum + a.timeMs, 0)
+      await fetch('/api/quiz/complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId: getSessionId(),
+          answers: finalAnswers.map((a) => ({
+            word: a.question.question,
+            correct: a.isCorrect,
+            timeMs: a.timeMs,
+          })),
+          total: finalAnswers.length,
+          correct: correctCount,
+          score: Math.round((correctCount / finalAnswers.length) * 100),
+          avgTimeMs: Math.round(totalTime / finalAnswers.length),
+        }),
+      })
+    } catch {
+      // fire-and-forget
+    }
+  }
+
+  // 타임아웃 핸들러 — 매 렌더마다 최신 closure로 갱신
+  handleTimeoutRef.current = () => {
+    if (showFeedbackRef.current || selectedIndexRef.current !== null) return
+    const current = questions[currentIndex]
+    if (!current) return
+    const timeMs = Date.now() - questionStartTime.current
+    setSelectedIndex(-1)
+    setShowFeedback(true)
+    const record: AnswerRecord = { question: current, selectedIndex: -1, isCorrect: false, timeMs }
+    const newAnswers = [...answers, record]
+    setAnswers(newAnswers)
+    timerRef.current = setTimeout(() => {
+      if (currentIndex + 1 < questions.length) {
+        setCurrentIndex((prev) => prev + 1)
+        setSelectedIndex(null)
+        setShowFeedback(false)
+        questionStartTime.current = Date.now()
+      } else {
+        sendQuizComplete(newAnswers)
+        setState('result')
+      }
+    }, 1500)
+  }
+
+  // 제한시간 카운트다운 effect
+  useEffect(() => {
+    if (state !== 'playing' || !timerEnabled) {
+      setTimeLeft(timerSeconds)
+      return
+    }
+    setTimeLeft(timerSeconds)
+    const startTime = Date.now()
+    const interval = setInterval(() => {
+      const elapsed = (Date.now() - startTime) / 1000
+      const remaining = timerSeconds - elapsed
+      if (remaining <= 0) {
+        clearInterval(interval)
+        quizTimerRef.current = null
+        setTimeLeft(0)
+        handleTimeoutRef.current()
+        return
+      }
+      setTimeLeft(remaining)
+    }, 50)
+    quizTimerRef.current = interval
+    return () => {
+      clearInterval(interval)
+      quizTimerRef.current = null
+    }
+  }, [currentIndex, state, timerEnabled, timerSeconds])
 
   const fetchQuiz = useCallback(async () => {
     if (memoFilterOn && memoTags.length === 0) {
@@ -121,6 +217,7 @@ export default function QuizPage() {
 
   const handleAnswer = (index: number) => {
     if (showFeedback || selectedIndex !== null) return
+    stopQuizTimer()
 
     const current = questions[currentIndex]
     const isCorrect = index === current.correctIndex
@@ -146,33 +243,9 @@ export default function QuizPage() {
     }, delay)
   }
 
-  const sendQuizComplete = async (finalAnswers: AnswerRecord[]) => {
-    try {
-      const correctCount = finalAnswers.filter((a) => a.isCorrect).length
-      const totalTime = finalAnswers.reduce((sum, a) => sum + a.timeMs, 0)
-      await fetch('/api/quiz/complete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sessionId: getSessionId(),
-          answers: finalAnswers.map((a) => ({
-            word: a.question.question,
-            correct: a.isCorrect,
-            timeMs: a.timeMs,
-          })),
-          total: finalAnswers.length,
-          correct: correctCount,
-          score: Math.round((correctCount / finalAnswers.length) * 100),
-          avgTimeMs: Math.round(totalTime / finalAnswers.length),
-        }),
-      })
-    } catch {
-      // fire-and-forget
-    }
-  }
-
   const resetQuiz = () => {
     if (timerRef.current) clearTimeout(timerRef.current)
+    stopQuizTimer()
     setState('idle')
     setQuestions([])
     setCurrentIndex(0)
@@ -182,7 +255,7 @@ export default function QuizPage() {
     setReviewMarked(new Set())
   }
 
-  const markForReview = async (wordId: string) => {
+  const markForReview = async (wordId: string, silent = false) => {
     try {
       const type = quizType === 'expression' ? 'expression' : 'word'
       const res = await fetch(`/api/vocabulary/review?wordId=${wordId}&type=${type}`, {
@@ -190,10 +263,14 @@ export default function QuizPage() {
       })
       if (res.ok) {
         setReviewMarked((prev) => new Set(prev).add(wordId))
-        toast({ title: '복습 표시 완료', description: '단어장에서 복습 필요 표시가 되었습니다.' })
+        if (!silent) {
+          toast({ title: '복습 표시 완료', description: '단어장에서 복습 필요 표시가 되었습니다.' })
+        }
       }
     } catch {
-      toast({ title: '오류', description: '복습 표시에 실패했습니다.', variant: 'destructive' })
+      if (!silent) {
+        toast({ title: '오류', description: '복습 표시에 실패했습니다.', variant: 'destructive' })
+      }
     }
   }
 
@@ -321,7 +398,7 @@ export default function QuizPage() {
                       <div className="flex-1">
                         <p className="font-medium">{a.question.question}</p>
                         <p className="text-sm text-red-500">
-                          내 답: {a.question.options[a.selectedIndex]}
+                          내 답: {a.selectedIndex === -1 ? '⏱ 시간 초과' : a.question.options[a.selectedIndex]}
                         </p>
                         <p className="text-sm text-green-600">
                           정답: {a.question.options[a.question.correctIndex]}
@@ -375,15 +452,24 @@ export default function QuizPage() {
   if (state === 'playing') {
     const current = questions[currentIndex]
     const progress = ((currentIndex + 1) / questions.length) * 100
+    const isCurrentBookmarked = reviewMarked.has(current.wordId)
+    const timerProgress = timerEnabled && timerSeconds > 0 ? (timeLeft / timerSeconds) * 100 : 100
+    const timerBarColor =
+      timerProgress > 50 ? 'bg-green-500' : timerProgress > 25 ? 'bg-yellow-500' : 'bg-red-500'
 
     return (
       <div className="flex-1 overflow-y-auto p-4 md:p-6">
         <div className="max-w-2xl mx-auto space-y-6">
-          {/* 진행률 */}
-          <div className="space-y-2">
+          {/* 진행률 + 제한시간 바 */}
+          <div className="space-y-1.5">
             <div className="flex justify-between text-sm text-muted-foreground">
               <span>{currentIndex + 1} / {questions.length}</span>
               <span className="flex items-center gap-1">
+                {timerEnabled && (
+                  <span className={`font-mono font-medium mr-1 ${timerProgress <= 25 ? 'text-red-500' : timerProgress <= 50 ? 'text-yellow-500' : 'text-green-600'}`}>
+                    {Math.ceil(timeLeft)}s
+                  </span>
+                )}
                 {quizType === 'expression' ? (
                   <><Headphones className="h-3.5 w-3.5" /> 청해 구문 → 한국어</>
                 ) : questions[currentIndex]?.type === 'en2en' ? (
@@ -393,17 +479,42 @@ export default function QuizPage() {
                 )}
               </span>
             </div>
+            {/* 문제 진행 바 */}
             <div className="h-2 bg-muted rounded-full overflow-hidden">
               <div
                 className="h-full bg-primary rounded-full transition-all duration-300"
                 style={{ width: `${progress}%` }}
               />
             </div>
+            {/* 제한시간 바 */}
+            {timerEnabled && (
+              <div className="h-1 bg-muted rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full ${timerBarColor}`}
+                  style={{ width: `${timerProgress}%` }}
+                />
+              </div>
+            )}
           </div>
 
           {/* 문제 */}
           <Card>
-            <CardContent className="p-8 text-center">
+            <CardContent className="p-8 text-center relative">
+              {/* 북마크 버튼 */}
+              <button
+                onClick={() => {
+                  if (!isCurrentBookmarked) markForReview(current.wordId, true)
+                }}
+                className={`absolute top-3 right-3 p-1.5 rounded-lg transition-colors ${
+                  isCurrentBookmarked
+                    ? 'text-orange-500'
+                    : 'text-muted-foreground hover:text-orange-400 hover:bg-muted'
+                }`}
+                title={isCurrentBookmarked ? '복습 표시됨' : '복습 표시'}
+              >
+                <Bookmark className={`h-5 w-5 ${isCurrentBookmarked ? 'fill-current' : ''}`} />
+              </button>
+
               <p className="text-sm text-muted-foreground mb-2">
                 {quizType === 'expression'
                   ? '다음 구문의 뜻은?'
@@ -412,6 +523,13 @@ export default function QuizPage() {
                     : '다음 단어의 뜻은?'}
               </p>
               <p className="text-3xl font-bold">{current.question}</p>
+              {/* 시간 초과 표시 */}
+              {showFeedback && selectedIndex === -1 && (
+                <p className="text-sm text-red-500 mt-3 flex items-center justify-center gap-1">
+                  <Timer className="h-4 w-4" />
+                  시간 초과
+                </p>
+              )}
             </CardContent>
           </Card>
 
@@ -554,6 +672,49 @@ export default function QuizPage() {
                 />
                 <span className="text-sm font-semibold w-14 text-right">{questionCount}문제</span>
               </div>
+            </div>
+
+            {/* 제한시간 */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium flex items-center gap-1.5">
+                  <Timer className="h-4 w-4 text-muted-foreground" />
+                  제한시간
+                </label>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={timerEnabled}
+                  onClick={() => setTimerEnabled((v) => !v)}
+                  className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
+                    timerEnabled ? 'bg-primary' : 'bg-muted-foreground/30'
+                  }`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                      timerEnabled ? 'translate-x-4' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+              {timerEnabled && (
+                <div className="flex gap-2">
+                  {[5, 10, 15].map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => setTimerSeconds(s)}
+                      className={`flex-1 py-1.5 rounded-lg text-sm font-medium border transition-all ${
+                        timerSeconds === s
+                          ? 'bg-primary text-primary-foreground border-primary'
+                          : 'bg-background text-muted-foreground border-border hover:border-foreground hover:text-foreground'
+                      }`}
+                    >
+                      {s}초
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* 퀴즈 범위 */}

@@ -11,11 +11,12 @@ import { getSessionId } from '@/lib/session'
 
 type QuizType = 'word' | 'expression'
 type QuizState = 'idle' | 'loading' | 'playing' | 'result'
+type AnswerMode = 'en2ko' | 'en2en'
 
 interface QuizQuestionData {
   id: string
   wordId: string
-  type: 'en2ko'
+  type: 'en2ko' | 'en2en'
   question: string
   options: string[]
   correctIndex: number
@@ -31,6 +32,7 @@ interface AnswerRecord {
 export default function QuizPage() {
   const { user, loading: authLoading } = useAuthContext()
   const [quizType, setQuizType] = useState<QuizType>('word')
+  const [answerMode, setAnswerMode] = useState<AnswerMode>('en2ko')
   const [state, setState] = useState<QuizState>('idle')
   const [questionCount, setQuestionCount] = useState<number>(10)
   const [totalWords, setTotalWords] = useState<number>(0)
@@ -83,7 +85,8 @@ export default function QuizPage() {
     setState('loading')
     try {
       const sid = getSessionId()
-      let url = `/api/quiz?count=${questionCount}&source=${source}&sessionId=${sid}&quizType=${quizType}`
+      const effectiveAnswerMode = quizType === 'expression' ? 'en2ko' : answerMode
+      let url = `/api/quiz?count=${questionCount}&source=${source}&sessionId=${sid}&quizType=${quizType}&answerMode=${effectiveAnswerMode}`
       if (dateFilterOn && dateFrom) {
         url += `&dateFrom=${dateFrom}`
         if (dateTo) url += `&dateTo=${dateTo}`
@@ -114,7 +117,7 @@ export default function QuizPage() {
       setState('idle')
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [quizType, questionCount, sourceUnmemorized, sourceMemorized, sourceQuizWrong, dateFilterOn, dateFrom, dateTo, memoFilterOn, memoTags])
+  }, [quizType, answerMode, questionCount, sourceUnmemorized, sourceMemorized, sourceQuizWrong, dateFilterOn, dateFrom, dateTo, memoFilterOn, memoTags])
 
   const handleAnswer = (index: number) => {
     if (showFeedback || selectedIndex !== null) return
@@ -382,11 +385,12 @@ export default function QuizPage() {
               <span>{currentIndex + 1} / {questions.length}</span>
               <span className="flex items-center gap-1">
                 {quizType === 'expression' ? (
-                  <><Headphones className="h-3.5 w-3.5" /> 청해 구문</>
+                  <><Headphones className="h-3.5 w-3.5" /> 청해 구문 → 한국어</>
+                ) : questions[currentIndex]?.type === 'en2en' ? (
+                  <><BookOpen className="h-3.5 w-3.5" /> 단어 → 패러프레이징</>
                 ) : (
-                  <><BookOpen className="h-3.5 w-3.5" /> 단어</>
+                  <><BookOpen className="h-3.5 w-3.5" /> 단어 → 한국어</>
                 )}
-                {' → 한국어'}
               </span>
             </div>
             <div className="h-2 bg-muted rounded-full overflow-hidden">
@@ -401,7 +405,11 @@ export default function QuizPage() {
           <Card>
             <CardContent className="p-8 text-center">
               <p className="text-sm text-muted-foreground mb-2">
-                다음 {quizType === 'expression' ? '구문' : '단어'}의 뜻은?
+                {quizType === 'expression'
+                  ? '다음 구문의 뜻은?'
+                  : current.type === 'en2en'
+                    ? '다음 단어와 같은 의미의 표현은?'
+                    : '다음 단어의 뜻은?'}
               </p>
               <p className="text-3xl font-bold">{current.question}</p>
             </CardContent>
@@ -497,6 +505,40 @@ export default function QuizPage() {
                 </button>
               </div>
             </div>
+
+            {/* 답 유형 (단어 퀴즈 전용) */}
+            {quizType === 'word' && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">답 유형</label>
+                <div className="inline-flex items-center rounded-xl bg-muted p-0.5 w-full">
+                  <button
+                    onClick={() => setAnswerMode('en2ko')}
+                    className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                      answerMode === 'en2ko'
+                        ? 'bg-background shadow-sm text-foreground'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    영→한 뜻 맞추기
+                  </button>
+                  <button
+                    onClick={() => setAnswerMode('en2en')}
+                    className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                      answerMode === 'en2en'
+                        ? 'bg-background shadow-sm text-foreground'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    패러프레이징
+                  </button>
+                </div>
+                {answerMode === 'en2en' && (
+                  <p className="text-xs text-muted-foreground">
+                    영단어와 같은 의미의 영어 표현을 고르는 TEPS 패러프레이징 유형입니다.
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* 문제 수 슬라이더 */}
             <div className="space-y-2">

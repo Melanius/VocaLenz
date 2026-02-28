@@ -22,6 +22,7 @@ type WordRow = {
   word: string
   part_of_speech: string | null
   meanings: string[]
+  paraphrasing: string[]
 }
 
 type ExpressionRow = {
@@ -48,20 +49,21 @@ export async function GET(request: NextRequest) {
     const memos = memoParam ? memoParam.split(',').filter(Boolean) : []
     const sessionId = searchParams.get('sessionId') || ''
     const quizType = searchParams.get('quizType') || 'word'
+    const answerMode = searchParams.get('answerMode') === 'en2en' ? 'en2en' : 'en2ko'
     const sources = sourceParam.split(',').filter(Boolean)
 
     if (quizType === 'expression') {
       return handleExpressionQuiz({ user, count, sources, dateFrom, dateTo, memos, sessionId, sourceParam })
     }
 
-    return handleWordQuiz({ user, count, sources, dateFrom, dateTo, memos, sessionId, sourceParam })
+    return handleWordQuiz({ user, count, sources, dateFrom, dateTo, memos, sessionId, sourceParam, answerMode })
   } catch {
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 })
   }
 }
 
 async function handleWordQuiz({
-  user, count, sources, dateFrom, dateTo, memos, sessionId, sourceParam,
+  user, count, sources, dateFrom, dateTo, memos, sessionId, sourceParam, answerMode,
 }: {
   user: { id: string }
   count: number
@@ -71,6 +73,7 @@ async function handleWordQuiz({
   memos: string[]
   sessionId: string
   sourceParam: string
+  answerMode: 'en2ko' | 'en2en'
 }) {
   const collectedWords: WordRow[] = []
   const seenIds = new Set<string>()
@@ -89,7 +92,6 @@ async function handleWordQuiz({
       .map((v) => v.word)
       .filter((w): w is WordRow => w !== null && w !== undefined)
 
-  // 날짜·메모 필터를 쿼리에 적용
   const withVocabFilters = (q: any) => { // eslint-disable-line
     if (dateFrom) q = q.gte('added_at', kstDateToUTCStart(dateFrom))
     if (dateTo) q = q.lte('added_at', kstDateToUTCEnd(dateTo))
@@ -100,7 +102,7 @@ async function handleWordQuiz({
   const runWordQuery = async (statusFilter?: 'unmemorized' | 'memorized' | 'quiz_wrong') => {
     let q = supabaseAdmin
       .from('user_vocabulary')
-      .select('word:words(id, word, part_of_speech, meanings)')
+      .select('word:words(id, word, part_of_speech, meanings, paraphrasing)')
       .eq('user_id', user.id)
     if (statusFilter === 'unmemorized') q = q.eq('is_memorized', false)
     else if (statusFilter === 'memorized') q = q.eq('is_memorized', true)
@@ -109,7 +111,6 @@ async function handleWordQuiz({
     addWords(extractWords(data as Record<string, unknown>[] | null))
   }
 
-  // 상태 필터가 없으면 전체 단어장 기준
   if (sources.length === 0) {
     await runWordQuery()
   }
@@ -117,56 +118,99 @@ async function handleWordQuiz({
   if (sources.includes('memorized')) await runWordQuery('memorized')
   if (sources.includes('quiz_wrong')) await runWordQuery('quiz_wrong')
 
-  if (collectedWords.length < 4) {
-    return NextResponse.json(
-      { error: '선택한 조건에 해당하는 단어가 4개 이상 필요합니다. 조건을 넓혀 주세요.' },
-      { status: 400 }
-    )
+  // en2en은 paraphrasing이 있는 단어만 출제 가능
+  const eligibleWords = answerMode === 'en2en'
+    ? collectedWords.filter(w => w.paraphrasing && w.paraphrasing.length > 0)
+    : collectedWords
+
+  if (eligibleWords.length < 4) {
+    const msg = answerMode === 'en2en'
+      ? '패러프레이징 퀴즈에 필요한 단어가 4개 이상 필요합니다. 조건을 넓혀 주세요.'
+      : '선택한 조건에 해당하는 단어가 4개 이상 필요합니다. 조건을 넓혀 주세요.'
+    return NextResponse.json({ error: msg }, { status: 400 })
   }
 
-  const shuffledVocab = shuffleArray(collectedWords)
+  const shuffledVocab = shuffleArray(eligibleWords)
   const questionWords = shuffledVocab.slice(0, Math.min(count, shuffledVocab.length))
 
-  const questionWordIds = questionWords.map((w) => w.id)
+  // 보기 풀: 사용자 단어장 전체 제외 (출제 단어뿐 아니라 아는 단어 모두)
+  const allUserVocabIds = new Set(collectedWords.map(w => w.id))
+
   const { data: allWords } = await supabaseAdmin
     .from('words')
-    .select('id, word, part_of_speech, meanings')
+    .select('id, word, part_of_speech, meanings, paraphrasing')
 
   const candidateWords = (allWords || []).filter(
-    (w: { id: string }) => !questionWordIds.includes(w.id)
+    (w: { id: string }) => !allUserVocabIds.has(w.id)
   ) as WordRow[]
 
   const questions = questionWords.map((correctWord) => {
+    if (answerMode === 'en2en') {
+      // en→en 패러프레이징: paraphrasing[0]이 정답
+      const correctParaphrase = correctWord.paraphrasing[0]
+
+      // 오답 풀: paraphrasing 있는 후보 (같은 품사 우선)
+      const candidatesWithPara = candidateWords.filter(
+        w => w.paraphrasing && w.paraphrasing.length > 0
+      )
+      const samePOS = candidatesWithPara.filter(
+        w => w.part_of_speech && w.part_of_speech === correctWord.part_of_speech
+      )
+      const diffPOS = candidatesWithPara.filter(
+        w => w.part_of_speech !== correctWord.part_of_speech
+      )
+
+      const wrongParaphrases: string[] = []
+      for (const w of shuffleArray(samePOS)) {
+        if (wrongParaphrases.length >= 3) break
+        wrongParaphrases.push(w.paraphrasing[0])
+      }
+      for (const w of shuffleArray(diffPOS)) {
+        if (wrongParaphrases.length >= 3) break
+        wrongParaphrases.push(w.paraphrasing[0])
+      }
+
+      const allOptions = shuffleArray([correctParaphrase, ...wrongParaphrases])
+      const correctIndex = allOptions.indexOf(correctParaphrase)
+
+      return {
+        id: crypto.randomUUID(),
+        wordId: correctWord.id,
+        type: 'en2en' as const,
+        question: correctWord.word,
+        options: allOptions,
+        correctIndex,
+      }
+    }
+
+    // en→ko: meanings[0]이 정답 (기존 로직 + 보기 풀 수정)
     const samePOS = candidateWords.filter(
-      (w) => w.part_of_speech && w.part_of_speech === correctWord.part_of_speech && w.id !== correctWord.id
+      w => w.part_of_speech && w.part_of_speech === correctWord.part_of_speech
     )
     const diffPOS = candidateWords.filter(
-      (w) => w.part_of_speech !== correctWord.part_of_speech && w.id !== correctWord.id
+      w => w.part_of_speech !== correctWord.part_of_speech
     )
 
-    const shuffledSame = shuffleArray(samePOS)
-    const shuffledDiff = shuffleArray(diffPOS)
-
     const wrongAnswers: WordRow[] = []
-    for (const w of shuffledSame) {
+    for (const w of shuffleArray(samePOS)) {
       if (wrongAnswers.length >= 3) break
       wrongAnswers.push(w)
     }
-    for (const w of shuffledDiff) {
+    for (const w of shuffleArray(diffPOS)) {
       if (wrongAnswers.length >= 3) break
       wrongAnswers.push(w)
     }
 
     const allOptions = [correctWord, ...wrongAnswers]
     const shuffledOptions = shuffleArray(allOptions)
-    const correctIndex = shuffledOptions.findIndex((w) => w.id === correctWord.id)
+    const correctIndex = shuffledOptions.findIndex(w => w.id === correctWord.id)
 
     return {
       id: crypto.randomUUID(),
       wordId: correctWord.id,
       type: 'en2ko' as const,
       question: correctWord.word,
-      options: shuffledOptions.map((w) => stripPOS(w.meanings[0] || w.word)),
+      options: shuffledOptions.map(w => stripPOS(w.meanings[0] || w.word)),
       correctIndex,
     }
   })
@@ -179,13 +223,14 @@ async function handleWordQuiz({
       action: 'quiz_start',
       metadata: {
         quizType: 'word',
+        answerMode,
         count: questions.length,
         source: sourceParam,
       },
     })
   }
 
-  return NextResponse.json({ questions, totalWords: collectedWords.length })
+  return NextResponse.json({ questions, totalWords: eligibleWords.length })
 }
 
 async function handleExpressionQuiz({
@@ -236,7 +281,6 @@ async function handleExpressionQuiz({
     addExprs(extractExprs(data as Record<string, unknown>[] | null))
   }
 
-  // 상태 필터가 없으면 전체 Lenz픽 기준
   if (sources.length === 0) {
     await runExprQuery()
   }
@@ -254,13 +298,15 @@ async function handleExpressionQuiz({
   const shuffledExprs = shuffleArray(collectedExprs)
   const questionExprs = shuffledExprs.slice(0, Math.min(count, shuffledExprs.length))
 
-  const questionExprIds = questionExprs.map((e) => e.id)
+  // 보기 풀: 사용자 Lenz픽 전체 제외
+  const allUserExprIds = new Set(collectedExprs.map(e => e.id))
+
   const { data: allExprs } = await supabaseAdmin
     .from('expressions')
     .select('id, expression, meanings')
 
   const candidateExprs = (allExprs || []).filter(
-    (e: { id: string }) => !questionExprIds.includes(e.id)
+    (e: { id: string }) => !allUserExprIds.has(e.id)
   ) as ExpressionRow[]
 
   const questions = questionExprs.map((correctExpr) => {
@@ -268,14 +314,14 @@ async function handleExpressionQuiz({
 
     const allOptions = [correctExpr, ...wrongAnswers]
     const shuffledOptions = shuffleArray(allOptions)
-    const correctIndex = shuffledOptions.findIndex((e) => e.id === correctExpr.id)
+    const correctIndex = shuffledOptions.findIndex(e => e.id === correctExpr.id)
 
     return {
       id: crypto.randomUUID(),
       wordId: correctExpr.id,
       type: 'en2ko' as const,
       question: correctExpr.expression,
-      options: shuffledOptions.map((e) => stripPOS(e.meanings[0] || e.expression)),
+      options: shuffledOptions.map(e => stripPOS(e.meanings[0] || e.expression)),
       correctIndex,
     }
   })

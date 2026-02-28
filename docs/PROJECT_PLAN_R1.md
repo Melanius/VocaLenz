@@ -3331,6 +3331,34 @@ CREATE INDEX ON meaning_correction_requests (user_id, status);
 
 ---
 
+## Phase 38: 퀴즈 제한시간 + 북마크 (완료)
+**완료 일시:** 2026-02-28
+**커밋:** `c125f41`
+
+### 구현 내용
+
+#### 제한시간 (`/quiz/page.tsx`) ✅
+- 설정 화면에 "제한시간" 토글 추가 (Timer 아이콘 + 스위치 버튼)
+- 시간 선택 칩: 5초 / 10초 / 15초 (기본값 10초)
+- 진행 화면: 진행 바 하단에 얇은(h-1) 카운트다운 바 추가
+  - 50% 이상: 초록(`bg-green-500`), 25~50%: 노랑(`bg-yellow-500`), 25% 미만: 빨강(`bg-red-500`)
+- 진행률 바 우측에 남은 초 숫자 표시 (색상 연동)
+- 타임아웃 시: 자동 오답 처리 (`selectedIndex = -1`), 정답 강조 후 1.5초 후 자동 다음 문제
+- 문제 카드에 "⏱ 시간 초과" 레이블 표시
+- 결과 화면 틀린 문항: `selectedIndex === -1` → `⏱ 시간 초과` 표시
+- stale closure 방지: `showFeedbackRef`, `selectedIndexRef`, `handleTimeoutRef` 패턴 사용
+
+#### 북마크 (`/quiz/page.tsx`) ✅
+- 진행 화면 문제 카드 우상단에 Bookmark 아이콘 버튼 배치
+- 누르면 조용히(toast 없이) 단어장 복습 표시 (`markForReview(id, silent=true)`)
+- 표시된 경우 오렌지색 꽉 찬 아이콘(`fill-current`)으로 변경
+- 결과 화면의 기존 복습 표시 버튼은 유지 (toast 있음)
+- `markForReview(wordId, silent = false)` 파라미터 추가
+
+**Phase 38 총 커밋:** 1개
+
+---
+
 ## 개발 완료 후 운영 체크리스트
 
 | 항목 | 내용 | 상태 |

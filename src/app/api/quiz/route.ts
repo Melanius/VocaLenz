@@ -210,7 +210,10 @@ async function handleWordQuiz({
       wordId: correctWord.id,
       type: 'en2ko' as const,
       question: correctWord.word,
-      options: shuffledOptions.map(w => stripPOS(w.meanings[0] || w.word)),
+      options: shuffledOptions.map(w => {
+        const m = w.meanings.filter(Boolean)
+        return stripPOS(m.length > 0 ? m[Math.floor(Math.random() * m.length)] : w.word)
+      }),
       correctIndex,
     }
   })

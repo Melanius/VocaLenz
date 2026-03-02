@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useDialogBackButton } from '@/hooks/use-dialog-back-button'
 import { Settings, Save } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -106,6 +107,9 @@ export function CardCustomizer({
   const [localExprOrder, setLocalExprOrder] = useState<ExpressionCardField[]>(
     preferences.exprFieldOrder ?? []
   )
+
+  // 뒤로가기 버튼으로 시트 닫기 (Android 대응)
+  useDialogBackButton(open, () => setOpen(false))
 
   // Sheet 열릴 때 initialTab 반영 + preferences 동기화
   useEffect(() => {

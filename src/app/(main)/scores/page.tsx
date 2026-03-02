@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/dialog'
 import { useAuthContext } from '@/components/providers/auth-provider'
 import { toast } from '@/hooks/use-toast'
+import { useDialogBackButton } from '@/hooks/use-dialog-back-button'
 import { ScoreCoach } from '@/components/scores/score-coach'
 import type { UserScore } from '@/types/database'
 import {
@@ -64,6 +65,9 @@ export default function ScoresPage() {
     (parseInt(form.grammar) || 0) +
     (parseInt(form.reading) || 0)
   )
+
+  // 뒤로가기 버튼으로 다이얼로그 닫기 (Android 대응)
+  useDialogBackButton(dialogOpen, () => { setDialogOpen(false); resetForm() })
 
   const fetchScores = useCallback(async () => {
     setLoading(true)

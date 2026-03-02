@@ -26,6 +26,7 @@ import { Sidebar } from '@/components/layout/sidebar'
 import { useAuthContext } from '@/components/providers/auth-provider'
 import { useVocabularyPage } from '@/hooks/use-vocabulary-page'
 import { useExpressionVocabularyPage } from '@/hooks/use-expression-vocabulary-page'
+import { useDialogBackButton } from '@/hooks/use-dialog-back-button'
 import { toast } from '@/hooks/use-toast'
 import { WordCard } from '@/components/search/word-card'
 import { ExpressionCard } from '@/components/search/expression-card'
@@ -172,6 +173,21 @@ export default function VocabularyPage() {
   const [cardViewMode, setCardViewMode] = useState(false)
   const [cardViewIndex, setCardViewIndex] = useState(0)
   const touchStartX = useRef(0)
+
+  // 뒤로가기 버튼으로 다이얼로그/시트 닫기 (Android 대응)
+  const isDetailOpen = detailLoading || detailWord !== null || detailExpression !== null
+  useDialogBackButton(isDetailOpen, () => {
+    setDetailWord(null)
+    setDetailExpression(null)
+    setDetailLoading(false)
+  })
+  useDialogBackButton(historyOpen, () => setHistoryOpen(false))
+  useDialogBackButton(uploadOpen && !uploading, () => { setUploadOpen(false); resetUpload() })
+  useDialogBackButton(memoConflictDialogOpen, () => {
+    if (!applyingMemoConflicts) { setMemoConflictDialogOpen(false); setMemoConflicts([]) }
+  })
+  useDialogBackButton(pendingDelete !== null, () => setPendingDelete(null))
+  useDialogBackButton(pendingExprDelete !== null, () => setPendingExprDelete(null))
 
   // Level 변경 제안 알림 확인 (페이지 로드 시 1회)
   useEffect(() => {
@@ -1010,7 +1026,7 @@ export default function VocabularyPage() {
         {/* Content */}
         {vocabTab === 'words' ? (
           loading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {[1, 2, 3, 4].map((i) => (
                 <div key={i} className="h-[180px] bg-muted animate-pulse rounded-xl" />
               ))}
@@ -1091,7 +1107,7 @@ export default function VocabularyPage() {
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                 {vocabularyItems.map((item) => (
                   <VocabularyFlipCard
                     key={item.id}
@@ -1118,7 +1134,7 @@ export default function VocabularyPage() {
           )
         ) : (
           exprLoading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {[1, 2, 3, 4].map((i) => (
                 <div key={i} className="h-[180px] bg-muted animate-pulse rounded-xl" />
               ))}
@@ -1196,7 +1212,7 @@ export default function VocabularyPage() {
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                 {expressionItems.map((item) => (
                   <ExpressionFlipCard
                     key={item.id}

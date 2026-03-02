@@ -12,6 +12,7 @@ import { CardCustomizer } from '@/components/search/card-customizer'
 import { useSearchContext } from '@/contexts/search-context'
 import { useAuthContext } from '@/components/providers/auth-provider'
 import { useDisplayPreferences } from '@/hooks/use-display-preferences'
+import { useDialogBackButton } from '@/hooks/use-dialog-back-button'
 import { useVocabularyContext } from '@/contexts/vocabulary-context'
 import { useExpressionVocabularyContext } from '@/contexts/expression-vocabulary-context'
 import { useTheme } from '@/components/providers/theme-provider'
@@ -76,6 +77,9 @@ export default function SearchPage() {
   const scrollRef = useRef<HTMLDivElement>(null)
   const isEmpty = history.length === 0
   const [historyOpen, setHistoryOpen] = useState(false)
+
+  // 뒤로가기 버튼으로 시트 닫기 (Android 대응)
+  useDialogBackButton(historyOpen, () => setHistoryOpen(false))
 
   // 계절 테마에 맞는 이미지 선택
   const seasonImage = SEASON_IMAGES[season] || SEASON_IMAGES.winter

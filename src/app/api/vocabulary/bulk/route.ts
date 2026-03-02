@@ -63,6 +63,8 @@ export async function POST(request: NextRequest) {
         let added = 0
         let skipped = 0
         let failed = 0
+        let memoUpdated = 0
+        let memoConflictItems = 0
 
         for (let i = 0; i < wordsToProcess.length; i++) {
           const entry = wordsToProcess[i]
@@ -82,16 +84,34 @@ export async function POST(request: NextRequest) {
               if (existingExpr) {
                 const { data: existingVocab } = await supabaseAdmin
                   .from('user_expressions')
-                  .select('id')
+                  .select('id, memo')
                   .eq('user_id', user.id)
                   .eq('expression_id', existingExpr.id)
                   .single()
 
                 if (existingVocab) {
-                  skipped++
-                  controller.enqueue(encoder.encode(
-                    JSON.stringify({ type: 'progress', current: i + 1, total, word, status: 'skipped' }) + '\n'
-                  ))
+                  const dbMemo = existingVocab.memo || ''
+                  const csvMemo = memo || ''
+                  if (!dbMemo && csvMemo) {
+                    await supabaseAdmin
+                      .from('user_expressions')
+                      .update({ memo: csvMemo })
+                      .eq('id', existingVocab.id)
+                    memoUpdated++
+                    controller.enqueue(encoder.encode(
+                      JSON.stringify({ type: 'progress', current: i + 1, total, word, status: 'memoUpdated' }) + '\n'
+                    ))
+                  } else if (dbMemo && csvMemo && dbMemo !== csvMemo) {
+                    memoConflictItems++
+                    controller.enqueue(encoder.encode(
+                      JSON.stringify({ type: 'progress', current: i + 1, total, word, status: 'memoConflict', vocabId: existingVocab.id, existingMemo: dbMemo, newMemo: csvMemo }) + '\n'
+                    ))
+                  } else {
+                    skipped++
+                    controller.enqueue(encoder.encode(
+                      JSON.stringify({ type: 'progress', current: i + 1, total, word, status: 'skipped' }) + '\n'
+                    ))
+                  }
                 } else {
                   await supabaseAdmin
                     .from('user_expressions')
@@ -167,16 +187,34 @@ export async function POST(request: NextRequest) {
               if (existingWord) {
                 const { data: existingVocab } = await supabaseAdmin
                   .from('user_vocabulary')
-                  .select('id')
+                  .select('id, memo')
                   .eq('user_id', user.id)
                   .eq('word_id', existingWord.id)
                   .single()
 
                 if (existingVocab) {
-                  skipped++
-                  controller.enqueue(encoder.encode(
-                    JSON.stringify({ type: 'progress', current: i + 1, total, word, status: 'skipped' }) + '\n'
-                  ))
+                  const dbMemo = existingVocab.memo || ''
+                  const csvMemo = memo || ''
+                  if (!dbMemo && csvMemo) {
+                    await supabaseAdmin
+                      .from('user_vocabulary')
+                      .update({ memo: csvMemo })
+                      .eq('id', existingVocab.id)
+                    memoUpdated++
+                    controller.enqueue(encoder.encode(
+                      JSON.stringify({ type: 'progress', current: i + 1, total, word, status: 'memoUpdated' }) + '\n'
+                    ))
+                  } else if (dbMemo && csvMemo && dbMemo !== csvMemo) {
+                    memoConflictItems++
+                    controller.enqueue(encoder.encode(
+                      JSON.stringify({ type: 'progress', current: i + 1, total, word, status: 'memoConflict', vocabId: existingVocab.id, existingMemo: dbMemo, newMemo: csvMemo }) + '\n'
+                    ))
+                  } else {
+                    skipped++
+                    controller.enqueue(encoder.encode(
+                      JSON.stringify({ type: 'progress', current: i + 1, total, word, status: 'skipped' }) + '\n'
+                    ))
+                  }
                 } else {
                   await supabaseAdmin
                     .from('user_vocabulary')
@@ -254,7 +292,7 @@ export async function POST(request: NextRequest) {
         }
 
         controller.enqueue(encoder.encode(
-          JSON.stringify({ type: 'complete', added, skipped, failed }) + '\n'
+          JSON.stringify({ type: 'complete', added, skipped, failed, memoUpdated, memoConflicts: memoConflictItems }) + '\n'
         ))
 
         if (sessionId) {

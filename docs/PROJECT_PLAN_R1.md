@@ -3470,6 +3470,50 @@ CREATE INDEX ON meaning_correction_requests (user_id, status);
 
 ---
 
+## Phase 44: API 라우트 인증 성능 최적화 (완료)
+**완료 일시:** 2026-03-01
+
+### 배경
+Phase 43(서버사이드 페이지네이션)으로 데이터 볼륨 문제는 해결했으나, 단어장 페이지 로드 시 여전히 8초 딜레이 발생.
+
+### 근본 원인 분석
+
+#### 이중 `getUser()` 호출 (핵심 원인)
+- `middleware.ts`는 모든 요청(API 포함)에서 `supabase.auth.getUser()` 호출 → Supabase Auth 서버 네트워크 요청 (~500ms)
+- 각 API 라우트 핸들러도 `supabase.auth.getUser()` 재호출 → **요청당 2번의 Auth 네트워크 왕복**
+- 단어장 페이지 로드 시 6개 API 동시 요청 (VocabularyContext ×2, 페이지 훅 ×2, 알림 ×2)
+- → 12번의 Supabase Auth 네트워크 호출 → 직렬화/경합 시 6~8초 딜레이
+- Phase 43은 데이터 볼륨만 줄였고 Auth 오버헤드는 미해결
+
+### 수정 내용
+
+#### 16개 API 라우트 전체에서 `getUser()` → `getSession()` 교체
+```typescript
+// 변경 전: Supabase Auth 서버 네트워크 요청
+const { data: { user } } = await supabase.auth.getUser()
+
+// 변경 후: 미들웨어가 갱신한 쿠키에서 바로 읽기 (네트워크 요청 없음)
+const { data: { session } } = await supabase.auth.getSession()
+const user = session?.user ?? null
+```
+
+근거: `middleware.ts`가 모든 요청 전 `getUser()`로 세션을 검증·갱신 후 쿠키에 기록.
+이후 라우트 핸들러는 갱신된 쿠키에서 `getSession()`으로 즉시 읽으면 추가 네트워크 요청 불필요.
+
+수정 파일 (16개):
+`history`, `level-requests/notifications`, `level-requests`, `meaning-corrections/notifications`,
+`meaning-corrections`, `quiz/complete`, `quiz`, `scores/consult`, `scores`,
+`users/preferences`, `users/profile`, `vocabulary/bulk`, `vocabulary/expressions`,
+`vocabulary/review`, `vocabulary`, `words/search`
+
+### 결과
+- 단어장 페이지 로드: **8초 → 2초** (4배 개선)
+- API 요청당 Auth 네트워크 호출: 2회 → 0회 (미들웨어 1회만 유지)
+
+**Phase 44 총 커밋:** 1개 (`88827c6`)
+
+---
+
 ## 개발 완료 후 운영 체크리스트
 
 | 항목 | 내용 | 상태 |

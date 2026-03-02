@@ -46,12 +46,26 @@ interface BulkProgress {
   error?: string
   correction?: string
   gkStatus?: string
+  vocabId?: string
+  existingMemo?: string
+  newMemo?: string
 }
 
 interface BulkComplete {
   added: number
   skipped: number
   failed: number
+  memoUpdated?: number
+  memoConflicts?: number
+}
+
+interface MemoConflictItem {
+  word: string
+  vocabId: string
+  existingMemo: string
+  newMemo: string
+  choice: 'keep' | 'update'
+  vocabType: 'word' | 'expression'
 }
 
 interface RetryItem {
@@ -148,6 +162,11 @@ export default function VocabularyPage() {
   const [uploadTotal, setUploadTotal] = useState(0)
   const [pendingDelete, setPendingDelete] = useState<UserVocabulary | null>(null)
   const [pendingExprDelete, setPendingExprDelete] = useState<UserExpression | null>(null)
+
+  // 메모 충돌 해결 상태
+  const [memoConflicts, setMemoConflicts] = useState<MemoConflictItem[]>([])
+  const [memoConflictDialogOpen, setMemoConflictDialogOpen] = useState(false)
+  const [applyingMemoConflicts, setApplyingMemoConflicts] = useState(false)
   const [sentinelEl, setSentinelEl] = useState<HTMLDivElement | null>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [cardViewMode, setCardViewMode] = useState(false)
@@ -450,6 +469,44 @@ export default function VocabularyPage() {
     handleBulkUpload(retryWords, forceWords)
   }
 
+  const handleApplyMemoConflicts = async () => {
+    const toUpdate = memoConflicts.filter((c) => c.choice === 'update')
+    if (toUpdate.length === 0) {
+      setMemoConflictDialogOpen(false)
+      setMemoConflicts([])
+      return
+    }
+    setApplyingMemoConflicts(true)
+    try {
+      const res = await fetch('/api/vocabulary/bulk/memo', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          updates: toUpdate.map((c) => ({
+            vocabId: c.vocabId,
+            newMemo: c.newMemo,
+            type: c.vocabType,
+          })),
+        }),
+      })
+      if (res.ok) {
+        toUpdate.forEach((c) => {
+          if (c.vocabType === 'word') updateMemo(c.vocabId, c.newMemo)
+          else updateExprMemo(c.vocabId, c.newMemo)
+        })
+        toast({ title: '메모 업데이트 완료', description: `${toUpdate.length}개 메모가 변경되었습니다.` })
+      } else {
+        toast({ title: '오류', description: '메모 업데이트에 실패했습니다.', variant: 'destructive' })
+      }
+    } catch {
+      toast({ title: '오류', description: '메모 업데이트에 실패했습니다.', variant: 'destructive' })
+    } finally {
+      setApplyingMemoConflicts(false)
+      setMemoConflictDialogOpen(false)
+      setMemoConflicts([])
+    }
+  }
+
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -569,6 +626,7 @@ export default function VocabularyPage() {
       let buffer = ''
       let refreshed = false
       const localFailed: BulkProgress[] = []
+      const localConflicts: MemoConflictItem[] = []
 
       while (true) {
         const result = await readWithTimeout().catch((e: Error) => {
@@ -595,6 +653,16 @@ export default function VocabularyPage() {
             if (data.type === 'progress') {
               setUploadProgress((prev) => [...prev, data])
               if (data.status === 'failed') localFailed.push(data)
+              if (data.status === 'memoConflict' && data.vocabId) {
+                localConflicts.push({
+                  word: data.word,
+                  vocabId: data.vocabId,
+                  existingMemo: data.existingMemo || '',
+                  newMemo: data.newMemo || '',
+                  choice: 'keep',
+                  vocabType: uploadTarget,
+                })
+              }
             } else if (data.type === 'complete') {
               setUploadResult(data)
               const retries = localFailed
@@ -606,6 +674,9 @@ export default function VocabularyPage() {
                   selected: true,
                 }))
               setRetryItems(retries)
+              if (localConflicts.length > 0) {
+                setMemoConflicts(localConflicts)
+              }
               if (!refreshed) {
                 refreshed = true
                 if (uploadTarget === 'word') refresh()
@@ -633,6 +704,9 @@ export default function VocabularyPage() {
                 selected: true,
               }))
             setRetryItems(retries)
+            if (localConflicts.length > 0) {
+              setMemoConflicts(localConflicts)
+            }
             if (!refreshed) {
               refreshed = true
               if (uploadTarget === 'word') refresh()
@@ -660,6 +734,7 @@ export default function VocabularyPage() {
     setUploadStalled(false)
     setRetryItems([])
     setUploadTotal(0)
+    setMemoConflicts([])
   }
 
   const downloadCsvSample = () => {
@@ -1240,7 +1315,13 @@ export default function VocabularyPage() {
                 <h3 className="text-lg font-semibold">업로드 완료!</h3>
                 <div className="text-sm text-muted-foreground space-y-1">
                   <p>추가됨: {uploadResult.added}개</p>
-                  {uploadResult.skipped > 0 && <p>이미 있음: {uploadResult.skipped}개</p>}
+                  {uploadResult.skipped > 0 && <p>이미 있음 (변경 없음): {uploadResult.skipped}개</p>}
+                  {(uploadResult.memoUpdated ?? 0) > 0 && (
+                    <p className="text-blue-600 dark:text-blue-400">메모 자동 업데이트: {uploadResult.memoUpdated}개</p>
+                  )}
+                  {(uploadResult.memoConflicts ?? 0) > 0 && (
+                    <p className="text-amber-600 dark:text-amber-400">메모 변경 확인 필요: {uploadResult.memoConflicts}개</p>
+                  )}
                   {uploadResult.failed > 0 && <p>실패: {uploadResult.failed}개</p>}
                 </div>
               </div>
@@ -1300,8 +1381,25 @@ export default function VocabularyPage() {
                 </div>
               )}
 
+              {memoConflicts.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setMemoConflictDialogOpen(true)}
+                  className="w-full flex items-center justify-between gap-2 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/30 px-4 py-3 text-left hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">⚠️</span>
+                    <div>
+                      <p className="text-sm font-medium text-amber-800 dark:text-amber-300">메모 변경 확인 필요</p>
+                      <p className="text-xs text-amber-600 dark:text-amber-400">{memoConflicts.length}개 항목의 메모가 달라요</p>
+                    </div>
+                  </div>
+                  <span className="text-xs font-medium text-amber-700 dark:text-amber-300 shrink-0">검토하기 →</span>
+                </button>
+              )}
+
               <Button
-                variant={retryItems.length > 0 ? 'outline' : 'default'}
+                variant={retryItems.length > 0 || memoConflicts.length > 0 ? 'outline' : 'default'}
                 className="w-full"
                 onClick={() => { setUploadOpen(false); resetUpload() }}
               >
@@ -1356,13 +1454,17 @@ export default function VocabularyPage() {
                           {p.status === 'added' ? '✅' :
                            p.status === 'skipped' ? '⏭️' :
                            p.status === 'generating' ? '🔄' :
-                           p.status === 'failed' ? '❌' : '⏳'}
+                           p.status === 'failed' ? '❌' :
+                           p.status === 'memoUpdated' ? '📝' :
+                           p.status === 'memoConflict' ? '⚠️' : '⏳'}
                         </span>
                         <span className="font-mono shrink-0">{p.word}</span>
                         <span className="text-xs text-muted-foreground flex-1 min-w-0 break-words">
                           {p.status === 'added' ? '추가 완료' :
                            p.status === 'skipped' ? `이미 ${uploadTarget === 'word' ? 'Voca 리스트' : 'Lenz 픽'}에 있음` :
                            p.status === 'generating' ? '생성 중...' :
+                           p.status === 'memoUpdated' ? '메모 자동 업데이트' :
+                           p.status === 'memoConflict' ? '메모 다름 — 검토 필요' :
                            p.status === 'failed' ? (
                              p.correction
                                ? `${p.error} → 올바른 철자: ${p.correction}`
@@ -1471,6 +1573,113 @@ export default function VocabularyPage() {
               </p>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* 메모 충돌 해결 다이얼로그 */}
+      <Dialog
+        open={memoConflictDialogOpen}
+        onOpenChange={(open) => {
+          if (!open && !applyingMemoConflicts) {
+            setMemoConflictDialogOpen(false)
+          }
+        }}
+      >
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>메모 변경 확인</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            단어장에 이미 있는 항목이지만 메모가 달라요. 각 항목의 처리 방법을 선택해주세요.
+          </p>
+
+          {/* 일괄 버튼 */}
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1 text-xs"
+              onClick={() => setMemoConflicts((prev) => prev.map((c) => ({ ...c, choice: 'keep' })))}
+            >
+              전체 유지
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1 text-xs border-primary/40 text-primary hover:bg-primary/5"
+              onClick={() => setMemoConflicts((prev) => prev.map((c) => ({ ...c, choice: 'update' })))}
+            >
+              전체 변경
+            </Button>
+          </div>
+
+          {/* 충돌 목록 */}
+          <div className="space-y-2 max-h-72 overflow-y-auto pr-0.5">
+            {memoConflicts.map((item, idx) => (
+              <div key={item.vocabId} className="rounded-lg border bg-card p-3 space-y-2.5">
+                <p className="text-sm font-semibold font-mono">{item.word}</p>
+                <div className="space-y-1 text-xs">
+                  <div className="flex items-start gap-2">
+                    <span className="text-muted-foreground shrink-0 w-10 pt-0.5">현재</span>
+                    <span className="text-foreground bg-muted rounded px-2 py-0.5 flex-1 break-all">&ldquo;{item.existingMemo}&rdquo;</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="text-muted-foreground shrink-0 w-10 pt-0.5">새로운</span>
+                    <span className="text-primary bg-primary/5 rounded px-2 py-0.5 flex-1 break-all">&ldquo;{item.newMemo}&rdquo;</span>
+                  </div>
+                </div>
+                <div className="flex gap-2 pt-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setMemoConflicts((prev) => prev.map((c, i) => i === idx ? { ...c, choice: 'keep' } : c))}
+                    className={`flex-1 rounded-md border px-3 py-1.5 text-xs font-medium transition-all ${
+                      item.choice === 'keep'
+                        ? 'border-muted-foreground/50 bg-muted text-foreground'
+                        : 'border-border text-muted-foreground hover:border-muted-foreground/40 hover:text-foreground'
+                    }`}
+                  >
+                    유지
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMemoConflicts((prev) => prev.map((c, i) => i === idx ? { ...c, choice: 'update' } : c))}
+                    className={`flex-1 rounded-md border px-3 py-1.5 text-xs font-medium transition-all ${
+                      item.choice === 'update'
+                        ? 'border-primary bg-primary/5 text-primary'
+                        : 'border-border text-muted-foreground hover:border-primary/40 hover:text-primary'
+                    }`}
+                  >
+                    변경
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* 적용 버튼 */}
+          <div className="flex gap-2 pt-1">
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={() => { setMemoConflictDialogOpen(false); setMemoConflicts([]) }}
+              disabled={applyingMemoConflicts}
+            >
+              닫기
+            </Button>
+            <Button
+              className="flex-1"
+              onClick={handleApplyMemoConflicts}
+              disabled={applyingMemoConflicts}
+            >
+              {applyingMemoConflicts ? (
+                <><Loader2 className="h-4 w-4 animate-spin mr-2" />적용 중...</>
+              ) : memoConflicts.filter((c) => c.choice === 'update').length > 0 ? (
+                `적용하기 (${memoConflicts.filter((c) => c.choice === 'update').length}개 변경)`
+              ) : (
+                '적용하기'
+              )}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
 

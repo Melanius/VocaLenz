@@ -26,8 +26,8 @@ TEPS 시험 대비 AI 기반 영어 단어 학습 플랫폼.
 
 ---
 
-## 현재 개발 상태 (Phase 32 완료 — 2026-02-23)
-최신 커밋: `2cf6a64`
+## 현재 개발 상태 (Phase 44 완료 — 2026-03-01)
+최신 커밋: `88827c6`
 
 ### 완성된 기능 목록
 - AI 단어 검색 (Gatekeeper → WordGenerator → DB 캐시)
@@ -45,9 +45,15 @@ TEPS 시험 대비 AI 기반 영어 단어 학습 플랫폼.
 - 사이드바 토글 (데스크톱) + 모바일 바텀시트 히스토리
 - 계절 테마 APNG 애니메이션 (spring/summer/fall/winter — 121프레임)
 - 다크모드 / 온보딩 플로우 / 닉네임 시스템
-- 관리자 페이지 (단어 CRUD + CSV 일괄 업로드)
+- 관리자 페이지 (단어 CRUD + CSV + Level 변경 제안 관리 + 의미 수정 제안 관리)
 - OG 이미지 (og-image.jpg, 117KB)
 - PWA 아이콘 (home_img.png 기반, 흰 배경 maskable)
+- Level 변경 제안 시스템, Flag(의미 수정 제안) 버튼
+- 플립카드 TTS 발음 버튼
+- 퀴즈 애니메이션 (canvas-confetti, shake, 연속 streak), 제한시간, 북마크, POS 일관성
+- 단어장 카드뷰 모드 (스와이프 제스처), 검색이력 Clock 버튼으로 이전
+- 단어장 서버사이드 페이지네이션 — Phase 43 (300+개 로드 3초+ → ~0.5초)
+- API Route Auth 최적화 — Phase 44 (getUser→getSession, 8초 딜레이 → 2초)
 
 ---
 
@@ -86,6 +92,8 @@ src/components/search/search-results.tsx      — 검색 결과 렌더링
 src/contexts/vocabulary-context.tsx           — 단어장 Context
 src/contexts/expression-vocabulary-context.tsx
 src/hooks/use-vocabulary.ts
+src/hooks/use-vocabulary-page.ts     — 단어장 페이지네이션 훅 (Phase 43)
+src/hooks/use-expression-vocabulary-page.ts
 src/lib/supabase/admin.ts            — supabaseAdmin 클라이언트
 src/lib/admin-auth.ts                — requireAdmin() 인증 가드
 src/app/manifest.ts                  — PWA manifest
@@ -136,3 +144,6 @@ pnpm lint         # ESLint
 - 커밋 전 반드시 `pnpm tsc --noEmit` 실행
 - main 브랜치 push = Vercel 자동 배포
 - 관리자 인증은 `requireAdmin()` (lib/admin-auth.ts) 사용
+- **API Route 인증**: `supabase.auth.getUser()` 사용 금지 → `getSession()` 사용
+  - 이유: middleware가 이미 `getUser()`로 세션 갱신 → 라우트에서 재호출 = 이중 Supabase Auth 네트워크 요청 → 페이지 딜레이 원인
+  - 올바른 패턴: `const { data: { session } } = await supabase.auth.getSession()` + `const user = session?.user ?? null`

@@ -159,6 +159,8 @@ export default function VocabularyPage() {
   const [uploadResult, setUploadResult] = useState<BulkComplete | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [uploadStalled, setUploadStalled] = useState(false)
+  const [uploadSlow, setUploadSlow] = useState(false)
+  const slowTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [retryItems, setRetryItems] = useState<RetryItem[]>([])
   const [uploadTotal, setUploadTotal] = useState(0)
   const [pendingDelete, setPendingDelete] = useState<UserVocabulary | null>(null)
@@ -635,7 +637,7 @@ export default function VocabularyPage() {
         Promise.race<ReadableStreamReadResult<Uint8Array>>([
           reader.read(),
           new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error('STALL_TIMEOUT')), 60000)
+            setTimeout(() => reject(new Error('STALL_TIMEOUT')), 180000)
           ),
         ])
 
@@ -653,7 +655,11 @@ export default function VocabularyPage() {
           }
           throw e
         })
-        if (result === null) return
+        if (result === null) {
+          if (slowTimerRef.current) { clearTimeout(slowTimerRef.current); slowTimerRef.current = null }
+          setUploadSlow(false)
+          return
+        }
 
         const { done, value } = result
         if (done) break
@@ -667,6 +673,10 @@ export default function VocabularyPage() {
           try {
             const data = JSON.parse(line)
             if (data.type === 'progress') {
+              // 진행 이벤트 수신 → slow 타이머 리셋
+              setUploadSlow(false)
+              if (slowTimerRef.current) clearTimeout(slowTimerRef.current)
+              slowTimerRef.current = setTimeout(() => setUploadSlow(true), 30000)
               setUploadProgress((prev) => [...prev, data])
               if (data.status === 'failed') localFailed.push(data)
               if (data.status === 'memoConflict' && data.vocabId) {
@@ -680,6 +690,8 @@ export default function VocabularyPage() {
                 })
               }
             } else if (data.type === 'complete') {
+              if (slowTimerRef.current) { clearTimeout(slowTimerRef.current); slowTimerRef.current = null }
+              setUploadSlow(false)
               setUploadResult(data)
               const retries = localFailed
                 .filter((p) => p.gkStatus)
@@ -736,11 +748,14 @@ export default function VocabularyPage() {
     } catch {
       toast({ title: '오류', description: '업로드에 실패했습니다.', variant: 'destructive' })
     } finally {
+      if (slowTimerRef.current) { clearTimeout(slowTimerRef.current); slowTimerRef.current = null }
+      setUploadSlow(false)
       setUploading(false)
     }
   }
 
   const resetUpload = () => {
+    if (slowTimerRef.current) { clearTimeout(slowTimerRef.current); slowTimerRef.current = null }
     setParsedWords([])
     setFilteredOutItems([])
     setShowExcluded(false)
@@ -748,6 +763,7 @@ export default function VocabularyPage() {
     setUploadResult(null)
     setUploading(false)
     setUploadStalled(false)
+    setUploadSlow(false)
     setRetryItems([])
     setUploadTotal(0)
     setMemoConflicts([])
@@ -1454,6 +1470,11 @@ export default function VocabularyPage() {
                 <p className="text-sm text-muted-foreground">
                   {uploadTotal}개 항목을 {uploadTarget === 'word' ? 'Voca 리스트' : 'Lenz 픽'}에 추가하고 있어요.
                 </p>
+                {uploadSlow && (
+                  <p className="text-xs text-amber-500 dark:text-amber-400 mt-1.5">
+                    AI 생성에 시간이 걸리고 있어요. 잠시만 기다려 주세요.
+                  </p>
+                )}
               </div>
               {uploadProgress.length > 0 && (
                 <>

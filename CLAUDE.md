@@ -26,8 +26,8 @@ TEPS 시험 대비 AI 기반 영어 단어 학습 플랫폼.
 
 ---
 
-## 현재 개발 상태 (Phase 44 완료 — 2026-03-01)
-최신 커밋: `88827c6`
+## 현재 개발 상태 (Phase 49 완료 — 2026-03-06)
+최신 커밋: `80d8d7b`
 
 ### 완성된 기능 목록
 - AI 단어 검색 (Gatekeeper → WordGenerator → DB 캐시)
@@ -54,6 +54,9 @@ TEPS 시험 대비 AI 기반 영어 단어 학습 플랫폼.
 - 단어장 카드뷰 모드 (스와이프 제스처), 검색이력 Clock 버튼으로 이전
 - 단어장 서버사이드 페이지네이션 — Phase 43 (300+개 로드 3초+ → ~0.5초)
 - API Route Auth 최적화 — Phase 44 (getUser→getSession, 8초 딜레이 → 2초)
+- 일괄 업로드 메모 충돌 3-way 해결 다이얼로그 — Phase 45
+- Android 뒤로가기 버튼 다이얼로그 인터셉트 (`#dialog` hash 방식) — Phase 46~48
+- 청해구문 image_text/paraphrasing 버그 수정 + 관리자 DB 복구 탭 — Phase 49
 
 ---
 

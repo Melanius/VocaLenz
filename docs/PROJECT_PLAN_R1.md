@@ -3514,6 +3514,138 @@ const user = session?.user ?? null
 
 ---
 
+## Phase 45: 일괄 업로드 메모 충돌 해결 (완료)
+**완료 일시:** 2026-03-05
+**커밋:** `4da7618`
+
+### 배경
+일괄 업로드(CSV/Excel) 시 기존 단어장 항목에 메모가 이미 있고 CSV에도 다른 메모가 있을 때, 어떤 메모를 사용할지 선택할 수 없어 항상 skip되거나 덮어쓰이는 문제.
+
+### 구현 내용
+
+#### 백엔드 (bulk/route.ts)
+- 충돌 감지: `dbMemo && csvMemo && dbMemo !== csvMemo` 조건
+- 충돌 시 `status: 'memoConflict'`와 함께 `vocabId`, `existingMemo`, `newMemo` 스트리밍 반환
+- 메모 없음 → CSV 메모 있음: 자동 업데이트 (`memoUpdated`)
+- 완료 이벤트에 `memoConflicts` 카운트 추가
+
+#### 프론트엔드 (vocabulary/page.tsx)
+- 충돌 항목 누적 수집 (`memoConflicts` 배열)
+- 업로드 완료 후 충돌 있으면 해결 다이얼로그 자동 표시
+- 3-way 선택: **기존 메모 유지 / CSV 메모 사용 / 모두 CSV로** 옵션
+- 충돌 목록 스크롤 가능 테이블 UI (표현/기존/새 메모 비교 표시)
+- 선택 후 supabase 직접 patch → toast 완료 메시지
+
+---
+
+## Phase 46: Android 뒤로가기 버튼 다이얼로그 인터셉트 + Galaxy Fold 레이아웃 (완료)
+**완료 일시:** 2026-03-05
+**커밋:** `723ad97`
+
+### 배경
+- Android(특히 Galaxy) 기기에서 뒤로가기 버튼을 누르면 열린 다이얼로그/시트가 닫히는 게 아니라 이전 페이지로 이동
+- Galaxy Z Fold 7 펼침 모드(~720px)에서 단어카드가 1열로만 표시
+
+### 구현 내용
+
+#### useDialogBackButton 훅 신설 (`src/hooks/use-dialog-back-button.ts`)
+- `window.history.pushState()`로 히스토리 엔트리 추가
+- `popstate` 이벤트 감지 → 다이얼로그 열린 상태면 `onClose()` 호출
+- X버튼/배경 클릭 닫기: cleanup에서 `history.back()` 호출로 엔트리 제거
+- 적용 위치: vocabulary/page.tsx (6곳), page.tsx, scores/page.tsx, card-customizer.tsx
+
+#### Galaxy Z Fold 2열 레이아웃
+- 단어장 그리드: `md:grid-cols-2` → `sm:grid-cols-2` (4곳)
+- `md` 기준점 768px → `sm` 기준점 640px로 낮춰 ~720px 뷰포트에서 2열 표시
+
+---
+
+## Phase 47: 뒤로가기 훅 안정화 + 업로드 스탈 타임아웃 개선 (완료)
+**완료 일시:** 2026-03-05
+**커밋:** `75824c8`
+
+### 배경
+- Phase 46 뒤로가기 훅이 일부 Samsung Android에서 여전히 이전 페이지로 이동
+- 일괄 업로드 중 AI 생성이 느릴 때 60초 후 오류로 종료되는 스탈 버그
+
+### 구현 내용
+
+#### 뒤로가기 훅 개선
+- `popstate` 이벤트 리스너에 `{ capture: true }` 추가 → Next.js App Router 핸들러보다 먼저 실행
+- `e.stopImmediatePropagation()` 추가 → Next.js가 같은 이벤트 처리 차단
+- `pushState` URL을 `window.location.href`로 명시
+
+#### 업로드 스탈 수정 (vocabulary/page.tsx)
+- `readWithTimeout` 타임아웃: 60,000ms → 180,000ms (3분)
+- `uploadSlow` state + `slowTimerRef` 추가: 30초 무응답 시 "AI 생성에 시간이 걸리고 있어요" 안내 메시지 표시
+- 각 진행 이벤트마다 slow 타이머 리셋
+
+---
+
+## Phase 48: 뒤로가기 훅 #dialog hash 방식으로 완전 수정 (완료)
+**완료 일시:** 2026-03-06
+**커밋:** `532057f`
+
+### 배경
+Phase 47 수정 후에도 Samsung Android 일부 기기에서 뒤로가기 시 다이얼로그가 닫히지 않고 이전 페이지로 이동하는 문제 지속.
+
+### 근본 원인 분석
+- `history.pushState(state, '', 동일URL)` — URL 변화 없는 pushState는 일부 Samsung Android 브라우저에서 인터셉트 가능한 히스토리 엔트리로 인식하지 않아 무시됨
+- 결과: 뒤로가기가 훅을 건너뛰고 이전 페이지로 이동
+
+### 구현 내용 (`src/hooks/use-dialog-back-button.ts` 재작성)
+
+```typescript
+// URL hash를 추가해 실제 URL 변화 생성
+const base = window.location.pathname + window.location.search
+window.history.pushState({ vocalenzDialog: true }, '', base + '#dialog')
+```
+
+- `/vocabulary` → `/vocabulary#dialog` 실제 URL 변화 → 모든 Android 브라우저가 명확한 히스토리 엔트리로 처리
+- capture phase + `stopImmediatePropagation()` 유지 (Next.js 라우터 차단)
+- X버튼/배경 클릭 등 일반 닫기 시: cleanup에서 `history.back()` 호출로 `#dialog` 엔트리 제거
+
+---
+
+## Phase 49: 청해구문 image_text·paraphrasing 오류 수정 + DB 복구 기능 (완료)
+**완료 일시:** 2026-03-06
+**커밋:** `80d8d7b`
+
+### 배경
+- 청해구문 검색/업로드 시 `image_text`(연상 이미지)가 표시되지 않는 문제
+- `paraphrasing` 필드가 영어가 아닌 한글로 생성되는 문제
+- 기존 DB에 이미 저장된 잘못된 데이터도 수정 필요
+
+### 근본 원인 분석
+
+| 문제 | 원인 |
+|------|------|
+| image_text 없음 (일괄 업로드) | `bulk/route.ts` expressions insert 구문에 `image_text` 필드 자체 누락 (코드 버그) |
+| image_text 없음 (검색) | 프롬프트에서 image_text 강조 부족으로 GPT가 간혹 생략 |
+| paraphrasing 한글 | 프롬프트 JSON 예시에 한글 placeholder(`"같은 뜻의 다른 표현1"`) 사용 + 영어 전용 명시 없음 |
+
+### 구현 내용
+
+#### 프롬프트 강화 (`src/lib/expression-generator.ts`)
+- Rule 8 수정: "★ 반드시 영어로만 작성. 한국어 절대 금지. ★" + 영어 예시 추가
+- Rule 11 수정: "[필수 — 절대 생략 불가]" 강조, JSON 예시도 영어로 명시
+- JSON template의 paraphrasing 예시: `["같은 뜻의 다른 표현1"]` → `["English paraphrase 1", "English paraphrase 2"]`
+
+#### 코드 버그 수정 (`src/app/api/vocabulary/bulk/route.ts`)
+- expressions insert에 `image_text: exprData.image_text || null` 추가
+
+#### 기존 DB 일괄 복구 API (`src/app/api/admin/repair-expressions/route.ts`)
+- `GET`: image_text 없거나 paraphrasing에 한글 포함된 records 건수 + 미리보기 반환
+- `POST`: 대상 records를 GPT 재생성 후 전체 필드 업데이트, NDJSON 스트리밍으로 진행 상황 반환
+- 한글 감지: `/[가-힣]/` 정규식으로 paraphrasing 배열 각 항목 검사
+
+#### 관리자 페이지 "데이터 복구" 탭 (`src/app/(main)/admin/page.tsx`)
+- 6번째 탭으로 "데이터 복구" 추가 (탭 레이아웃 `grid-cols-5` → `grid-cols-3 sm:grid-cols-6`)
+- `RepairExpressionsTab` 컴포넌트: 수정 필요 건수 배지, 미리보기 목록, 복구 시작 버튼, 진행 바, 처리 로그 스크롤 뷰
+- 향후에도 관리자 페이지에서 언제든 재실행 가능
+
+---
+
 ## 개발 완료 후 운영 체크리스트
 
 | 항목 | 내용 | 상태 |

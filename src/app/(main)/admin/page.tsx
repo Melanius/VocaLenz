@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import {
   Search, Trash2, Save, Loader2, Users, BookOpen,
   BarChart3, CheckCircle2, ChevronLeft, ChevronRight, ArrowRight,
-  Upload, Download, FileText, AlertCircle, X, Wand2,
+  Upload, Download, FileText, AlertCircle, X, Wand2, Wrench,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -1309,6 +1309,214 @@ function MeaningCorrectionsTab() {
   )
 }
 
+// --- Repair Expressions ---
+interface RepairPreview {
+  expression: string
+  reasons: string[]
+}
+
+function RepairExpressionsTab() {
+  const [loadingCount, setLoadingCount] = useState(false)
+  const [total, setTotal] = useState<number | null>(null)
+  const [preview, setPreview] = useState<RepairPreview[]>([])
+  const [running, setRunning] = useState(false)
+  const [progress, setProgress] = useState(0)
+  const [progressTotal, setProgressTotal] = useState(0)
+  const [logs, setLogs] = useState<{ expression: string; status: string; reasons?: string[] }[]>([])
+  const [done, setDone] = useState<{ fixed: number; failed: number } | null>(null)
+  const logEndRef = useRef<HTMLDivElement>(null)
+
+  const fetchCount = useCallback(async () => {
+    setLoadingCount(true)
+    setTotal(null)
+    setPreview([])
+    try {
+      const res = await fetch('/api/admin/repair-expressions')
+      const data = await res.json()
+      setTotal(data.total ?? 0)
+      setPreview(data.preview ?? [])
+    } catch {
+      toast({ title: '조회 실패', variant: 'destructive' })
+    } finally {
+      setLoadingCount(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchCount()
+  }, [fetchCount])
+
+  useEffect(() => {
+    logEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [logs])
+
+  const handleRepair = async () => {
+    if (!total || total === 0) return
+    setRunning(true)
+    setDone(null)
+    setLogs([])
+    setProgress(0)
+    setProgressTotal(0)
+
+    try {
+      const res = await fetch('/api/admin/repair-expressions', { method: 'POST' })
+      if (!res.ok || !res.body) {
+        toast({ title: '복구 시작 실패', variant: 'destructive' })
+        setRunning(false)
+        return
+      }
+
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buf = ''
+
+      while (true) {
+        const { done: streamDone, value } = await reader.read()
+        if (streamDone) break
+        buf += decoder.decode(value, { stream: true })
+        const lines = buf.split('\n')
+        buf = lines.pop() ?? ''
+
+        for (const line of lines) {
+          if (!line.trim()) continue
+          try {
+            const evt = JSON.parse(line)
+            if (evt.type === 'start') {
+              setProgressTotal(evt.total)
+            } else if (evt.type === 'progress') {
+              setProgress(evt.current)
+              setProgressTotal(evt.total)
+              setLogs((prev) => [...prev, { expression: evt.expression, status: evt.status, reasons: evt.reasons }])
+            } else if (evt.type === 'complete') {
+              setDone({ fixed: evt.fixed, failed: evt.failed })
+              setTotal(0)
+              setPreview([])
+            }
+          } catch {
+            // ignore parse errors
+          }
+        }
+      }
+    } catch {
+      toast({ title: '복구 중 오류 발생', variant: 'destructive' })
+    } finally {
+      setRunning(false)
+    }
+  }
+
+  const pct = progressTotal > 0 ? Math.round((progress / progressTotal) * 100) : 0
+
+  return (
+    <div className="space-y-5">
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Wrench className="h-4 w-4" />
+            청해구문 데이터 복구
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            <code className="text-xs bg-muted px-1 py-0.5 rounded">image_text</code>가 없거나
+            {' '}<code className="text-xs bg-muted px-1 py-0.5 rounded">paraphrasing</code>에 한글이 포함된
+            expressions를 AI로 재생성합니다.
+          </p>
+
+          {/* 수정 필요 건수 */}
+          <div className="flex items-center gap-3">
+            {loadingCount ? (
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            ) : total !== null ? (
+              <div className="flex items-center gap-2">
+                <Badge variant={total > 0 ? 'destructive' : 'secondary'}>
+                  {total > 0 ? `${total}건 수정 필요` : '모두 정상'}
+                </Badge>
+                <Button variant="ghost" size="sm" onClick={fetchCount} className="h-7 text-xs">
+                  새로고침
+                </Button>
+              </div>
+            ) : null}
+          </div>
+
+          {/* 미리보기 */}
+          {preview.length > 0 && !running && !done && (
+            <div className="space-y-1 max-h-48 overflow-y-auto rounded-md border p-2 bg-muted/30">
+              <p className="text-xs font-medium text-muted-foreground mb-1.5">수정 대상 미리보기 (최대 20건)</p>
+              {preview.map((p, i) => (
+                <div key={i} className="flex items-center gap-2 text-xs py-0.5">
+                  <span className="font-medium min-w-0 truncate">{p.expression}</span>
+                  <div className="flex gap-1 shrink-0">
+                    {p.reasons.map((r) => (
+                      <Badge key={r} variant="outline" className="text-[10px] px-1.5 py-0">{r}</Badge>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* 복구 버튼 */}
+          {!done && (
+            <Button
+              onClick={handleRepair}
+              disabled={running || loadingCount || total === 0}
+              className="w-full"
+            >
+              {running ? (
+                <><Loader2 className="h-4 w-4 mr-2 animate-spin" />복구 중... ({progress}/{progressTotal})</>
+              ) : (
+                <><Wrench className="h-4 w-4 mr-2" />복구 시작</>
+              )}
+            </Button>
+          )}
+
+          {/* 진행 바 */}
+          {running && progressTotal > 0 && (
+            <div className="space-y-1">
+              <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+                <div
+                  className="h-2 bg-primary rounded-full transition-all duration-300"
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground text-right">{pct}%</p>
+            </div>
+          )}
+
+          {/* 완료 결과 */}
+          {done && (
+            <div className="rounded-md border bg-green-50 dark:bg-green-900/20 p-3 space-y-1">
+              <p className="text-sm font-medium text-green-800 dark:text-green-300">복구 완료</p>
+              <p className="text-xs text-green-700 dark:text-green-400">
+                성공 {done.fixed}건 / 실패 {done.failed}건
+              </p>
+              <Button variant="outline" size="sm" className="mt-2" onClick={() => { setDone(null); fetchCount() }}>
+                다시 확인
+              </Button>
+            </div>
+          )}
+
+          {/* 로그 */}
+          {logs.length > 0 && (
+            <div className="max-h-56 overflow-y-auto rounded-md border p-2 bg-muted/20 space-y-0.5">
+              <p className="text-xs font-medium text-muted-foreground mb-1">처리 로그</p>
+              {logs.map((log, i) => (
+                <div key={i} className="flex items-center gap-2 text-xs py-0.5">
+                  <span className={`shrink-0 font-medium ${log.status === 'fixed' ? 'text-green-600 dark:text-green-400' : log.status === 'failed' ? 'text-destructive' : 'text-muted-foreground'}`}>
+                    {log.status === 'fixed' ? '✓' : log.status === 'failed' ? '✗' : '…'}
+                  </span>
+                  <span className="truncate">{log.expression}</span>
+                </div>
+              ))}
+              <div ref={logEndRef} />
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
 // --- Main Admin Page ---
 export default function AdminPage() {
   const { user, profile, loading: authLoading } = useAuthContext()
@@ -1333,12 +1541,13 @@ export default function AdminPage() {
         <h1 className="text-2xl font-bold">관리자</h1>
 
         <Tabs defaultValue="dashboard">
-          <TabsList className="w-full grid grid-cols-5">
+          <TabsList className="w-full grid grid-cols-3 sm:grid-cols-6">
             <TabsTrigger value="dashboard">대시보드</TabsTrigger>
             <TabsTrigger value="words">단어 관리</TabsTrigger>
             <TabsTrigger value="reports">신고 관리</TabsTrigger>
             <TabsTrigger value="level-requests">Level 제안</TabsTrigger>
             <TabsTrigger value="meaning-corrections">의미 수정</TabsTrigger>
+            <TabsTrigger value="repair">데이터 복구</TabsTrigger>
           </TabsList>
 
           <TabsContent value="dashboard">
@@ -1359,6 +1568,10 @@ export default function AdminPage() {
 
           <TabsContent value="meaning-corrections">
             <MeaningCorrectionsTab />
+          </TabsContent>
+
+          <TabsContent value="repair">
+            <RepairExpressionsTab />
           </TabsContent>
         </Tabs>
       </div>

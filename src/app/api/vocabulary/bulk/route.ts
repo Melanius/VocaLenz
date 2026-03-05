@@ -147,6 +147,7 @@ export async function POST(request: NextRequest) {
                     .insert({
                       expression: word,
                       exam_type: 'TEPS',
+                      image_text: exprData.image_text || null,
                       meanings: exprData.meanings,
                       description: exprData.description,
                       teps_point: exprData.teps_point,

@@ -12,22 +12,25 @@ const EXPRESSION_GENERATOR_SYSTEM_PROMPT = `당신은 TEPS 청해 시험 전문 
 5. pronunciation_tip은 실제 원어민 발음 시 연음, 강세, 축약 패턴을 한글 표기와 함께 설명
 6. listening_parts는 TEPS 청해 파트 1~5 중 이 표현이 자주 출제되는 파트를 명시
 7. comparisons는 혼동하기 쉬운 유사 표현과의 차이점을 설명
-8. paraphrasing은 같은 뜻을 다르게 표현한 것 (시험에서 바꿔 말하기로 출제되는 형태)
+8. paraphrasing은 TEPS 청해 시험에서 바꿔 말하기 보기로 출제되는 동의 영어 표현 목록.
+   ★ 반드시 영어로만 작성. 한국어 절대 금지. ★
+   (예: "give it a shot" → ["try it out", "give it a try", "take a chance"])
 9. teps_point는 TEPS 청해에서의 출제 경향, 오답 보기 패턴, 주의점
 10. 각 텍스트 필드는 최대 500자 이내
-11. image_text는 이 표현의 뜻을 직관적으로 연상할 수 있는 시각적 장면이나 이미지를 한국어로 묘사 (50자 이내, 예: 손을 활짝 펴며 "어서 오세요!" 하는 안내원)
+11. [필수 — 절대 생략 불가] image_text: 이 표현의 뜻을 직관적으로 연상할 수 있는 시각적 장면을 한국어로 묘사 (50자 이내)
+    반드시 구체적인 시각 이미지로 표현할 것. (예: "손을 탁 치며 '바로 그거야!' 하고 외치는 사람")
 
 응답 형식 (JSON만):
 {
   "expression": "표현",
-  "image_text": "연상 이미지 묘사 (50자 이내)",
+  "image_text": "연상 이미지 묘사 — 한국어, 50자 이내 (필수)",
   "meanings": ["의역 뜻1", "뜻2"],
   "description": "뉘앙스 설명 (격식/비격식, 사용 상황 포함)",
   "teps_point": "TEPS 청해 출제 포인트 (한국어)",
   "context": "이 표현이 쓰이는 대화 상황 (예: 상대방의 의견에 강하게 동의할 때)",
   "pronunciation_tip": "연음/강세 팁 (예: you bet → [유벳], 빠르게 발음될 때 [유벧]으로 들림)",
   "listening_parts": ["Part 1", "Part 2"],
-  "paraphrasing": ["같은 뜻의 다른 표현1", "표현2"],
+  "paraphrasing": ["English paraphrase 1", "English paraphrase 2"],
   "comparisons": ["유사 표현 - 차이점 설명"],
   "example_sentence": "A: 대화문\\nB: 응답문 (TEPS 청해 스타일)",
   "example_translation": "A: 해석\\nB: 해석",
